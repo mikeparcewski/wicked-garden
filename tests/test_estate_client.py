@@ -1820,3 +1820,75 @@ def test_unresolved_diagnostic_names_the_store_and_index_remedy(monkeypatch, sto
     assert (store or "estate's default store") in line
     assert "wicked-estate index" in line and "--db" in line
 
+
+# cx-shim2 DES: garden#1492, #1493 — relay failures and per-thread diagnostics.
+
+def test_last_failure_is_local_to_the_calling_thread(pinned_graph):
+    failed = threading.Barrier(2, timeout=5)
+    succeeded = threading.Barrier(2, timeout=5)
+
+    def dispatch(requests, *, db, timeout):
+        if requests[-1]["params"]["arguments"]["name"] == "fail":
+            return {}
+        return {1: json.loads(_INIT_LINE), 2: _envelope({"matches": []})}
+
+    _estate_client.set_dispatch(dispatch)
+
+    def failing_reader():
+        result = _estate_client.call("SearchEntity", {"name": "fail"})
+        failed.wait()
+        succeeded.wait()
+        return result, _estate_client.last_failure()
+
+    def successful_reader():
+        failed.wait()
+        result = _estate_client.call("SearchEntity", {"name": "ok"})
+        succeeded.wait()
+        return result, _estate_client.last_failure()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        failure = pool.submit(failing_reader)
+        success = pool.submit(successful_reader)
+        failed_result, failed_detail = failure.result(timeout=10)
+        successful_result, successful_detail = success.result(timeout=10)
+
+    assert failed_result is None
+    assert failed_detail == {
+        "kind": "unavailable",
+        "reason": "estate did not start: no handshake (binary missing, timed out, or exited)",
+    }
+    assert successful_result == {"matches": []}
+    assert successful_detail is None
+
+
+def test_spawn_transport_uses_utf8_with_replacement(monkeypatch):
+    captured = {}
+
+    class Proc:
+        returncode = 0
+
+        def communicate(self, input=None, timeout=None):
+            return _INIT_LINE + "\n", ""
+
+    def popen(argv, **kwargs):
+        captured.update(kwargs)
+        return Proc()
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", popen)
+    assert 1 in _estate_client._dispatch([_estate_client._initialize_request()], db=None, timeout=1)
+    assert captured.get("encoding") == "utf-8"
+    assert captured.get("errors") == "replace"
+    assert "text" not in captured
+
+
+def test_governed_python_call_keeps_the_no_pin_refusal(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-no-pin")
+    _estate_client.set_dispatch(_estate_client._dispatch)
+    reason = _estate_client.governed_refusal()
+    assert reason and "no estate store is pinned" in reason
+    # A memory read reaches _dispatch: the graph guard must not mask this refusal.
+    assert _estate_client.call("memory.recall", {"query": "x"}) is None
+    assert _estate_client.last_failure() == {"kind": "refused", "reason": reason}
+

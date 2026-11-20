@@ -473,7 +473,7 @@ def parse_cli_flags(argv: list) -> list:
 # Transport seam — spawn-per-call today; swappable for a broker later
 # ─────────────────────────────────────────────────────────────────────────────
 
-_last_failure: Optional[dict] = None
+_failure_state = threading.local()
 
 
 class EstateUnavailable(Exception):
@@ -481,15 +481,18 @@ class EstateUnavailable(Exception):
 
 
 def last_failure() -> Optional[dict]:
-    """Failure from the latest RPC, or None for a completed answer."""
-    return _last_failure
+    """Failure from this thread's latest RPC, or None for a completed answer."""
+    return getattr(_failure_state, "value", None)
+
+
+def _set_failure(value: Optional[dict]) -> None:
+    _failure_state.value = value
 
 
 def _unavailable(stderr: str = "") -> None:
-    global _last_failure
     detail = next((line.strip()[:300] for line in reversed(stderr.splitlines()) if line.strip()),
                   "no handshake (binary missing, timed out, or exited)")
-    _last_failure = {"kind": "unavailable", "reason": f"estate did not start: {detail}"}
+    _set_failure({"kind": "unavailable", "reason": f"estate did not start: {detail}"})
 
 
 def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
@@ -505,7 +508,9 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     dead call and degrades. A governed run with no pinned store never spawns
     (`governed_refusal`).
     """
-    if governed_refusal():
+    refusal = governed_refusal()
+    if refusal:
+        _set_failure({"kind": "refused", "reason": refusal})
         return {}
     exe = resolve_mcp_bin()
     if not exe:
@@ -519,7 +524,8 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (OSError, ValueError):
         _unavailable()
@@ -1045,12 +1051,11 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
       3. <method>                  (id=2)  ← the response we return
     Returns the id=2 response dict, or None if the call did not round-trip.
     """
-    global _last_failure
-    _last_failure = None
+    _set_failure(None)
     tool = params.get("name") if method == "tools/call" else None
     refusal = graph_refusal(tool) if isinstance(tool, str) else None
     if refusal:
-        _last_failure = {"kind": "refused", "reason": refusal}
+        _set_failure({"kind": "refused", "reason": refusal})
         return None
     requests = [
         _initialize_request(),
@@ -1060,15 +1065,18 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
     dispatch = _transport(tool if isinstance(tool, str) else None)
     responses = dispatch(requests, db=resolve_db(), timeout=timeout)
     if 1 not in responses:  # handshake never landed → estate unreachable
-        if _last_failure is None and dispatch is not _broker_dispatch:
-            _unavailable()
+        if last_failure() is None:
+            if dispatch is _broker_dispatch and _last_broker_refusal:
+                _set_failure({"kind": "unavailable", "reason": _last_broker_refusal})
+            else:
+                _unavailable()
         return None
     response = responses.get(2)
     if dispatch is not _broker_dispatch and (
         not isinstance(response, dict)
         or (not isinstance(response.get("result"), dict) and not isinstance(response.get("error"), dict))
     ):
-        _last_failure = {"kind": "unavailable", "reason": "estate answered the handshake but not the call"}
+        _set_failure({"kind": "unavailable", "reason": "estate answered the handshake but not the call"})
         return None
     return response
 
@@ -1088,12 +1096,11 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
 
     Returns (None, []) on error / isError=true / a malformed envelope shape.
     """
-    global _last_failure
     if not isinstance(envelope, dict):
         return None, []
     error = envelope.get("error")
     if isinstance(error, dict):
-        _last_failure = {"kind": "error", "text": error.get("message") or "", "diagnostics": []}
+        _set_failure({"kind": "error", "text": error.get("message") or "", "diagnostics": []})
         return None, []
     result = envelope.get("result")
     if not isinstance(result, dict):
@@ -1107,7 +1114,7 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
         if isinstance(more, str):
             diagnostics.extend(line for line in more.split("\n") if line.strip())
     if result.get("isError"):
-        _last_failure = {"kind": "error", "text": text or "", "diagnostics": diagnostics}
+        _set_failure({"kind": "error", "text": text or "", "diagnostics": diagnostics})
         return None, []
     if text is None:
         return None, []
@@ -1276,7 +1283,7 @@ _UNRESOLVED_LINE = ("UNRESOLVED: estate resolved no symbol for the target (resol
                     "from `suggestions` or SearchEntity")
 
 
-def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
+def flag_unresolved(blocks: Optional[dict], tool: Optional[str] = None) -> Optional[dict]:
     """Label an answer estate marks `resolved: false` with the `UNRESOLVED:` diagnostic, on every
     `call` path (joined pages, one page, or a tool that does not page), so a miss never reads as
     an empty answer. Anything else is returned unchanged."""
@@ -1284,10 +1291,13 @@ def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
         return blocks
     if blocks["result"].get("resolved") is False:
         diagnostics = list(blocks.get("diagnostics") or [])
-        store = resolve_db() or "estate's default store"
-        line = (f"{_UNRESOLVED_LINE}. Store searched: {store}; "
-                "index the repository with `wicked-estate index <repo> --db <path>`, "
-                "or pin `--db <path>` to its graph")
+        relayed = _transport(tool) is _broker_dispatch
+        store = ("the run's own graph (answered by crew's broker)" if relayed else
+                 resolve_db() or "estate's default store")
+        line = f"{_UNRESOLVED_LINE}. Store searched: {store}"
+        if not relayed:
+            line += ("; index the repository with `wicked-estate index <repo> --db <path>`, "
+                     "or pin `--db <path>` to its graph")
         if line not in diagnostics:
             diagnostics.append(line)
         return {**blocks, "diagnostics": diagnostics}
@@ -1729,7 +1739,7 @@ def main(argv: list) -> int:
             else:
                 _emit({"error": failure["text"], "diagnostics": failure["diagnostics"]})
             return 1
-        blocks = flag_unresolved(blocks)
+        blocks = flag_unresolved(blocks, tool)
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":

@@ -179,6 +179,78 @@ def test_an_unreachable_broker_degrades_with_a_reason(monkeypatch):
     assert _estate_client.propose("memory", {"content": "x"}, {"project": "p"})["code"] is None
 
 
+@pytest.fixture()
+def dead_relay(monkeypatch):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    _no_local_spawn(monkeypatch)
+
+    def unreachable(*args, **kwargs):
+        raise _estate_client.urllib.error.URLError("relay offline")
+
+    monkeypatch.setattr(_estate_client.urllib.request, "urlopen", unreachable)
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_unreachable_relay_graph_consumers_raise(dead_relay, method):
+    with pytest.raises(_estate_client.EstateUnavailable, match="did not answer"):
+        getattr(_estate_client, method)("x")
+    assert _estate_client.last_failure() == {
+        "kind": "unavailable", "reason": _estate_client._last_broker_refusal}
+
+
+@pytest.mark.parametrize("action", ["search", "context"])
+def test_cli_unreachable_relay_graph_consumers_fail(dead_relay, capsys, action):
+    code = _estate_client.main([action, '{"query":"x"}'])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert out["ok"] is False
+    assert "did not answer" in out["reason"]
+
+
+def test_cli_unreachable_relay_call_keeps_its_empty_contract(dead_relay, capsys):
+    assert _estate_client.main(["call", '{"tool":"SearchEntity"}']) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["result"] is None
+    assert "did not answer" in out["broker_refusal"]
+
+
+def test_unreachable_relay_without_a_reason_records_generic_failure(dead_relay, monkeypatch):
+    monkeypatch.setattr(_estate_client, "_broker_post", lambda *args: (None, None, None))
+    with pytest.raises(_estate_client.EstateUnavailable, match="no handshake"):
+        _estate_client.search("x")
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+
+
+@pytest.mark.parametrize("tool", ["SearchEntity", "rules.recall"])
+def test_unresolved_relay_names_the_runs_graph(monkeypatch, tool):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")
+    if tool == "rules.recall":
+        # On a pinned host seat this tool still relays: the tool must select the transport.
+        monkeypatch.delenv(_estate_client.BROKER_ENV)
+        monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+    blocks = _estate_client.flag_unresolved(
+        {"result": {"resolved": False}, "diagnostics": []}, tool=tool)
+    line, = blocks["diagnostics"]
+    assert "Store searched: the run's own graph (answered by crew's broker)" in line
+    assert ":memory:" not in line
+    assert "--db" not in line
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_unresolved_relay_names_the_runs_graph(monkeypatch, capsys, all_pages):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    monkeypatch.setattr(_estate_client, "_broker_post", lambda *args: (200, {
+        "outcome": "ok", "result": {"content": [
+            {"type": "text", "text": '{"resolved":false}'}]}}, None))
+    assert _estate_client.main(["call", json.dumps({
+        "tool": "BlastRadius", "all_pages": all_pages})]) == 0
+    out = json.loads(capsys.readouterr().out)
+    line, = out["diagnostics"]
+    assert "Store searched: the run's own graph (answered by crew's broker)" in line
+    assert "--db" not in line
+
+
 def test_an_unpinned_governed_unit_with_the_channel_relays_even_without_the_marker(monkeypatch, broker):
     monkeypatch.setenv("WICKED_RUN_ID", "run-1")
     monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
@@ -351,7 +423,7 @@ def test_persistent_start_failure_survives_unreadable_stderr():
     stderr = UnreadableStderr()
     proc = SimpleNamespace(kill=lambda: None, wait=lambda **kwargs: None)
     persistent = _estate_client._PersistentBroker()
-    _estate_client._last_failure = None
+    _estate_client._set_failure(None)
     persistent._start_failed(proc, stderr)
     assert stderr.closed
     assert _estate_client.last_failure() == {

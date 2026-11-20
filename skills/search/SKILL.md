@@ -151,7 +151,9 @@ files import this file" — no longer an empty "no resolved dependents".
    when `complete` is `true`. `resolved: false` is a miss (see above), not a partial answer;
    otherwise `complete: false` means a page failed or a depth/node cap cut the walk (see
    `diagnostics`), and you report it as partial. A missing `complete` (an older estate) means
-   read `truncated` and `next_cursor` yourself; `"result": null` means estate is not available.
+   read `truncated` and `next_cursor` yourself. RPC failure is `{"ok": false, "reason": …}`
+   with exit 1; a tool error is `{"error": …, "diagnostics": [...]}` with exit 1.
+   Relay refusals on `call` still return `"result": null` with `broker_refusal` and exit 0.
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
@@ -181,7 +183,7 @@ estate default 24 for `Lineage` and 8 for `BlastRadius`, max 24).
      `dependencies` are the consumers and `flows` the hops). Lineage's default depth is its
      ceiling (24), and the shim follows `next_cursor` to the end of the answer (estate#279):
      check `resolved` first (`false` is a miss, above), then `complete`, and report a `false` as
-     partial (a missing `complete` or `"result": null`: as in § Blast radius step 3).
+     partial (a missing `complete`, RPC failure, tool error or relay refusal: see § Blast radius step 3).
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
      `{"symbol": "<name>"}` → `dependents`.
    - **both**: run both and present each direction. (A bounded multi-hop walk
