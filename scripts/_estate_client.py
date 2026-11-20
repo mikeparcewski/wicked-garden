@@ -92,11 +92,13 @@ comes back empty, with the reason.
 
 Fail-open contract
 ------------------
-Every public function is fail-open: on a missing binary, spawn failure,
-timeout, non-zero exit, malformed JSON, or a tool `isError`, it returns a safe
-empty value (`False` / `None` / `[]`) and never raises. Hooks degrade; they do
-not crash. The governed refusal above is the one deliberate "do not even try":
-it still returns the empty value — the CLI surfaces the reason as
+Low-level calls are fail-open: on a missing binary, spawn failure, timeout,
+non-zero exit, malformed JSON, or a tool `isError`, they return a safe empty
+value (`False` / `None` / `[]`). `last_failure()` distinguishes unavailable,
+refused and errored calls from completed empty answers. The graph consumers
+`search` and `context` raise `EstateUnavailable` when a failure is recorded;
+CLI `call` surfaces a tool `isError` as ``{"error": …, "diagnostics": [...]}``,
+while unavailable/refused and `search`/`context` failures surface as
 ``{"ok": false, "reason": …}``.
 
 Cross-platform
@@ -113,6 +115,7 @@ import queue
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.error
 import urllib.request
@@ -470,6 +473,25 @@ def parse_cli_flags(argv: list) -> list:
 # Transport seam — spawn-per-call today; swappable for a broker later
 # ─────────────────────────────────────────────────────────────────────────────
 
+_last_failure: Optional[dict] = None
+
+
+class EstateUnavailable(Exception):
+    """A graph consumer could not obtain an answer from estate."""
+
+
+def last_failure() -> Optional[dict]:
+    """Failure from the latest RPC, or None for a completed answer."""
+    return _last_failure
+
+
+def _unavailable(stderr: str = "") -> None:
+    global _last_failure
+    detail = next((line.strip()[:300] for line in reversed(stderr.splitlines()) if line.strip()),
+                  "no handshake (binary missing, timed out, or exited)")
+    _last_failure = {"kind": "unavailable", "reason": f"estate did not start: {detail}"}
+
+
 def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     """Spawn-per-call transport. Return {id: response} for id-bearing requests.
 
@@ -487,6 +509,7 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
         return {}
     exe = resolve_mcp_bin()
     if not exe:
+        _unavailable()
         return {}
     argv = mcp_argv(exe, db)
     payload = "".join(json.dumps(r, separators=(",", ":")) + "\n" for r in requests)
@@ -495,25 +518,28 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             argv,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
         )
     except (OSError, ValueError):
+        _unavailable()
         return {}
     try:
-        out, _ = proc.communicate(input=payload, timeout=timeout)
+        out, stderr = proc.communicate(input=payload, timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
         try:
-            proc.communicate(timeout=2)
+            _, stderr = proc.communicate(timeout=2)
         except Exception:
-            pass
+            stderr = ""
+        _unavailable(stderr or "")
         return {}
     except (OSError, ValueError):
         try:
             proc.kill()
         except Exception:
             pass
+        _unavailable()
         return {}
 
     # Fail-open contract: a non-zero exit means the server died mid-batch —
@@ -521,6 +547,7 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     # hand back a partial round-trip as success. (A clean stdin-EOF shutdown
     # exits 0; wicked-estate-mcp's main loop returns Ok(()) on EOF.)
     if proc.returncode != 0:
+        _unavailable(stderr or "")
         return {}
 
     responses: dict = {}
@@ -534,6 +561,8 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             continue
         if isinstance(obj, dict) and "id" in obj and obj["id"] is not None:
             responses[obj["id"]] = obj
+    if 1 not in responses:
+        _unavailable(stderr or "")
     return responses
 
 
@@ -580,6 +609,7 @@ class _PersistentBroker:
     def __init__(self) -> None:
         self._lock: threading.Lock = threading.Lock()
         self._proc: Optional[subprocess.Popen] = None   # type: ignore[type-arg]
+        self._stderr: Optional[Any] = None              # startup diagnostics, never a pipe that can fill
         self._init_resp: Optional[dict] = None           # cached after handshake
         self._db: Optional[str] = None                   # db the process was started with
         self._readonly: bool = False                      # mode the process was started in
@@ -594,6 +624,7 @@ class _PersistentBroker:
         """Spawn and handshake. Returns True on success; cleans up on failure."""
         exe = resolve_mcp_bin()
         if not exe:
+            _unavailable()
             return False
         readonly = read_only()
         argv = mcp_argv(exe, db)
@@ -604,14 +635,21 @@ class _PersistentBroker:
         self._q = queue.Queue()
 
         try:
+            stderr = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
+        except OSError as exc:
+            _unavailable(f"cannot capture estate stderr: {exc}")
+            return False
+        try:
             proc = subprocess.Popen(
                 argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=stderr,
                 text=True,
             )
         except (OSError, ValueError):
+            stderr.close()
+            _unavailable()
             return False
 
         # Start the reader thread *before* writing so no response line is lost.
@@ -629,33 +667,51 @@ class _PersistentBroker:
             proc.stdin.write(json.dumps(notif, separators=(",", ":")) + "\n")
             proc.stdin.flush()
         except OSError:
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
 
         # Read and validate the initialize response (5 s timeout — not the
         # caller's timeout; this is the one-time startup handshake).
         line = self._dequeue(5.0)
         if line is None:
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
         try:
             resp = json.loads(line)
         except json.JSONDecodeError:
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
         if not (
             isinstance(resp, dict)
             and isinstance(resp.get("result"), dict)
             and resp["result"].get("serverInfo", {}).get("name") == "wicked-estate"
         ):
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
 
         self._proc = proc
+        if self._stderr is not None:
+            self._stderr.close()
+        self._stderr = stderr
         self._init_resp = resp
         self._db = db
         self._readonly = readonly
         return True
+
+    def _start_failed(self, proc: subprocess.Popen, stderr: Any) -> None:
+        self._kill(proc)
+        try:
+            proc.wait(timeout=2)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        _unavailable()
+        try:
+            stderr.seek(0)
+            _unavailable(stderr.read())
+        except (OSError, ValueError):
+            pass  # Capturing diagnostics must not hide the startup failure.
+        finally:
+            stderr.close()
 
     @staticmethod
     def _reader_loop(stdout: Any, q: "queue.Queue[tuple]") -> None:
@@ -699,6 +755,9 @@ class _PersistentBroker:
         proc = self._proc
         self._proc = None
         self._init_resp = None
+        if self._stderr is not None:
+            self._stderr.close()
+            self._stderr = None
         if proc is None:
             return
         try:
@@ -816,6 +875,7 @@ class _PersistentBroker:
             result = self._exchange(real, timeout=timeout)
             if result is None:
                 self._failed = True
+                self._close()
                 return {}
 
         return {1: self._init_resp, **result}
@@ -985,16 +1045,32 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
       3. <method>                  (id=2)  ← the response we return
     Returns the id=2 response dict, or None if the call did not round-trip.
     """
+    global _last_failure
+    _last_failure = None
+    tool = params.get("name") if method == "tools/call" else None
+    refusal = graph_refusal(tool) if isinstance(tool, str) else None
+    if refusal:
+        _last_failure = {"kind": "refused", "reason": refusal}
+        return None
     requests = [
         _initialize_request(),
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
-    tool = params.get("name") if method == "tools/call" else None
-    responses = _transport(tool if isinstance(tool, str) else None)(requests, db=resolve_db(), timeout=timeout)
+    dispatch = _transport(tool if isinstance(tool, str) else None)
+    responses = dispatch(requests, db=resolve_db(), timeout=timeout)
     if 1 not in responses:  # handshake never landed → estate unreachable
+        if _last_failure is None and dispatch is not _broker_dispatch:
+            _unavailable()
         return None
-    return responses.get(2)
+    response = responses.get(2)
+    if dispatch is not _broker_dispatch and (
+        not isinstance(response, dict)
+        or (not isinstance(response.get("result"), dict) and not isinstance(response.get("error"), dict))
+    ):
+        _last_failure = {"kind": "unavailable", "reason": "estate answered the handshake but not the call"}
+        return None
+    return response
 
 
 def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]":
@@ -1012,15 +1088,27 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
 
     Returns (None, []) on error / isError=true / a malformed envelope shape.
     """
+    global _last_failure
     if not isinstance(envelope, dict):
         return None, []
+    error = envelope.get("error")
+    if isinstance(error, dict):
+        _last_failure = {"kind": "error", "text": error.get("message") or "", "diagnostics": []}
+        return None, []
     result = envelope.get("result")
-    if not isinstance(result, dict) or result.get("isError"):
+    if not isinstance(result, dict):
         return None, []
     content = result.get("content")
-    if not isinstance(content, list) or not content:
+    content = content if isinstance(content, list) else []
+    text = content[0].get("text") if content and isinstance(content[0], dict) else None
+    diagnostics: list[str] = []
+    for block in content[1:]:
+        more = block.get("text") if isinstance(block, dict) else None
+        if isinstance(more, str):
+            diagnostics.extend(line for line in more.split("\n") if line.strip())
+    if result.get("isError"):
+        _last_failure = {"kind": "error", "text": text or "", "diagnostics": diagnostics}
         return None, []
-    text = content[0].get("text") if isinstance(content[0], dict) else None
     if text is None:
         return None, []
     try:
@@ -1028,11 +1116,6 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
     except (json.JSONDecodeError, TypeError):
         # Some tools may return plain text; hand it back verbatim.
         payload = text
-    diagnostics: list[str] = []
-    for block in content[1:]:
-        more = block.get("text") if isinstance(block, dict) else None
-        if isinstance(more, str):
-            diagnostics.extend(line for line in more.split("\n") if line.strip())
     return payload, diagnostics
 
 
@@ -1147,8 +1230,13 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
         page = call_blocks(tool, {**args, "cursor": cursor}, timeout=timeout)
         if page is None or not isinstance(page.get("result"), dict):
             complete = False
+            failure = last_failure() or {}
+            for diagnostic in failure.get("diagnostics", []):
+                if diagnostic not in diagnostics:
+                    diagnostics.append(diagnostic)
+            reason = failure.get("text") or failure.get("reason")
             diagnostics.append(f"PAGING: page {pages + 1} failed; the answer is INCOMPLETE "
-                               f"(only {pages} page(s) joined)")
+                               f"(only {pages} page(s) joined)" + (f": {reason}" if reason else ""))
             break
         pages += 1
         result = page["result"]
@@ -1196,8 +1284,12 @@ def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
         return blocks
     if blocks["result"].get("resolved") is False:
         diagnostics = list(blocks.get("diagnostics") or [])
-        if _UNRESOLVED_LINE not in diagnostics:
-            diagnostics.append(_UNRESOLVED_LINE)
+        store = resolve_db() or "estate's default store"
+        line = (f"{_UNRESOLVED_LINE}. Store searched: {store}; "
+                "index the repository with `wicked-estate index <repo> --db <path>`, "
+                "or pin `--db <path>` to its graph")
+        if line not in diagnostics:
+            diagnostics.append(line)
         return {**blocks, "diagnostics": diagnostics}
     return blocks
 
@@ -1229,9 +1321,13 @@ def search(name: str, limit: int = 20, timeout: float = 8.0) -> list:
 
     NOTE: estate's SearchEntity is graph-symbol search (name substring), which
     is narrower than brain's FTS-over-documents. S4 owns the exact semantic
-    mapping for each hook; S2 only guarantees the seam is reachable. Fail-open.
+    mapping for each hook; S2 only guarantees the seam is reachable.
+    Raises EstateUnavailable when estate failed or refused the read.
     """
     payload = call("SearchEntity", {"name": name, "limit": limit}, timeout=timeout)
+    failure = last_failure()
+    if failure:
+        raise EstateUnavailable(failure.get("reason") or failure.get("text"))
     if isinstance(payload, dict):
         matches = payload.get("matches")
         return matches if isinstance(matches, list) else []
@@ -1247,7 +1343,8 @@ def context(
     """Packed context bundle → estate `ContextBundle`.
 
     Provide exactly one seed: `query` (FTS text; top hit is used) or `symbol`
-    (stable SymbolId). Returns the parsed bundle, or None. Fail-open.
+    (stable SymbolId). Returns the parsed bundle, or None for a completed empty
+    answer. Raises EstateUnavailable when estate failed or refused the read.
     """
     args: dict = {"budget": budget}
     if symbol:
@@ -1256,7 +1353,11 @@ def context(
         args["query"] = query
     else:
         return None
-    return call("ContextBundle", args, timeout=timeout)
+    payload = call("ContextBundle", args, timeout=timeout)
+    failure = last_failure()
+    if failure:
+        raise EstateUnavailable(failure.get("reason") or failure.get("text"))
+    return payload
 
 
 def _worktree_main(git_file: Path) -> Optional[Path]:
@@ -1473,8 +1574,8 @@ def stats(timeout: float = 8.0) -> Optional[dict]:
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI — the `wicked-estate-call` entry for non-Python / shell / markdown callers
 #   python3 scripts/_estate_client.py [--readonly] [--governed] [--db <path>] <action> [json-args]
-# Prints JSON to stdout; exit 0 always on a clean (even empty) result, 1 only on
-# a usage error. Never crashes a caller.
+# Prints JSON to stdout; completed empty answers exit 0, usage and local estate
+# failures exit 1. Existing pre-dispatch refusals keep their fail-open exit 0.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _USAGE = (
@@ -1556,6 +1657,12 @@ def main(argv: list) -> int:
     if not isinstance(args, dict):
         _emit({"error": f"json-args must be a JSON object, got {type(args).__name__}; {_USAGE}"})
         return 1
+    if action == "call":
+        unknown = sorted(set(args) - {"tool", "name", "arguments", "all_pages"})
+        if unknown:
+            _emit({"error": "unknown key " + ", ".join(repr(key) for key in unknown)
+                            + '; the call takes "arguments"'})
+            return 1
     # A code-graph read with no graph behind it is refused, never answered empty (wicked-garden#1478).
     graph_tool = {"search": "SearchEntity", "context": "ContextBundle", "stats": "SearchEntity"}.get(action)
     if action == "call":
@@ -1574,11 +1681,27 @@ def main(argv: list) -> int:
         _emit(stats() or {})
     elif action == "search":
         name = args.get("name") or args.get("query") or args.get("_", "")
-        _emit({"matches": search(name, int(args.get("limit", 20)))})
+        try:
+            _emit({"matches": search(name, int(args.get("limit", 20)))})
+        except EstateUnavailable as exc:
+            failure = last_failure() or {}
+            out = {"ok": False, "reason": str(exc)}
+            if failure.get("kind") == "error" and failure.get("diagnostics"):
+                out["diagnostics"] = failure["diagnostics"]
+            _emit(out)
+            return 1
     elif action == "context":
-        _emit(context(query=args.get("query") or args.get("_"),
-                      symbol=args.get("symbol"),
-                      budget=int(args.get("budget", 8000))) or {})
+        try:
+            _emit(context(query=args.get("query") or args.get("_"),
+                          symbol=args.get("symbol"),
+                          budget=int(args.get("budget", 8000))) or {})
+        except EstateUnavailable as exc:
+            failure = last_failure() or {}
+            out = {"ok": False, "reason": str(exc)}
+            if failure.get("kind") == "error" and failure.get("diagnostics"):
+                out["diagnostics"] = failure["diagnostics"]
+            _emit(out)
+            return 1
     elif action == "recall":
         q = args.get("query") or args.get("_", "")
         _emit({"items": recall(q, args.get("scope", ""), int(args.get("token_budget", 2000)),
@@ -1599,6 +1722,13 @@ def main(argv: list) -> int:
             blocks = call_blocks(tool, args.get("arguments", {}))
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
+        failure = last_failure()
+        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _last_broker_refusal):
+            if failure["kind"] in ("unavailable", "refused"):
+                _emit({"ok": False, "reason": failure["reason"]})
+            else:
+                _emit({"error": failure["text"], "diagnostics": failure["diagnostics"]})
+            return 1
         blocks = flag_unresolved(blocks)
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})

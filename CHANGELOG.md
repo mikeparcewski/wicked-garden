@@ -8,6 +8,8 @@
 
 ### Fixed
 
+- **Estate shim failures stay distinguishable from empty answers (garden#1480, #1479, #1473, #1476).** Startup failures report the last stderr line, Python graph reads refuse an unpinned store at the shared RPC boundary, and `search` / `context` raise `EstateUnavailable` on failure. CLI calls report tool errors with their diagnostics and reject unknown keys with the `arguments` spelling; unresolved targets name the searched store and the index or pin remedy. Low-level Python calls remain fail-open with `last_failure()` details.
+
 - **estate shim: team mode with no store URL refuses a graph read too (garden#1482).** #1478 left the team profile
   to estate whenever no `--db` was forwarded, so `WICKED_RUNTIME=team` with no `WICKED_STORE_URL` still answered
   `{"matches": []}`. The team exemption now needs a non-blank `WICKED_STORE_URL`; without it the read is refused like

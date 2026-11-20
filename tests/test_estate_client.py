@@ -40,6 +40,12 @@ def _restore_dispatch():
     _estate_client.set_dispatch(original)
 
 
+@pytest.fixture()
+def pinned_graph(monkeypatch):
+    """Transport tests use an explicit graph so graph refusal cannot mask their subject."""
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")
+
+
 # ── minimal fake MCP server (used in broker integration tests) ────────────────
 # Written to a tempfile and invoked via sys.executable so it runs on any OS
 # that has Python — no shebang dependency, no chmod required on Windows.
@@ -136,24 +142,28 @@ def test_resolve_mcp_bin_env_override(tmp_path, monkeypatch):
 # Fail-open — an unreachable estate must degrade, never raise
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_fail_open_when_transport_dead(monkeypatch):
-    """Transport returns {} (nothing round-tripped) → safe empty values."""
+def test_fail_open_when_transport_dead(monkeypatch, pinned_graph):
+    """Graph consumers report unavailability; low-level and memory calls stay fail-open."""
     _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
     assert _estate_client.health() is False
-    assert _estate_client.search("anything") == []
+    with pytest.raises(_estate_client.EstateUnavailable, match="estate did not start"):
+        _estate_client.search("anything")
     assert _estate_client.recall("anything") == []
     assert _estate_client.knowledge_recall("anything") is None
     assert _estate_client.call("SearchEntity", {"name": "x"}) is None
     assert _estate_client.list_tools() == []
 
 
-def test_fail_open_when_bin_missing(tmp_path, monkeypatch):
+def test_fail_open_when_bin_missing(tmp_path, monkeypatch, pinned_graph):
     """No binary anywhere → real _dispatch returns {}, health False, no raise."""
     monkeypatch.setenv("WICKED_ESTATE_MCP_BIN", "")
     monkeypatch.setenv("WICKED_ESTATE_BIN", "")
     monkeypatch.setattr(_estate_client, "_which_or_local", lambda name: None)
     assert _estate_client.health() is False
-    assert _estate_client.search("x") == []
+    with pytest.raises(_estate_client.EstateUnavailable, match="estate did not start"):
+        _estate_client.search("x")
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    assert "estate did not start" in _estate_client.last_failure()["reason"]
     assert _estate_client.stats() is None
 
 
@@ -311,7 +321,7 @@ def test_propose_does_not_mutate_callers_facets(monkeypatch):
 # The transport seam — a broker can replace spawn-per-call transparently
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_broker_seam_swaps_transport_without_touching_callers():
+def test_broker_seam_swaps_transport_without_touching_callers(pinned_graph):
     """`set_dispatch` installs a fake transport; the public API routes through
     it unchanged — the exact property that lets a persistent broker replace
     spawn-per-call later. No subprocess is spawned here."""
@@ -336,7 +346,7 @@ def test_broker_seam_swaps_transport_without_touching_callers():
 # Persistent broker — drop-in contract, thread-safety, reconnect/degrade
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_persistent_broker_is_drop_in_via_set_dispatch(fake_mcp_bin):
+def test_persistent_broker_is_drop_in_via_set_dispatch(fake_mcp_bin, pinned_graph):
     """_PersistentBroker installed via set_dispatch() is a true drop-in.
 
     health() and search() work identically to the spawn-per-call path — no
@@ -1133,7 +1143,7 @@ def test_unwrap_still_returns_the_first_block_only():
     assert _estate_client._unwrap(env) == {"a": 1}
 
 
-def test_call_blocks_carries_the_diagnostics_through_the_transport():
+def test_call_blocks_carries_the_diagnostics_through_the_transport(pinned_graph):
     def fake_dispatch(requests, *, db, timeout):
         out = {}
         for r in requests:
@@ -1294,6 +1304,35 @@ def test_a_failed_page_is_reported_incomplete_never_whole(capsys):
     assert out["result"]["complete"] is False
     assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d0", "d1"]
     assert any("INCOMPLETE" in d for d in out["diagnostics"])
+
+
+@pytest.mark.parametrize("failure_kind", ["error", "unavailable"])
+def test_a_failed_later_page_keeps_estates_diagnostics(capsys, failure_kind):
+    dispatch = _paged_dispatch(_lineage_pages(3), [])
+
+    def failing_page(requests, *, db, timeout):
+        responses = dispatch(requests, db=db, timeout=timeout)
+        if any(r.get("params", {}).get("arguments", {}).get("cursor") == "c1" for r in requests):
+            if failure_kind == "error":
+                responses[2] = {"id": 2, "result": {"isError": True, "content": [
+                    {"type": "text", "text": "continuation cursor rejected"},
+                    {"type": "text", "text": "PAGE-2-DIAG: cursor expired"},
+                ]}}
+            else:
+                _estate_client._unavailable("continuation process exited")
+                responses = {}
+        return responses
+
+    _estate_client.set_dispatch(failing_page)
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s"}})
+    assert out["result"]["complete"] is False
+    assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d0"]
+    if failure_kind == "error":
+        assert "PAGE-2-DIAG: cursor expired" in out["diagnostics"]
+        error = "continuation cursor rejected"
+    else:
+        error = "estate did not start: continuation process exited"
+    assert any(d.startswith("PAGING:") and error in d for d in out["diagnostics"])
 
 
 def test_one_page_on_request_and_unpaged_replies_unchanged(capsys):
@@ -1565,4 +1604,219 @@ def test_the_team_profile_without_a_store_url_is_refused_like_local(unpinned, ca
     graph.write_bytes(b"")
     monkeypatch.setenv("WICKED_ESTATE_DB", str(graph))
     assert _estate_client.graph_refusal("BlastRadius") is None
+
+
+# cx-shim DES: garden#1480, #1479, #1473, #1476 — failures are distinguishable from empty answers.
+
+@pytest.fixture()
+def dead_estate(monkeypatch, pinned_graph):
+    """A real Python child exits before initialize; no shell or installed estate required."""
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: sys.executable)
+
+    def install(stderr, persistent=False):
+        monkeypatch.setattr(_estate_client, "mcp_argv", lambda exe, db: [
+            exe, "-c", "import sys; sys.stderr.write(" + repr(stderr) + "); sys.exit(1)"])
+        broker = _estate_client._PersistentBroker() if persistent else None
+        _estate_client.set_dispatch(broker if broker is not None else _estate_client._dispatch)
+        return broker
+
+    return install
+
+
+@pytest.mark.parametrize("persistent", [False, True])
+@pytest.mark.parametrize("stderr,detail", [
+    ("startup detail\nlast startup error\n\n", "last startup error"),
+    ("x" * 350 + "\n", "x" * 300),
+    ("\n \n", "no handshake (binary missing, timed out, or exited)"),
+])
+def test_cli_reports_startup_stderr_instead_of_a_null_answer(dead_estate, capsys, persistent, stderr, detail):
+    broker = dead_estate(stderr, persistent)
+    try:
+        code, out = _main(capsys, ["call", '{"tool":"SearchEntity","arguments":{"name":"x"}}'])
+        assert code == 1
+        assert out == {"ok": False, "reason": "estate did not start: " + detail}
+        assert _estate_client.last_failure() == {"kind": "unavailable", "reason": out["reason"]}
+    finally:
+        if broker is not None:
+            broker._close()
+
+
+@pytest.mark.parametrize("action,args", [("search", {"name": "x"}), ("context", {"query": "x"})])
+def test_cli_graph_consumers_do_not_report_empty_after_startup_failure(dead_estate, capsys, action, args):
+    dead_estate("cannot open estate database\n")
+    code, out = _main(capsys, [action, json.dumps(args)])
+    assert code == 1
+    assert out == {"ok": False, "reason": "estate did not start: cannot open estate database"}
+
+
+def _answer_dispatch(envelope):
+    def dispatch(requests, *, db, timeout):
+        return {1: json.loads(_INIT_LINE), 2: envelope}
+    return dispatch
+
+
+@pytest.fixture(params=[
+    {},
+    {2: None},
+    {2: []},
+    {2: {"jsonrpc": "2.0", "id": 2}},
+    {2: {"id": 2, "result": None}},
+    {2: {"id": 2, "result": [], "error": None}},
+])
+def incomplete_call(request, pinned_graph):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {
+        1: json.loads(_INIT_LINE), **request.param})
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_graph_consumers_raise_when_only_the_handshake_landed(incomplete_call, method):
+    reason = "estate answered the handshake but not the call"
+    with pytest.raises(_estate_client.EstateUnavailable, match=reason):
+        getattr(_estate_client, method)("x")
+    assert _estate_client.last_failure() == {"kind": "unavailable", "reason": reason}
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_call_fails_when_only_the_handshake_landed(incomplete_call, capsys, all_pages):
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", "all_pages": all_pages})])
+    assert code == 1
+    assert out == {"ok": False, "reason": "estate answered the handshake but not the call"}
+
+
+def test_cli_call_accepts_a_completed_json_null(pinned_graph, capsys):
+    _estate_client.set_dispatch(_answer_dispatch(_envelope(None)))
+    code, out = _main(capsys, ["call", '{"tool":"SearchEntity"}'])
+    assert code == 0
+    assert out == {"result": None, "diagnostics": []}
+    assert _estate_client.last_failure() is None
+
+
+def _error_answer():
+    return {"jsonrpc": "2.0", "id": 2, "result": {"isError": True, "content": [
+        {"type": "text", "text": "unknown entity parameter"},
+        {"type": "text", "text": "STALENESS: 2 commits\n\nCLAMPED: limit=200"},
+        {"type": "text", "text": "LEXICAL-FALLBACK: embeddings unavailable"},
+    ]}}
+
+
+def _rpc_error_answer():
+    return {"jsonrpc": "2.0", "id": 2,
+            "error": {"code": -32602, "message": "invalid entity parameter"}}
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_all_pages"])
+def test_top_level_rpc_errors_record_the_message(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_rpc_error_answer()))
+    assert getattr(_estate_client, method)("SearchEntity", {}) is None
+    assert _estate_client.last_failure() == {"kind": "error", "text": "invalid entity parameter",
+                                           "diagnostics": []}
+
+
+def test_cli_call_reports_top_level_rpc_errors(pinned_graph, capsys):
+    _estate_client.set_dispatch(_answer_dispatch(_rpc_error_answer()))
+    code, out = _main(capsys, ["call", '{"tool":"SearchEntity"}'])
+    assert code == 1
+    assert out == {"error": "invalid entity parameter", "diagnostics": []}
+
+
+@pytest.mark.parametrize("action,args", [("search", {"name": "x"}), ("context", {"query": "x"})])
+def test_cli_graph_errors_include_diagnostics(pinned_graph, capsys, action, args):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    code, out = _main(capsys, [action, json.dumps(args)])
+    assert code == 1
+    assert out == {"ok": False, "reason": "unknown entity parameter", "diagnostics": [
+        "STALENESS: 2 commits", "CLAMPED: limit=200", "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+def test_fail_open_documentation_describes_cli_failure_shapes():
+    contract = _estate_client.__doc__.split("Fail-open contract", 1)[1].split("Cross-platform", 1)[0]
+    contract = " ".join(contract.split())
+    assert 'CLI `call` surfaces a tool `isError` as ``{"error": …, "diagnostics": [...]}``' in contract
+    assert 'unavailable/refused and `search`/`context` failures' in contract
+    assert '``{"ok": false, "reason": …}``' in contract
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_tool_errors_preserve_text_and_every_diagnostic(pinned_graph, capsys, all_pages):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", "arguments": {},
+                                                "all_pages": all_pages})])
+    assert code == 1
+    assert out == {"error": "unknown entity parameter", "diagnostics": [
+        "STALENESS: 2 commits", "CLAMPED: limit=200", "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+@pytest.mark.parametrize("answer", [_error_answer(), _rpc_error_answer()])
+def test_call_raw_returns_the_error_envelope_itself(pinned_graph, answer):
+    _estate_client.set_dispatch(_answer_dispatch(answer))
+    assert _estate_client.call_raw("SearchEntity", {}) == answer
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_all_pages"])
+def test_low_level_errors_stay_fail_open_and_keep_failure_details(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    assert getattr(_estate_client, method)("SearchEntity", {}) is None
+    assert _estate_client.last_failure() == {"kind": "error", "text": "unknown entity parameter",
+                                           "diagnostics": ["STALENESS: 2 commits", "CLAMPED: limit=200",
+                                                           "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_graph_consumers_raise_on_tool_errors(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    with pytest.raises(_estate_client.EstateUnavailable, match="unknown entity parameter"):
+        getattr(_estate_client, method)("x")
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_raw", "call_all_pages"])
+def test_unpinned_python_graph_calls_are_refused_before_dispatch(unpinned, method):
+    assert getattr(_estate_client, method)("SearchEntity", {"name": "x"}) is None
+    failure = _estate_client.last_failure()
+    assert failure["kind"] == "refused" and "--db" in failure["reason"]
+    assert unpinned == []
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_unpinned_python_graph_consumers_raise_instead_of_answering_empty(unpinned, method):
+    with pytest.raises(_estate_client.EstateUnavailable, match="--db"):
+        getattr(_estate_client, method)("x")
+    assert unpinned == []
+
+
+def test_unpinned_memory_and_knowledge_calls_stay_fail_open(unpinned):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
+    assert _estate_client.graph_refusal("memory.recall") is None
+    assert _estate_client.call("memory.recall", {"query": "x"}) is None
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    assert _estate_client.call("knowledge.recall", {"query": "x"}) is None
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+
+
+@pytest.mark.parametrize("payload", [{"matches": []}, None])
+def test_completed_empty_answers_reset_the_previous_failure(pinned_graph, payload):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
+    assert _estate_client.call("SearchEntity", {}) is None
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    _estate_client.set_dispatch(_answer_dispatch(_envelope(payload)))
+    assert _estate_client.call("SearchEntity", {}) == payload
+    assert _estate_client.last_failure() is None
+
+
+@pytest.mark.parametrize("keys", [{"args": {}}, {"args": {}, "limt": 1}])
+def test_cli_rejects_unknown_call_keys_and_names_arguments(unpinned, capsys, keys):
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", **keys})])
+    assert code == 1
+    assert "arguments" in out["error"]
+    assert all(key in out["error"] for key in keys)
+    assert unpinned == []
+
+
+@pytest.mark.parametrize("store", [None, ":memory:"])
+def test_unresolved_diagnostic_names_the_store_and_index_remedy(monkeypatch, store):
+    monkeypatch.setattr(_estate_client, "resolve_db", lambda: store)
+    blocks = _estate_client.flag_unresolved({"result": {"resolved": False}, "diagnostics": []})
+    line, = blocks["diagnostics"]
+    assert line.startswith("UNRESOLVED:")
+    assert (store or "estate's default store") in line
+    assert "wicked-estate index" in line and "--db" in line
 
