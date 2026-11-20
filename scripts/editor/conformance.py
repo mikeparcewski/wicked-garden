@@ -35,7 +35,8 @@ cases against a hostile bundle belong to studio's CI):
                    composer, and 0 writes, drafts or selections; Backspace/Delete do nothing
   6  forwarding    Escape and Mod+K pressed in it reach the host as ``ui.key``
   7  edit          it saves through its own UI: an editor that asks ``artifact.write`` marks the control that saves
-                   with ``data-wicked-save``; with its empty text fields filled with valid values (or, none empty, its
+                   with ``data-wicked-save``; first click each visible ``data-wicked-reveal`` toggle once to open folded
+                   fields; with its empty text fields filled with valid values (or, none empty, its
                    first text field changed), a click on the first visible marked control lands exactly ONE version
                    (an editor that asks no ``artifact.write`` is a viewer and passes)
   8  strict-input  malformed host messages leave it alive
@@ -177,6 +178,7 @@ SHOW_WAIT_S = 3.0
 EDIT_WAIT_S = 5.0
 EDIT_SENTENCE = "Conformance case seven"
 SAVE_MARK = "data-wicked-save"
+REVEAL_MARK = "data-wicked-reveal"
 # The empty text fields case 7 fills before it presses the marked control.
 EDIT_FIELDS = ('input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="email"], '
                'input[type="tel"], input[type="number"], textarea')
@@ -1099,7 +1101,8 @@ def inline_edit(page, field, written, refused, alive) -> dict:
 
 
 def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
-    """Case 7: an editor that may write saves an edit through its own UI: its empty text fields filled with valid
+    """Case 7: click each visible ``data-wicked-reveal`` toggle once to open folded fields, then an editor that may
+    write saves an edit through its own UI: its empty text fields filled with valid
     values (or, when none is empty, its first text field changed), one click on the first visible control marked
     ``data-wicked-save`` lands exactly one version. Never raises on the editor's account."""
     if "artifact.write" not in perms:
@@ -1108,6 +1111,11 @@ def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
         return {"ok": True, "not_checked": True, "note": NOT_CHECKED}
 
     def run() -> dict:
+        reveal = frame.locator(f"[{REVEAL_MARK}]")
+        for i in range(reveal.count()):
+            toggle = reveal.nth(i)
+            if toggle.is_visible():
+                toggle.click(timeout=5000)
         save = frame.locator(f"[{SAVE_MARK}]")
         if save.count() == 0:
             return {"ok": False, "marked": 0,

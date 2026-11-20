@@ -1024,6 +1024,40 @@ def test_case_7_an_editable_marked_field_is_typed_into_and_blurred(tmp_path):
         assert c["ok"] is True and c["writes"] == 1 and c["head_moved"] == 1 and c["typed_in_version"] is True, (name, c)
 
 
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+@pytest.mark.parametrize("marked", [True, False], ids=["marked", "unmarked"])
+def test_case_7_a_folded_field_is_opened_only_by_a_marked_reveal_toggle(tmp_path, marked):
+    # studio#1214 RULING 2: folded notes must be revealed before the save-on-blur path runs.
+    pack = tmp_path / "folded"
+    assert scaffold(pack, "--permissions", "artifact.read,artifact.write,ui.fullscreen").returncode == 0
+    reveal = " data-wicked-reveal" if marked else ""
+    entry = pack / FIXTURE_ENTRY
+    entry.write_text(entry.read_text()
+        .replace('<button type="button" id="full">',
+                 f'<button type="button" id="toggle"{reveal}>Notes</button>'
+                 '<div id="notes-box" hidden><textarea id="f" data-wicked-save aria-label="Notes"></textarea></div>'
+                 ' <button type="button" id="full">', 1)
+        .replace("\n  async function load() {", """
+  const box = document.getElementById('notes-box');
+  document.getElementById('toggle').addEventListener('click', () => { box.hidden = !box.hidden; });
+  let dirty = false;
+  const f = document.getElementById('f');
+  f.addEventListener('input', () => { dirty = true; });
+  f.addEventListener('blur', async () => {
+    if (!dirty) return; dirty = false;
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + f.value, before }], summary: 'Notes' });
+  });
+  async function load() {""", 1))
+    assert run("pin.py", str(pack)).returncode == 0
+    c = _cases(pack)["7-edit"]
+    if marked:
+        assert c["ok"] is True and c["inline"] is True and c["writes"] == 1 and c["head_moved"] == 1 and c["typed_in_version"] is True, c
+    else:
+        assert c["ok"] is False and "stayed hidden" in c["error"], c
+
+
 # ── CS7: third-party run plugins (protocol 3, plugins[], r0-r5) ────────────────────────────
 
 def scaffold_run_plugin(out: Path, *extra: str) -> subprocess.CompletedProcess:
