@@ -67,7 +67,7 @@ evaluator, then creator) and say which you chose in your output.
   queue, and the run, the unit and your seat are stamped from your environment;
   never pass provenance. Not a memory: what the code does, the change you made, progress or status, versions, SHAs, run or PR
   ids; a limit of the seat's own sandbox (a tool missing from PATH, a denied
-  listen or write, no network), which belongs to the seat image and is listed per role in `docs/seat-limits.md`; a verdict or ruling on this run. At most three per unit in all, across every turn. Propose each learning
+  listen or write), which belongs to the seat image (docs/seat-limits.md); a verdict or ruling on this run. At most three per unit in all, across every turn. Propose each learning
   once: a later check covers only what happened since the last one, and never
   re-proposes what this unit already proposed or recorded (recall returns approved
   memories only, never a pending proposal). Skip one that
