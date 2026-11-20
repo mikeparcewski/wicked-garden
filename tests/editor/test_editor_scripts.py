@@ -70,10 +70,9 @@ def test_scaffold_accepts_hello_port_only_from_parent_with_version_one(tmp_path,
     done = scaffold(out)
     assert done.returncode == 0, done.stderr
     html = (out / FIXTURE_ENTRY).read_text()
-    script = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
-    assert script is not None
+    start, end = html.index("<script>") + len("<script>"), html.index("</script>")
     entry = tmp_path / "editor.js"
-    entry.write_text(script.group(1))
+    entry.write_text(html[start:end])
     driver = tmp_path / "hello-driver.cjs"
     driver.write_text(r"""
 const fs = require('node:fs');
