@@ -188,6 +188,67 @@ def test_from_run_finds_the_pack_in_the_worktree_when_wicked_tree_is_a_tree_id(t
     assert not root.exists()
 
 
+@pytest.mark.parametrize("kind", ["editor", "plugin"])
+@pytest.mark.parametrize("permissions, expected", [
+    ([{"id": "artifact.read", "why": "Read the open artifact"}, {"id": "artifact.write"}],
+     [("artifact.read", "Read the open artifact"), ("artifact.write", "")]),
+    (None, []),
+    ([], []),
+    ([None, "artifact.read", {}, {"id": 7}, {"id": None}, {"id": "artifact.write"}],
+     [("artifact.write", "")]),
+    ([{"id": "artifact.read", "why": "w" * 301}], [("artifact.read", "w" * 300)]),
+    ([{"id": "artifact.read", "reason": "Read for display"}], [("artifact.read", "Read for display")]),
+], ids=["ordered-with-and-without-why", "no-permissions-key", "empty-permissions",
+        "malformed-permissions", "long-why", "reason-text"])
+def test_dry_run_reports_declared_permission_asks(tmp_path, kind, permissions, expected):
+    pack = tmp_path / "pack"
+    make_pack = scaffold if kind == "editor" else scaffold_run_plugin
+    assert make_pack(pack).returncode == 0
+    manifest_path = pack / "wicked-pack.json"
+    manifest = json.loads(manifest_path.read_text())
+    entry = manifest[f"{kind}s"][0]
+    if permissions is None:
+        entry.pop("permissions", None)
+    else:
+        entry["permissions"] = permissions
+    manifest_path.write_text(json.dumps(manifest))
+    root = tmp_path / "editors"
+    done = run("install.py", "--dir", str(pack), "--dry-run", "--json",
+               env=_install_env("http://127.0.0.1:1", root))
+    assert done.returncode == 0, done.stderr
+    assert len(done.stdout.splitlines()) == 1
+    plan = json.loads(done.stdout)
+    if expected:
+        assert plan["asks"] == [
+            {"editor": entry["id"], "permission": permission, "why": why}
+            for permission, why in expected
+        ]
+    else:
+        assert "asks" not in plan
+    assert not root.exists()
+
+
+def test_dry_run_bounds_permission_asks_across_manifest_entries(tmp_path):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    manifest_path = pack / "wicked-pack.json"
+    manifest = json.loads(manifest_path.read_text())
+    first = manifest["editors"][0]
+    first["id"] = "e" * 201
+    first["permissions"] = [{"id": "p" * 201, "why": "w" * 301}]
+    manifest["editors"].append({**first, "id": "second-editor", "permissions": [
+        {"id": f"permission-{i}"} for i in range(65)
+    ]})
+    manifest_path.write_text(json.dumps(manifest))
+    done = run("install.py", "--dir", str(pack), "--dry-run", "--json",
+               env=_install_env("http://127.0.0.1:1", tmp_path / "editors"))
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout)["asks"] == [
+        {"editor": "e" * 200, "permission": "p" * 200, "why": "w" * 300},
+        *[{"editor": "second-editor", "permission": f"permission-{i}", "why": ""} for i in range(63)],
+    ]
+
+
 def test_an_mcp_session_editor_scaffolds_with_its_plain_words_and_passes_pack_check(tmp_path):
     out = tmp_path / "pack"
     done = scaffold(out, "--kinds", "mcp-server", "--permissions", "artifact.read,mcp.session,ui.fullscreen")
