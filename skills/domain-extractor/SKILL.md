@@ -49,10 +49,10 @@ and only this:
    `business_domains` when `propose: true`. Follow "Business domains first" below, then check
    the file with `wicked-garden run scripts/domain/extract_loop.py --check-rules
    .wicked/domain/rules.json --worklist .wicked/domain/worklist.json` and fix what it names.
-   With `"units": []` and an empty `assign` list, write no file and say so in one line.
-   The host finishes that page ("map already current … nothing to extract"). It refuses a
-   missing file for a page that had units, so never leave the file out when the worklist has
-   any. A review that sends back a page with no units asks for work the
+   With `"units": []` and an empty `assign` list, write the rules file with `"rules": []` and
+   no other entries, and say so in one line. The engine fails the extract step when the file is
+   missing or older than this page, so always write it. The host finishes that page ("map
+   already current … nothing to extract") and refuses a missing file for a page that had units. A review that sends back a page with no units asks for work the
    host cannot apply: say so plainly, and the person decides at the step's gate.
 
 **Business domains first.** Read the worklist's `business_domains` block. When it says

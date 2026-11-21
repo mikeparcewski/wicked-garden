@@ -792,7 +792,9 @@ def test_the_extractor_handles_assignment_only_worklists():
     assert 'With `"units": []` and a non-empty `assign` list' in text
     assert 'write the rules file with `"rules": []` and the `assignments`' in text
     assert '`business_domains` when `propose: true`' in text
-    assert 'With `"units": []` and an empty `assign` list, write no file' in text
+    assert ('With `"units": []` and an empty `assign` list, write the rules file with '
+            '`"rules": []` and no other entries') in text
+    assert 'write no file' not in text
     assert '--check-rules' in text
     assert ('A review that sends back a page with no units asks for work the host cannot apply: '
             'say so plainly, and the person decides at the step\'s gate.') in text
