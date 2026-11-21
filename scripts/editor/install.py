@@ -32,6 +32,8 @@ nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices"
 declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
 "This plugin can start and talk to MCP servers", with the exact per-build token the install writes
 (``editor:<id>@<version>#<sha256>/mcp.session``). The install consent is that grant; no rule allows it.
+``asks`` lists the other declared permissions, the ones a person allows later in Plugins; a permission the
+install itself grants (``INSTALL_GRANTED``) is a write row above and never an ask.
 
 **The approval is bound to the plan.** Each choice id carries a digest of the planned
 ``wicked-pack.json`` bytes, the same bytes the plan's lines were read from (``daemon_<d>``,
@@ -259,12 +261,16 @@ def install_grants(manifest: dict) -> list[dict]:
 
 
 def permission_asks(entries: list[dict]) -> list[dict]:
-    """Bounded, informational permission rows in manifest order; these grant nothing."""
+    """Bounded, informational permission rows in manifest order; these grant nothing. A permission the install
+    consent itself grants (``INSTALL_GRANTED``, e.g. ``mcp.session``) is left out: it has no Plugins switch, and
+    the plan already shows it as an ``EDITOR-GRANTS`` write row (``install_grants``)."""
     rows = []
     for entry in entries:
         permissions = entry.get("permissions") if isinstance(entry, dict) else None
         for permission in permissions if isinstance(permissions, list) else []:
             if not isinstance(permission, dict) or not isinstance(permission.get("id"), str):
+                continue
+            if permission["id"] in INSTALL_GRANTED:
                 continue
             why = permission.get("why", permission.get("reason", ""))
             rows.append({"editor": str(entry.get("id", ""))[:PLAN_ID_CHARS],
