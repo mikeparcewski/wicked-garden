@@ -27,7 +27,8 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch on in studio Settings
 → Developer → Editor plugins. Both write the same places, all program-owned. ``--dry-run`` writes
 nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices": [{"id", "label",
-"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": []}``. An editor that
+"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": [],
+"asks"?: [{"editor", "permission", "why"}]}``. An editor that
 declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
 "This plugin can start and talk to MCP servers", with the exact per-build token the install writes
 (``editor:<id>@<version>#<sha256>/mcp.session``). The install consent is that grant; no rule allows it.
@@ -74,6 +75,9 @@ TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGES
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
+PLAN_ASKS_CAP = 64
+PLAN_ID_CHARS = 200
+PLAN_WHY_CHARS = 300
 
 
 class Failure(Exception):
@@ -254,6 +258,23 @@ def install_grants(manifest: dict) -> list[dict]:
     return rows
 
 
+def permission_asks(entries: list[dict]) -> list[dict]:
+    """Bounded, informational permission rows in manifest order; these grant nothing."""
+    rows = []
+    for entry in entries:
+        permissions = entry.get("permissions") if isinstance(entry, dict) else None
+        for permission in permissions if isinstance(permissions, list) else []:
+            if not isinstance(permission, dict) or not isinstance(permission.get("id"), str):
+                continue
+            why = permission.get("why", permission.get("reason", ""))
+            rows.append({"editor": str(entry.get("id", ""))[:PLAN_ID_CHARS],
+                         "permission": permission["id"][:PLAN_ID_CHARS],
+                         "why": why[:PLAN_WHY_CHARS] if isinstance(why, str) else ""})
+            if len(rows) == PLAN_ASKS_CAP:
+                return rows
+    return rows
+
+
 def plan_digest(raw: bytes) -> str:
     """The manifest bytes' sha256 as base64url, cut to fit a choice id: what the plan showed (permissions,
     version, entry hashes)."""
@@ -298,6 +319,9 @@ def do_plan(args) -> dict:
         {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
         {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
         "skipped": []}
+    asks = permission_asks(editors + plugins)
+    if asks:
+        plan["asks"] = asks
     if plugins:
         plan["plugins"] = [
             {
