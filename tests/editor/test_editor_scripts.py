@@ -273,6 +273,9 @@ def test_the_plan_of_an_mcp_session_editor_lists_its_per_build_grant_on_both_cho
         grants = [w for w in choice["writes"] if w["path"] == "EDITOR-GRANTS"]
         assert len(grants) == 1 and grants[0]["operator_owned"] is False
         assert grants[0]["what"].startswith("This plugin can start and talk to MCP servers") and token in grants[0]["what"]
+    # The install grants mcp.session (the write row above): it is not an ask, which a person allows later in
+    # Plugins. The other declared permission still is.
+    assert [a["permission"] for a in plan["asks"]] == ["artifact.read"]
 
 
 def _plan_ids(pack: Path, env: dict) -> list[str]:
