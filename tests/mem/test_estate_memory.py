@@ -700,6 +700,60 @@ def test_governed_propose_in_checkout_uses_repo_project(monkeypatch, capsys, tmp
     assert rec.calls[0][1]["facets"] == expected
 
 
+_RUN_ID = "237e46b8-39b0-58ce-b7eb-b79e8cdeb2c2"
+
+
+@pytest.mark.parametrize("layout", [("wicked-worktrees",), (".wicked", "worktrees")])
+@pytest.mark.parametrize("subdir", ["", "src"])
+def test_governed_propose_from_a_run_worktree_uses_the_repo_not_the_run_id(
+        monkeypatch, capsys, tmp_path, layout, subdir):
+    """garden#1519: a no-project run's seat works in `<repo>/wicked-worktrees/<run id>`; on the
+    k8s floor that replica's `.git` is a plain directory, not a `gitdir:` pointer. The proposal's
+    facets name the repository, never the run id the worktree directory is named after."""
+    repo = tmp_path / "repos" / "tiny-math-t11"
+    worktree = repo.joinpath(*layout, _RUN_ID)
+    (worktree / ".git").mkdir(parents=True)
+    (worktree / "src").mkdir()
+    monkeypatch.chdir(worktree / subdir)
+    monkeypatch.setenv("WICKED_RUN_ID", _RUN_ID)
+    monkeypatch.delenv("WICKED_RUN_PROJECT", raising=False)
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    monkeypatch.setenv("WICKED_ESTATE_DB", str(tmp_path / "graph.db"))
+    rec = _Recorder({"proposal.submit": _envelope({"id": "prop-1"})})
+    monkeypatch.setattr(_estate_client, "call_raw", rec)
+    assert estate_memory.main(["propose", _RULE]) == 0
+    out = json.loads(capsys.readouterr().out)
+    expected = {"repo": "tiny-math-t11", "project": "tiny-math-t11"}
+    assert out["ok"] is True and out["facets"] == expected
+    assert rec.calls[0][1]["facets"] == expected
+    assert _estate_client.project_scope() == "project:tiny-math-t11"
+
+
+def test_governed_propose_from_a_run_worktree_keeps_the_run_project(monkeypatch, capsys, tmp_path):
+    """A run filed into a project still scopes to it from its worktree (garden#1510)."""
+    worktree = tmp_path / "repos" / "tiny-math-t11" / "wicked-worktrees" / _RUN_ID
+    (worktree / ".git").mkdir(parents=True)
+    monkeypatch.chdir(worktree)
+    monkeypatch.setenv("WICKED_RUN_ID", _RUN_ID)
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "proj_1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", str(tmp_path / "graph.db"))
+    rec = _Recorder({"proposal.submit": _envelope({"id": "prop-1"})})
+    monkeypatch.setattr(_estate_client, "call_raw", rec)
+    assert estate_memory.main(["propose", _RULE]) == 0
+    out = json.loads(capsys.readouterr().out)
+    expected = {"repo": "tiny-math-t11", "project": "proj_1"}
+    assert out["ok"] is True and out["facets"] == expected
+    assert rec.calls[0][1]["facets"] == expected
+
+
+def test_a_checkout_merely_named_like_a_run_id_is_its_own_repo(monkeypatch, tmp_path):
+    """Only the engine's worktree layout maps a checkout to its parent repository."""
+    root = tmp_path / "repos" / _RUN_ID
+    (root / ".git").mkdir(parents=True)
+    monkeypatch.chdir(root)
+    assert _estate_client.checkout_root() == root.resolve()
+
+
 def test_governed_propose_without_project_is_refused_before_wire_call(monkeypatch, capsys, tmp_path):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("WICKED_RUN_ID", "run-1")
