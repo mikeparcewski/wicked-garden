@@ -76,6 +76,107 @@ def test_the_spec2_fixture_with_an_editor_and_a_block_passes_clean():
     assert _errors(findings) == [], [f.render() for f in findings]
 
 
+@pytest.mark.parametrize("preview", ["cards/preview.PNG", {"light": "cards/preview.PNG", "dark": "cards/dark.webp"}])
+def test_editor_card_fields_accept_crew_image_types_and_normalized_description(tmp_path, preview):
+    root = _copy(tmp_path)
+    (root / "cards").mkdir()
+    (root / "cards/icon.svg").write_bytes(b'\xef\xbb\xbf <?xml version="1.0"?> <!-- icon --> <svg xmlns="http://www.w3.org/2000/svg"></svg>')
+    (root / "cards/preview.PNG").write_bytes(b"\x89PNG\r\n\x1a\nimage")
+    (root / "cards/dark.webp").write_bytes(b"RIFF\x04\x00\x00\x00WEBP")
+    _editor(root, description="\ufeff\n" + "a " * 80 + "\n", visuals={
+        "icon": "cards/icon.svg", "color": "#aBcD01", "preview": preview, "live": False})
+    assert check_pack(root, garden_root=_REPO) == []
+
+
+@pytest.mark.parametrize("field,value", [
+    ("description", None), ("description", 1), ("description", []),
+    ("description", " \n\ufeff "), ("description", "a" * 161), ("description", "😀" * 81),
+    ("visuals", None), ("visuals", []), ("visuals", "icon.svg"),
+    ("visuals", {"color": "red"}), ("visuals", {"color": "#abc"}),
+    ("visuals", {"color": "#123456\n"}), ("visuals", {"live": 1}),
+    ("visuals", {"icon": None}), ("visuals", {"icon": "../icon.svg"}),
+    ("visuals", {"icon": "/icon.svg"}), ("visuals", {"icon": "C:/icon.svg"}),
+    ("visuals", {"icon": "cards\\icon.svg"}), ("visuals", {"icon": "https://example.com/icon.svg"}),
+    ("visuals", {"icon": "data:image/svg+xml,<svg/>"}), ("visuals", {"icon": "icon.svg\n"}),
+    ("visuals", {"icon": "x" * 118 + ".svg"}), ("visuals", {"icon": "icon.gif"}),
+    ("visuals", {"icon": "missing.svg"}), ("visuals", {"preview": False}),
+    ("visuals", {"preview": {"light": "missing.svg", "dark": 1}}),
+    ("visuals", {"preview": {"light": None}}),
+    ("visuals", {"colour": "#123456"}), ("visuals", {"preview": {}}),
+    ("visuals", {"preview": {"lite": "missing.svg"}}),
+])
+def test_malformed_editor_cosmetics_warn_with_pk089_and_never_refuse(tmp_path, field, value):
+    root = _editor(_copy(tmp_path), **{field: value})
+    findings = check_pack(root, garden_root=_REPO)
+    assert _errors(findings) == [], [f.render() for f in findings]
+    warnings = [f for f in findings if f.code == "PK089"]
+    assert warnings and all(f.level == "warn" and field in f.message for f in warnings)
+
+
+@pytest.mark.parametrize("field,cap", [("icon", 16 * 1024), ("preview", 200 * 1024)])
+def test_editor_image_caps_are_inclusive_and_oversize_only_warns(tmp_path, field, cap):
+    root = _copy(tmp_path)
+    image = root / "image.svg"
+    image.write_bytes(b"<svg>" + b" " * (cap - 11) + b"</svg>")
+    _editor(root, visuals={field: "image.svg"})
+    assert check_pack(root, garden_root=_REPO) == []
+    with image.open("ab") as stream:
+        stream.write(b" ")
+    findings = check_pack(root, garden_root=_REPO)
+    assert [(f.code, f.level) for f in findings] == [("PK089", "warn")]
+    assert str(cap) in findings[0].message
+
+
+@pytest.mark.parametrize("suffix,body", [
+    ("svg", b"<html><svg></svg></html>"), ("svg", b"<svgx></svgx>"),
+    ("png", b"RIFFxxxxWEBP"), ("webp", b"\x89PNG\r\n\x1a\n"),
+    ("webp", b"RIFF"),
+])
+def test_editor_image_content_must_match_its_extension_but_only_warns(tmp_path, suffix, body):
+    root = _copy(tmp_path)
+    (root / ("image." + suffix)).write_bytes(body)
+    _editor(root, visuals={"icon": "image." + suffix})
+    findings = check_pack(root, garden_root=_REPO)
+    assert [(f.code, f.level) for f in findings] == [("PK089", "warn")]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks")
+@pytest.mark.parametrize("target", ["file-inside", "file-outside", "directory", "dangling"])
+def test_editor_visual_links_warn_even_when_the_target_is_inside(tmp_path, target):
+    root = _copy(tmp_path)
+    (root / "real").mkdir()
+    (root / "real/icon.svg").write_text("<svg></svg>", encoding="utf-8")
+    image = "linked.svg"
+    if target == "directory":
+        (root / "linked").symlink_to(root / "real", target_is_directory=True)
+        image = "linked/icon.svg"
+    else:
+        dest = root / "real/icon.svg"
+        if target == "file-outside":
+            dest = tmp_path / "outside.svg"
+            dest.write_text("<svg></svg>", encoding="utf-8")
+        elif target == "dangling":
+            dest = root / "absent.svg"
+        (root / image).symlink_to(dest)
+    _editor(root, visuals={"icon": image})
+    findings = check_pack(root, garden_root=_REPO)
+    assert [(f.code, f.level) for f in findings] == [("PK089", "warn")]
+
+
+def test_schema_lists_editor_cosmetics_as_advisory_fields():
+    props = json.loads(SCHEMA.read_text(encoding="utf-8"))["properties"]["editors"]["items"]["properties"]
+    assert {"description", "visuals"} <= props.keys()
+    assert "160" in props["description"]["description"]
+
+
+def test_editor_visual_filename_extension_is_checked_before_path_normalization(tmp_path):
+    root = _copy(tmp_path)
+    (root / "image.svg").write_bytes(b"<svg></svg>")
+    _editor(root, visuals={"icon": "image.svg/."})
+    findings = check_pack(root, garden_root=_REPO)
+    assert [(f.code, f.level) for f in findings] == [("PK089", "warn")]
+
+
 @pytest.mark.parametrize("fixture", ["acme-seo"])
 def test_every_valid_spec1_fixture_still_passes(fixture):
     assert _errors(check_pack(FIXTURES / fixture, garden_root=_REPO)) == []

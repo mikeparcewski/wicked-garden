@@ -387,6 +387,72 @@ def test_install_stages_registers_and_records(tmp_path):
     assert record["key"] == "acme-json" and record["enabled"] is False
 
 
+def test_install_stages_only_valid_editor_images_at_their_manifest_paths(tmp_path):
+    sys.path.insert(0, str(SCRIPTS))
+    import install
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    (pack / "cards").mkdir()
+    files = {"cards/icon.svg": b"<svg></svg>", "cards/light.png": b"\x89PNG\r\n\x1a\n"}
+    for name, body in files.items():
+        (pack / name).write_bytes(body)
+    (pack / "cards/bad.webp").write_bytes(b"<html>not an image</html>")
+    (pack / "cards/unused.svg").write_bytes(b"<svg></svg>")
+    manifest = json.loads((pack / "wicked-pack.json").read_text())
+    manifest["editors"][0]["visuals"] = {
+        "icon": "cards/icon.svg", "preview": {"light": "cards/light.png", "dark": "cards/bad.webp"}}
+    (pack / "wicked-pack.json").write_text(json.dumps(manifest))
+    dest = tmp_path / "staged"
+    copied = install.stage(pack, manifest, dest)
+    assert set(files) <= set(copied)
+    for name, body in files.items():
+        assert (dest / name).read_bytes() == body
+    assert not (dest / "cards/bad.webp").exists()
+    assert not (dest / "cards/unused.svg").exists()
+    assert json.loads((dest / "wicked-pack.json").read_text()) == manifest
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks")
+@pytest.mark.parametrize("directory", [False, True])
+def test_install_skips_linked_editor_images_and_keeps_valid_siblings(tmp_path, directory):
+    sys.path.insert(0, str(SCRIPTS))
+    import install
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    (pack / "real").mkdir()
+    (pack / "real/icon.svg").write_bytes(b"<svg></svg>")
+    if directory:
+        (pack / "link").symlink_to(pack / "real", target_is_directory=True)
+        image = "link/icon.svg"
+    else:
+        (pack / "link.svg").symlink_to(pack / "real/icon.svg")
+        image = "link.svg"
+    manifest = json.loads((pack / "wicked-pack.json").read_text())
+    manifest["editors"][0]["visuals"] = {"icon": image, "preview": "real/icon.svg"}
+    dest = tmp_path / "staged"
+    copied = install.stage(pack, manifest, dest)
+    assert "real/icon.svg" in copied and (dest / "real/icon.svg").read_bytes() == b"<svg></svg>"
+    assert image not in copied and not (dest / image).exists()
+
+
+def test_install_image_staging_plan_writes_nothing_and_describes_the_copy(tmp_path):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    (pack / "icon.svg").write_bytes(b"<svg></svg>")
+    manifest = json.loads((pack / "wicked-pack.json").read_text())
+    manifest["editors"][0]["visuals"] = {"icon": "icon.svg"}
+    (pack / "wicked-pack.json").write_text(json.dumps(manifest))
+    root = tmp_path / "installed"
+    done = run("install.py", "--dir", str(pack), "--dry-run", "--install-root", str(root),
+               "--crew-url", "http://127.0.0.1:1")
+    assert done.returncode == 0, done.stderr
+    plan = json.loads(done.stdout)
+    assert not root.exists()
+    for choice in plan["choices"]:
+        staged = next(w for w in choice["writes"] if w["path"] == str(root / "acme-json/current"))
+        assert "images" in staged["what"]
+
+
 def test_a_refused_install_rolls_the_staged_copy_back(tmp_path):
     pack = tmp_path / "pack"
     assert scaffold(pack).returncode == 0

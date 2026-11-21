@@ -12,7 +12,9 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/.git/dist; ``--dir`` names it.
 2. **Stage** into ``<root>/<name>/next/`` (root: ``--install-root``, ``$WICKED_EDITOR_INSTALL_ROOT``,
    else ``~/.wicked/editors``, a program-owned place): ``wicked-pack.json``, every editor's entry
-   file at its manifest path, and the README. Nothing else of the tree is copied (an editor is ONE
+   file and its accepted declared card images at their manifest paths, and the README. Malformed
+   cosmetic images are skipped, as in pack check (PK089); they never refuse an install. Nothing else
+   of the tree is copied (an editor is ONE
    self-contained file; a pack with skills or blocks is refused by the daemon until their approval
    step exists).
 3. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``.
@@ -64,7 +66,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _pack import (  # noqa: E402
-    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, entry_path, find_editor_packs,
+    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editor_card_fields, entry_path, find_editor_packs,
     pack_entries_of, plugin_extra_paths, read_manifest,
 )
 
@@ -180,6 +182,13 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
         copied.append(e["entry"])
+        images, _ = editor_card_fields(pack, e)
+        for rel_str, body in images:
+            extra_dest = next_dir / Path(*rel_str.split("/"))
+            extra_dest.parent.mkdir(parents=True, exist_ok=True)
+            extra_dest.write_bytes(body)
+            if rel_str not in copied:
+                copied.append(rel_str)
     for p in plugins:
         source = entry_path(pack, p, kind="plugin")
         dest = (next_dir / Path(*p["entry"].split("/"))).resolve()
@@ -304,7 +313,7 @@ def do_plan(args) -> dict:
     origin = crew_origin(args.crew_url)
     key_root = Path(os.path.abspath(root / key))
     editors, plugins = pack_entries_of(manifest)
-    writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack (program-owned)",
+    writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack, including accepted declared card images (program-owned)",
                "operator_owned": False}]
     if (key_root / "current").exists():
         writes.append({"path": str(key_root / "previous"), "what": "the copy installed now, kept for a roll-back",
