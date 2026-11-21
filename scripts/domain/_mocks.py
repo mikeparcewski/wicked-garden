@@ -3,10 +3,9 @@
 The Domain-Brain contract runs four per-product build workflows in parallel,
 each mocking the other three. This module is garden's mock of the *other three*:
 
-- ``EstateClient`` — the frozen six-method estate read/write surface, backed by
+- ``EstateClient`` — the estate read/write surface, backed by
   canned fixtures. Records annotation/requirement writes so a test can assert the
-  write actually happened with a real SymbolId (never a bare name — the
-  anti-legacy silent-no-op scar).
+  write actually happened. Batches refuse symbols absent from its fixtures.
 - ``BrainClient`` — brain's domain-model engine surface, backed by the vendored
   schema validator.
 
@@ -18,9 +17,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
-
-from domain._clients import _looks_like_symbol_id
-
 
 # --- estate fixtures --------------------------------------------------------
 
@@ -92,11 +88,11 @@ class EstateClient:
     def annotate(self, symbol_id: str, type: str, key: str, value: str,
                  confidence: float | None = None, provenance: str | None = None,
                  replace: bool = True, author: str | None = None) -> None:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name "
-                "is a silent no-op in estate; resolve() first"
-            )
+        if replace:
+            self.annotation_writes[:] = [
+                a for a in self.annotation_writes
+                if (a["symbol_id"], a["type"], a["key"]) != (symbol_id, type, key)
+            ]
         self.annotation_writes.append({
             "symbol_id": symbol_id, "type": type, "key": key, "value": value,
             "confidence": confidence, "provenance": provenance, "replace": replace,
@@ -105,12 +101,31 @@ class EstateClient:
 
     def set_requirement(self, symbol_id: str, requirement: str,
                         validated: bool, validated_by: str = "extract-loop") -> None:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing set_requirement on non-SymbolId {symbol_id!r} — a bare "
-                "name is a silent no-op in estate; resolve() first"
-            )
         self.requirement_writes.append((symbol_id, requirement, validated))
+
+    def write_batch(self, rows: list[dict]) -> dict:
+        """Apply a page after checking every symbol against the fixture nodes."""
+        known = {sid for hits in _FIXTURE_SYMBOLS.values() for sid in hits}
+        for index, row in enumerate(rows, start=1):
+            if row["symbol"] not in known:
+                raise RuntimeError(f"write-batch row {index}: unknown symbol {row['symbol']!r}")
+        annotations = replaced = semantics = 0
+        for row in rows:
+            fields = {k: v for k, v in row.items() if k not in {"op", "symbol"}}
+            sid = row["symbol"]
+            if row["op"] == "annotate":
+                if row["replace"]:
+                    replaced += sum(
+                        (a["symbol_id"], a["type"], a["key"]) ==
+                        (sid, row["type"], row["key"]) for a in self.annotation_writes)
+                self.annotate(sid, **fields)
+                annotations += 1
+            else:
+                self.requirement_writes[:] = [r for r in self.requirement_writes if r[0] != sid]
+                self.set_requirement(sid, **fields)
+                semantics += 1
+        return {"rows": len(rows), "annotations": annotations, "replaced": replaced,
+                "semantics": semantics}
 
     def read_annotations(self, symbol_id: str) -> list[dict[str, Any]]:
         return [a for a in self.annotation_writes if a["symbol_id"] == symbol_id]
