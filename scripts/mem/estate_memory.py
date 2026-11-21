@@ -20,7 +20,7 @@ Actions → estate tools
   maintain       → memory.reflect + memory.coverage (estate consolidates
                                         in-store; this is the user surface)
   capture-batch  → memory.capture xN   (session-teardown writes, FOLD-3)
-  ingest         → knowledge.ingest    (title + chunks + scope + source)
+  ingest         → knowledge.ingest    (title + chunks OR path + scope + source)
   write          → knowledge.write     (single fact / concept)
   sources        → knowledge.recall ∪ memory.recall (cited-answer feed —
                                         knowledge items carry `source`)
@@ -30,8 +30,8 @@ Scope conventions (estate migration)
 ------------------------------------
 Memories live under hierarchical `kind:id` scopes (slash-separated segments,
 e.g. ``project:wicked-garden`` or ``brain:wicked-garden/doc:<id>`` for
-brain-migrated leaves). `store` and `recall` default to ``project:<cwd-basename>``
-(recall adds its ancestors, so root-scoped memories stay visible); other
+brain-migrated leaves). `store` and `recall` default to ``project:<checkout name>``
+(outside a checkout: the run's ``WICKED_RUN_PROJECT``, else the cwd's name; recall adds its ancestors, so root-scoped memories stay visible); other
 projects' memories need the explicit opt-in ``scope_prefix: ""``.
 
 Durability gate
@@ -133,21 +133,24 @@ def _default_intent():
     Estate hides a faceted memory unless the intent carries every facet it
     names, and repo-learn files memories under ``{repo, project}``. Derived
     from the enclosing git checkout: ``repo`` = its directory name, ``project``
-    = the run's `WICKED_RUN_PROJECT`, else the checkout's parent directory
-    (the umbrella, e.g. ``wicked`` for ``wicked/wicked-estate``). Outside a git
-    checkout: ``{project}`` = the run's project, else the cwd's directory name,
-    the same facet `propose` files a memory under there (garden#1333), so a
-    memory proposed from a directory is recalled from it.
+    = the run's `WICKED_RUN_PROJECT`. Without a run project, governed runs
+    use the checkout's own name, or no project outside a checkout. An operator's
+    workspace keeps the checkout's parent directory as its umbrella (e.g.
+    ``wicked`` for ``wicked/wicked-estate``), or the cwd name outside a checkout.
+    `propose` uses the same facets so approved memories are recalled there.
     """
     run_project = (os.environ.get("WICKED_RUN_PROJECT") or "").strip()
     root = _estate_client.checkout_root()
+    governed = _estate_client.is_governed()
     if root is None:
+        if governed:
+            return {"project": run_project} if run_project else {}
         try:
             project = run_project or Path.cwd().name
         except OSError:
             project = run_project
         return {"project": project} if project else {}
-    project = run_project or root.parent.name
+    project = run_project or (root.name if governed else root.parent.name)
     return {k: v for k, v in (("repo", root.name), ("project", project)) if v}
 
 
@@ -336,10 +339,9 @@ def do_store(args):
 def _propose_facets():
     """``facets`` for a memory proposal: exactly the intent default recall
     admits against (:func:`_default_intent`), so the approved memory is
-    recalled from the same place. ``project`` falls back to ``unknown`` only
-    when the cwd has no name."""
+    recalled from the same place. The shim requires an explicit project
+    when the default intent has none."""
     facets = dict(_default_intent())
-    facets.setdefault("project", "unknown")
     # The same override the shim applies, so the reported facets are the sent ones.
     return _estate_client._scope_facets_to_run_project(facets)
 
@@ -522,19 +524,44 @@ def do_capture_batch(args):
 def do_ingest(args):
     title = (args.get("title") or "").strip()
     chunks = args.get("chunks")
-    if not title or not isinstance(chunks, list) or not chunks:
-        _emit({"error": 'ingest requires {"title": ..., "chunks": [...]} '
-                        "(+ scope, source for provenance)"})
+    path = args.get("path")
+    chunk_mode = isinstance(chunks, list) and bool(chunks)
+    path_mode = isinstance(path, str) and bool(path.strip())
+    if (not title or ("chunks" in args and "path" in args)
+            or not (chunk_mode or path_mode)):
+        _emit({"error": 'ingest requires title and exactly one of non-empty chunks [...] '
+                        'or path "..." (+ scope, source for provenance)'})
         return 1
-    arguments = {"title": title, "chunks": [str(c) for c in chunks]}
+    arguments = {"title": title}
+    if chunk_mode:
+        arguments["chunks"] = [str(c) for c in chunks]
+    else:
+        arguments["path"] = path
     arguments["scope"] = args.get("scope") or _default_scope()
     if args.get("source"):
         arguments["source"] = args["source"]
-    payload = _estate_client.call("knowledge.ingest", arguments, timeout=30.0)
+    envelope = _estate_client.call_raw("knowledge.ingest", arguments, timeout=30.0)
+    if envelope is None:
+        return _fail_open("estate unreachable (knowledge.ingest did not round-trip)")
+    error = envelope.get("error")
+    if isinstance(error, dict):
+        return _fail_open(error.get("message") or "estate knowledge.ingest failed")
+    result = envelope.get("result")
+    if isinstance(result, dict) and result.get("isError"):
+        # Estate's refusal is a fixed reason (e.g. a scanned PDF "needs OCR"), never document text.
+        content = result.get("content")
+        text = content[0].get("text") if isinstance(content, list) and content and isinstance(content[0], dict) else None
+        return _fail_open(text if isinstance(text, str) and text.strip() else "estate refused knowledge.ingest")
+    payload = _estate_client._unwrap(envelope)
     if not isinstance(payload, dict) or not payload.get("doc_id"):
         return _fail_open("estate knowledge.ingest failed")
-    _emit({"ok": True, "doc_id": payload["doc_id"], "chunks": len(chunks),
-           "scope": arguments["scope"], "source": args.get("source")})
+    out = {"ok": True, "doc_id": payload["doc_id"], "scope": arguments["scope"],
+           "source": args.get("source") or (path if path_mode else None)}
+    if chunk_mode:
+        out["chunks"] = len(chunks)
+    else:
+        out["path"] = path
+    _emit(out)
     return 0
 
 

@@ -1425,7 +1425,8 @@ def project_scope() -> str:
 
     ``WICKED_ESTATE_MEMORY_SCOPE`` (the configured project) wins; else
     ``project:<checkout name>`` from :func:`checkout_root` (stable across
-    subdirectories and worktrees); else ``project:<cwd-basename>``. Two
+    subdirectories and worktrees); else ``project:<WICKED_RUN_PROJECT>`` when
+    non-blank, falling back to ``project:<cwd-basename>``. Two
     unrelated checkouts with the same name share a scope unless one is
     configured. Recall sees this scope plus its ancestors (root-scoped
     memories included); every project is the explicit ``scope_prefix: ""``.
@@ -1435,7 +1436,9 @@ def project_scope() -> str:
         return pinned
     root = checkout_root()
     try:
-        name = (root.name if root else Path.cwd().name) or "unknown"
+        name = (
+            root.name if root else os.environ.get(RUN_PROJECT_ENV, "").strip() or Path.cwd().name
+        ) or "unknown"
     except OSError:
         name = "unknown"
     return f"project:{name}"
