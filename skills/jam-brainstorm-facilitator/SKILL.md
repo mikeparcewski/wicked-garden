@@ -265,7 +265,10 @@ the `wicked-garden-jam` skill's `refs/synthesis-patterns.md`.
 
 ### 4.5. Multi-AI Perspective (Optional)
 
-After the final persona round, if an external CLI (gemini, codex) is installed:
+After the final persona round, first run `wicked-garden run scripts/jam/detect_clis.py --json`.
+If it reports `seat`, do not call or look for other CLIs; disclose `seat.reason`
+in the summary instead of naming CLIs as missing. Otherwise, if an external
+CLI (gemini, codex) is detected:
 
 1. Send the topic + synthesis-so-far to ONE external AI
 2. Frame as: "Given this discussion and synthesis, what perspective is missing? What would you challenge?"
