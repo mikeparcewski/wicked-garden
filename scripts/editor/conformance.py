@@ -9,8 +9,9 @@ The cases run in headless Chromium against studio's own **conformance host page*
 (``/editors/conformance``: the real plugin host, its sandboxed frame, its MessagePort handshake, its
 grants check, over a scripted in-memory page). This script serves that page on a local origin —
 proxied from a wicked-crew daemon (``--host-url``, else ``$WICKED_CREW_URL``), or from a studio
-``dist`` directory (``--studio-dist``) — and serves the candidate's entry itself on the editor
-bundle route, hash-checked and with the third-party bundle policy (no network at all). Nothing is
+``dist`` directory (``--studio-dist``) — and serves the candidate on the editor bundle route as crew does:
+the pinned bytes are hash-checked, each running inline script gains crew's WebRTC prelude, and the response
+carries crew's hash-only plus inline-only script policies, no URL child frames, and a 200-script limit. Nothing is
 installed, registered or written outside a temporary directory.
 
 ``--timeout`` (else ``$WG_EDITOR_CONFORMANCE_TIMEOUT``, default 120 s) bounds each load of the host page and
@@ -40,9 +41,9 @@ cases against a hostile bundle belong to studio's CI):
                    first text field changed), a click on the first visible marked control lands exactly ONE version
                    (an editor that asks no ``artifact.write`` is a viewer and passes)
   8  strict-input  malformed host messages leave it alive
-  9  liveness      it answers ``host.ping`` over a full ping period
-  10 keyboard      every control in it can take focus (axe is not run: a reported gap)
-  11 theme         a ``host.theme`` change leaves it alive, with no running animation
+  9  liveness      it answers ``host.ping`` over a full ping period; no browser script refusal in any session document
+  10 keyboard      every control in it can take focus, measured in an isolated world (axe is not run: a reported gap)
+  11 theme         a ``host.theme`` change leaves it alive, with no animation measured in an isolated world
   12 hash-pinned   a wrong pinned hash never starts it
   18 shows         it shows the content it is handed: it asks ``artifact.read``, reads within 3 s of the handshake (the
                    host's clock), a text run of the version it read is in rendered text or fields in the editor frame
@@ -71,6 +72,10 @@ Protocol 1 only:
 
 Cases 7 and 18 are behaviour (G9b): an editor that never reads the artifact it opens, or cannot save an edit
 through its own UI, is not conformant. Both are recorded without stopping the run, so the other cases still report.
+Cases 10 and 11 read the frame from a CDP isolated world (the editor's own replacements of DOM APIs are not seen there);
+a failure of either is recorded and the run goes on, and a probe that cannot reach an isolated world fails the case
+as the host's problem, never by reading the editor's world instead. Case 18's text and field reads still use each
+editor frame's own world, including its nested-frame walker.
 
 Prints one JSON report ``{ok, pack, host, editors: [{id, version, protocol, sha256, ok, cases, gaps}]}``.
 Exit 0 every editor passed, 1 a case failed, 2 bad arguments or an unreadable pack, 3 no headless
@@ -127,12 +132,8 @@ from _pack import (  # noqa: E402
     pack_entries_of, plugin_extra_paths, read_manifest, refuse_links, refuse_links_under, topic_matches, valid_core_event,
 )
 from _surfaces import SurfacesError, canonical_surfaces, parse_surfaces  # noqa: E402
+from _crew_guard import MAX_INLINE_SCRIPTS, bundle_headers, guard_bundle, shell_csp  # noqa: E402
 
-# The third-party bundle policy, as wicked-crew serves it (crew `editors/csp.ts`, no `https:` media).
-BUNDLE_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
-              "img-src data: blob:; media-src blob:; font-src data:; frame-src blob: data: about:; "
-              "child-src blob: data: about:; connect-src 'none'; form-action 'none'; base-uri 'none'; "
-              "worker-src 'none'; manifest-src 'none'")
 W, H = 1440, 700
 SAFE_CTYPE = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:; ?charset=[A-Za-z0-9_-]+)?")
 PING_PERIOD_MS = 11_500
@@ -198,6 +199,10 @@ class CaseFailed(Exception):
     pass
 
 
+class HarnessFailed(Exception):
+    """A measurement could not run outside the editor's world."""
+
+
 class PageFailed(Exception):
     """The conformance host page did not load or did not start the editor (the message says which)."""
 
@@ -228,8 +233,7 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
                 self.send_header(k, v)
             if ctype.startswith("text/html") and not (extra or {}).get("Content-Security-Policy"):
                 origin = f"http://127.0.0.1:{self.server.server_address[1]}"  # this server's own origin, never the Host header
-                # The shell's frame-src (crew `shellCsp`): a frame may point only at the bundle route.
-                self.send_header("Content-Security-Policy", f"frame-src {origin}/api/v1/editors/ blob: data:")
+                self.send_header("Content-Security-Policy", shell_csp(origin))
             try:
                 self.end_headers()
                 self.wfile.write(body)
@@ -246,9 +250,15 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
                 body, sha = found
                 if (urllib.parse.parse_qs(url.query).get("sha") or [""])[0] != sha:
                     return self._send(409, b'{"code":"bundle_hash_mismatch"}', "application/json")
-                return self._send(200, body, "text/html; charset=utf-8", {
-                    "Content-Security-Policy": BUNDLE_CSP, "Cross-Origin-Resource-Policy": "same-origin",
-                    "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+                guarded = guard_bundle(body, MAX_INLINE_SCRIPTS)
+                if guarded.too_many is not None:
+                    eid = urllib.parse.unquote(parts[4])
+                    return self._send(409, json.dumps({
+                        "code": "bundle_too_many_scripts",
+                        "error": f"the {eid} bundle has {guarded.too_many} inline scripts; an editor bundle may have "
+                                 f"at most {MAX_INLINE_SCRIPTS} (merge them into fewer scripts)",
+                    }, separators=(",", ":")).encode(), "application/json")
+                return self._send(200, guarded.body, "text/html; charset=utf-8", bundle_headers(guarded.script_hashes))
             if len(parts) == 7 and parts[1:4] == ["api", "v1", "editors"] and parts[6] == "samples.ndjson":
                 s_body = (samples or {}).get((urllib.parse.unquote(parts[4]), urllib.parse.unquote(parts[5])))
                 if s_body is None:
@@ -326,6 +336,92 @@ def _remaining_ms(deadline: float) -> int:
 
 # ── the cases ──────────────────────────────────────────────────────────────────────────────
 
+def _isolated_eval(page, expression: str):
+    """Read native DOM APIs in the editor's CDP isolated world; an OOPIF gets one target retry."""
+    sessions = []
+    try:
+        session = page.context.new_cdp_session(page)
+        sessions.append(session)
+        root = session.send("DOM.getDocument", {"depth": 0})["root"]["nodeId"]
+        node = session.send("DOM.querySelector", {
+            "nodeId": root, "selector": '[data-testid="editor-frame"]',
+        })["nodeId"]
+        frame_id = session.send("DOM.describeNode", {"nodeId": node})["node"].get("frameId")
+        if not frame_id:
+            raise HarnessFailed("CDP did not expose the editor frameId")
+        try:
+            world = session.send("Page.createIsolatedWorld", {"frameId": frame_id, "worldName": "wg-conformance"})
+        except Exception as first:  # an out-of-process frame belongs to its own CDP target
+            try:
+                handle = page.locator('[data-testid="editor-frame"]').element_handle()
+                frame = handle.content_frame() if handle is not None else None
+                if frame is None:
+                    raise HarnessFailed("the editor frame is unavailable")
+                session = page.context.new_cdp_session(frame)
+                sessions.append(session)
+                world = session.send("Page.createIsolatedWorld", {"frameId": frame_id, "worldName": "wg-conformance"})
+            except Exception as retry:
+                raise HarnessFailed(f"isolated world failed: {first}; frame target retry: {retry}") from retry
+        result = session.send("Runtime.evaluate", {
+            "contextId": world["executionContextId"], "returnByValue": True, "expression": expression,
+        })
+        if "exceptionDetails" in result or "value" not in result.get("result", {}):
+            raise HarnessFailed(f"isolated DOM probe returned no value: {result}")
+        return result["result"]["value"]
+    except HarnessFailed:
+        raise
+    except Exception as exc:
+        raise HarnessFailed(f"isolated DOM probe unavailable: {exc}") from exc
+    finally:
+        for session in sessions:
+            with contextlib.suppress(Exception):
+                session.detach()
+
+
+def _apply_script_refusals(report: dict, case: str) -> None:
+    kinds = report.get("script_refusals", {})
+    if kinds:
+        report["cases"].setdefault(case, {}).update(
+            ok=False, refused_scripts=sum(kinds.values()), refused_kinds=dict(kinds))
+
+
+def _watch_script_refusals(page, entry_url: str, report: dict, case: str = "9-liveness") -> None:
+    """Browser console errors are outside the editor's control; retain them across every session document."""
+    document_urls: set[str] = set()
+    owned_frames = []
+
+    def remember(frame):
+        current = frame
+        while current is not None and current is not page.main_frame:
+            if current.url.split("?", 1)[0] == entry_url or any(current is owned for owned in owned_frames):
+                if not any(frame is owned for owned in owned_frames):
+                    owned_frames.append(frame)
+                document_urls.add(frame.url)
+                return
+            current = current.parent_frame
+
+    def console(message):
+        if message.type != "error" or not re.search(
+                r'''violates the following Content Security Policy directive ["']script-src\b''', message.text,
+                re.IGNORECASE):
+            return
+        for frame in page.frames:
+            remember(frame)
+        location = message.location.get("url", "")
+        if location.split("?", 1)[0] != entry_url and location not in document_urls:
+            return
+        text = message.text.lower()
+        kind = ("inline-handler" if "inline event handler" in text else "javascript-url" if "javascript url" in text
+                else "inline-script" if "inline script" in text else "eval-script" if "evaluating a string" in text
+                else "script")
+        counts = report.setdefault("script_refusals", {})
+        counts[kind] = counts.get(kind, 0) + 1
+        _apply_script_refusals(report, case)
+
+    page.on("framenavigated", remember)
+    page.on("console", console)
+
+
 def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeout_s: float = DEFAULT_TIMEOUT_S) -> None:
     load_ms = int(timeout_s * 1000)
     eid, version, title = editor["id"], editor["version"], editor.get("title") or editor["id"]
@@ -347,6 +443,8 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
 
     # Reduced motion on: the host passes it in host.hello's prefs, and case 11 then requires no animation.
     page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+    entry_url = f"{origin}/api/v1/editors/{urllib.parse.quote(eid)}/{urllib.parse.quote(version)}/entry"
+    _watch_script_refusals(page, entry_url, report)
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     frame_requests: list[str] = []
@@ -394,7 +492,8 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
             # Full is optional (card is not): an editor that declares no full surface is judged on its card.
             declared = editor.get("surfaces") if isinstance(editor.get("surfaces"), dict) else {}
             on = "full" if declared.get("full") is not None else "card"
-            cases["18-shows"] = _surface_shows_case(browser, url(sha, grants, surface=on), on, perms, shown_kind, timeout_s)
+            cases["18-shows"] = _surface_shows_case(browser, url(sha, grants, surface=on), on, perms, shown_kind, timeout_s,
+                                                    report)
             _reads_settle(page)  # this instance's first read lands before case 2 takes its read baseline
         else:
             cases["18-shows"] = {**shows_case(page, frame, perms, shown_kind, alive), "surface": "pane"}
@@ -461,16 +560,24 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
 
         page.evaluate("() => window.__wickedEditor.setTheme({'--accent': '#aa0000'})")
         page.wait_for_timeout(300)
-        anims = frame.locator("body").evaluate("() => document.getAnimations().length")
-        check("11-theme", alive() and anims == 0, animations=anims)
+        try:
+            anims = _isolated_eval(page, "document.getAnimations().length")
+            cases["11-theme"] = {"ok": bool(alive() and anims == 0), "animations": anims}
+        except HarnessFailed as exc:
+            report.setdefault("host_failure", str(exc))
+            cases["11-theme"] = {"ok": False, "error": str(exc)}
 
-        controls = frame.locator("body").evaluate("""() => [...document.querySelectorAll(
-            'button, a[href], input, select, textarea, [tabindex]')]
-            .filter(el => !el.matches(':disabled') && !el.closest('[inert]') && el.tabIndex >= 0 && el.getClientRects().length > 0
-                          && getComputedStyle(el).visibility !== 'hidden')
-            .map(el => { el.focus(); return {tag: el.tagName.toLowerCase(), tab: el.tabIndex, focused: document.activeElement === el}; })""")
-        check("10-keyboard", all(c["tab"] >= 0 and c["focused"] for c in controls), controls=len(controls),
-              unreachable=[c for c in controls if not (c["tab"] >= 0 and c["focused"])][:5])
+        try:
+            controls = _isolated_eval(page, """(() => [...document.querySelectorAll(
+                'button, a[href], input, select, textarea, [tabindex]')]
+                .filter(el => !el.matches(':disabled') && !el.closest('[inert]') && el.tabIndex >= 0 && el.getClientRects().length > 0
+                              && getComputedStyle(el).visibility !== 'hidden')
+                .map(el => { el.focus(); return {tag: el.tagName.toLowerCase(), tab: el.tabIndex, focused: document.activeElement === el}; }))()""")
+            cases["10-keyboard"] = {"ok": all(c["tab"] >= 0 and c["focused"] for c in controls), "controls": len(controls),
+                                    "unreachable": [c for c in controls if not (c["tab"] >= 0 and c["focused"])][:5]}
+        except HarnessFailed as exc:
+            report.setdefault("host_failure", str(exc))
+            cases["10-keyboard"] = {"ok": False, "error": str(exc)}
 
         # 7: it saves through its own UI (grants still on).
         cases["7-edit"] = edit_case(page, frame, perms, shown_kind, log, alive)
@@ -512,6 +619,7 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
     except CaseFailed:
         pass
     finally:
+        _apply_script_refusals(report, "9-liveness")
         if errors:
             report["page_errors"] = errors[:5]
         page.close()
@@ -829,6 +937,7 @@ def run_plugin(
     page.on("pageerror", lambda e: errors.append(str(e)))
     frame_requests: list[str] = []
     own_entry = f"{origin}/api/v1/editors/{urllib.parse.quote(pid)}/{urllib.parse.quote(version)}/entry"
+    _watch_script_refusals(page, own_entry, report, "r1-handshake")
     page.on("request", lambda r: frame_requests.append(r.url)
             if r.frame is not None and r.frame != page.main_frame and r.url.split("?", 1)[0] != own_entry else None)
 
@@ -916,6 +1025,7 @@ def run_plugin(
     except CaseFailed:
         pass
     finally:
+        _apply_script_refusals(report, "r1-handshake")
         if errors:
             report["page_errors"] = errors[:5]
         page.close()
@@ -1144,7 +1254,8 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
     return _editor_wait("18-shows", run)
 
 
-def _surface_shows_case(browser, url: str, surface: str, perms: list, kind: str | None, timeout_s: float) -> dict:
+def _surface_shows_case(browser, url: str, surface: str, perms: list, kind: str | None, timeout_s: float,
+                        refusal_report: dict | None = None) -> dict:
     """Case 18 on a protocol-2 editor's full (else card) surface, with its own handshake, reads and lifetime. An
     editor case 18 does not check here (no artifact.read, or no sample of its kind) opens no instance."""
     if "artifact.read" not in perms or kind is None:
@@ -1153,6 +1264,12 @@ def _surface_shows_case(browser, url: str, surface: str, perms: list, kind: str 
     try:
         try:
             page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+            if refusal_report is not None:
+                parsed = urllib.parse.urlparse(url)
+                query = urllib.parse.parse_qs(parsed.query)
+                entry_url = (f"{parsed.scheme}://{parsed.netloc}/api/v1/editors/"
+                             f"{urllib.parse.quote(query['editor'][0])}/{urllib.parse.quote(query['version'][0])}/entry")
+                _watch_script_refusals(page, entry_url, refusal_report)
             deadline = time.monotonic() + timeout_s
             page.goto(url, wait_until="domcontentloaded", timeout=int(timeout_s * 1000))
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
@@ -1387,6 +1504,8 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict, ti
     def open_page(**extra):
         q = {"editor": eid, "version": version, "sha": sha, "title": title, "grants": ",".join(grants), **extra}
         page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+        entry_url = f"{origin}/api/v1/editors/{urllib.parse.quote(eid)}/{urllib.parse.quote(version)}/entry"
+        _watch_script_refusals(page, entry_url, report)
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.add_init_script(HOST_WIRE)
@@ -1931,7 +2050,7 @@ def main(argv: list[str] | None = None) -> int:
                           f"case 7 fills the empty text fields (or changes the first one) and presses the first "
                           f"visible control marked {SAVE_MARK}: the editor's other edits are its own tests'",
                           "cases 7 and 18 run on the page and deck samples only (another kind is not checked here); "
-                          "case 18 reads rendered text, field values and open shadow roots in the editor frame and its "
+                          "case 18 reads rendered text, field values and open shadow roots in each frame's own world, in the editor frame and its "
                           "visible nested frames (3 deep, 16 frames at most), on the full surface (else the card) for "
                           "protocol 2, not pixels (an editor could hide the text); on the deck sample it checks the "
                           "re-read only (the agent version changes no deck text)",
@@ -1943,9 +2062,11 @@ def main(argv: list[str] | None = None) -> int:
                           "case 6 does not walk Tab/Shift+Tab off the editor's edges",
                           "case 5 presses Backspace/Delete with no part known to be selected (a generic editor exposes "
                           "no common part selector); the editor's own tests must cover a selected part",
-                          "case 11 checks the editor survives a theme change with no animation under reduced motion, "
+                          "case 11 checks the editor survives a theme change with no animation under reduced motion in a CDP isolated world, "
                           "not that it applied the tokens",
-                          "case 10 checks focus reach only; axe is not run",
+                          "case 10 checks focus reach in a CDP isolated world only; axe is not run",
+                          "the candidate is served with crew's WebRTC prelude, hash-only plus inline-only script policies, "
+                          "no URL child frames and a 200-script limit; browser script refusals fail case 9",
                           "case 3 cannot see WebRTC/STUN or DNS prefetch (DES §12.1)",
                           "the host-control cases against a hostile bundle: studio CI runs them",
                           "16b (host.action grants no activation for a tools/call) is the host's rule: studio CI runs "
@@ -1985,6 +2106,8 @@ def main(argv: list[str] | None = None) -> int:
                       "cases": {"r0-manifest": m0}, "gaps": [
                           "r3-topics withholds an independently testable declaration when possible; overlapping grants still authorize rows",
                           "r2-no-network cannot see WebRTC/STUN or DNS prefetch",
+                          "the candidate is served with crew's WebRTC prelude, hash-only plus inline-only script policies, "
+                          "no URL child frames and a 200-script limit; browser script refusals fail r1-handshake",
                       ]}
                 if m0["ok"]:
                     s_path = f"/api/v1/editors/{urllib.parse.quote(pid)}/{urllib.parse.quote(pver)}/samples.ndjson"

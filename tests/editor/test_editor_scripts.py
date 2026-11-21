@@ -508,6 +508,153 @@ def _conformance_module():
     return mod
 
 
+@pytest.mark.parametrize("count", [1, 201])
+def test_bundle_route_serves_crews_guarded_form_and_script_budget(tmp_path, count):
+    import urllib.error
+    import urllib.request
+    mod = _conformance_module()
+    vectors = json.loads((REPO / "tests/fixtures/editor/crew_guard_vectors.json").read_text(encoding="utf-8"))
+    raw = b"<script>x()</script>" * count
+    sha = hashlib.sha256(raw).hexdigest()
+    server = mod.make_server({("acme-x", "1.0.0"): (raw, sha)}, None, tmp_path)
+    origin = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        route = f"{origin}/api/v1/editors/acme-x/1.0.0/entry"
+        with pytest.raises(urllib.error.HTTPError) as wrong:
+            urllib.request.urlopen(route + "?sha=" + "0" * 64, timeout=5)
+        assert wrong.value.code == 409
+        if count > 200:
+            with pytest.raises(urllib.error.HTTPError) as over:
+                urllib.request.urlopen(route + "?sha=" + sha, timeout=5)
+            assert over.value.code == 409
+            assert json.loads(over.value.read()) == {
+                "code": "bundle_too_many_scripts",
+                "error": "the acme-x bundle has 201 inline scripts; an editor bundle may have at most 200 "
+                         "(merge them into fewer scripts)",
+            }
+        else:
+            guarded_script = (vectors["prelude"] + "x()").encode()
+            expected_headers = dict(vectors["headers_without_scripts"])
+            script_hash = base64.b64encode(hashlib.sha256(guarded_script).digest()).decode()
+            expected_headers["Content-Security-Policy"] = expected_headers["Content-Security-Policy"].replace(
+                "script-src 'none'", f"script-src 'sha256-{script_hash}'")
+            with urllib.request.urlopen(route + "?sha=" + sha, timeout=5) as response:
+                assert response.read() == b"<script>" + guarded_script + b"</script>"
+                headers = dict(response.headers)
+                assert {k: v for k, v in headers.items() if k not in (
+                    "Server", "Date", "Content-Length", "Content-Type")} == expected_headers
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_shell_policy_matches_crews_interactive_project_route(tmp_path):
+    import urllib.request
+    mod = _conformance_module()
+    (tmp_path / "index.html").write_text("<!doctype html><title>studio</title>")
+    server = mod.make_server({}, None, tmp_path)
+    origin = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        with urllib.request.urlopen(origin, timeout=5) as response:
+            assert response.headers["Content-Security-Policy"] == (
+                f"frame-src {origin}/api/v1/editors/ {origin}/api/v1/projects/ blob: data:")
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("oopif", [False, True])
+def test_isolated_probe_uses_the_editor_frame_id_and_native_world(oopif):
+    from types import SimpleNamespace
+    mod = _conformance_module()
+    calls, targets = [], []
+    frame = object()
+
+    class Session:
+        def __init__(self, target):
+            self.target = target
+
+        def send(self, method, params=None):
+            calls.append((self.target, method, params))
+            if method == "DOM.getDocument":
+                return {"root": {"nodeId": 7}}
+            if method == "DOM.querySelector":
+                assert params == {"nodeId": 7, "selector": '[data-testid="editor-frame"]'}
+                return {"nodeId": 8}
+            if method == "DOM.describeNode":
+                assert params == {"nodeId": 8}
+                return {"node": {"frameId": "editor-frame-id"}}
+            if method == "Page.createIsolatedWorld":
+                assert params["frameId"] == "editor-frame-id"
+                if oopif and self.target is page:
+                    raise RuntimeError("frame belongs to another target")
+                return {"executionContextId": 42}
+            assert method == "Runtime.evaluate"
+            assert params == {"contextId": 42, "returnByValue": True, "expression": "document.getAnimations().length"}
+            return {"result": {"value": 1}}
+
+        def detach(self):
+            pass
+
+    def session(target):
+        targets.append(target)
+        return Session(target)
+
+    page = SimpleNamespace(context=SimpleNamespace(new_cdp_session=session),
+                           locator=lambda selector: SimpleNamespace(element_handle=lambda: SimpleNamespace(
+                               content_frame=lambda: frame)))
+    assert mod._isolated_eval(page, "document.getAnimations().length") == 1
+    assert targets == ([page, frame] if oopif else [page])
+    assert [method for _, method, _ in calls[:3]] == ["DOM.getDocument", "DOM.querySelector", "DOM.describeNode"]
+
+
+def test_isolated_probe_failure_is_a_harness_failure_without_main_world_fallback():
+    from types import SimpleNamespace
+    mod = _conformance_module()
+    def unavailable(*_args):
+        raise RuntimeError("CDP unavailable")
+    page = SimpleNamespace(context=SimpleNamespace(new_cdp_session=unavailable))
+    with pytest.raises(mod.HarnessFailed, match="CDP unavailable"):
+        mod._isolated_eval(page, "document.getAnimations().length")
+
+
+def test_script_refusals_are_browser_errors_scoped_to_candidate_and_its_documents():
+    from types import SimpleNamespace
+    mod = _conformance_module()
+    events = {}
+    entry = "http://127.0.0.1:123/api/v1/editors/acme-x/1/entry"
+    main = SimpleNamespace(url="http://127.0.0.1:123/editors/conformance", parent_frame=None)
+    candidate = SimpleNamespace(url=entry + "?sha=abc", parent_frame=main)
+    nested = SimpleNamespace(url="about:srcdoc", parent_frame=candidate)
+    page = SimpleNamespace(main_frame=main, frames=[main, candidate, nested],
+                           on=lambda event, callback: events.__setitem__(event, callback))
+    report = {"cases": {"r1-handshake": {"ok": True, "negotiated": 3}}}
+    mod._watch_script_refusals(page, entry, report, "r1-handshake")
+
+    def emit(kind, url, type_="error"):
+        events["console"](SimpleNamespace(type=type_, location={"url": url},
+            text=f'{kind} violates the following Content Security Policy directive "script-src \'sha256-abc\'".'))
+
+    emit("Executing inline script", main.url)
+    emit("Executing inline script", "https://other.invalid/")
+    emit("Executing inline script", candidate.url, "log")
+    assert report["cases"]["r1-handshake"]["ok"] is True
+    emit("Executing inline script", candidate.url)
+    emit("Executing inline event handler", nested.url)
+    emit("Running the JavaScript URL", candidate.url)
+    verdict = report["cases"]["r1-handshake"]
+    assert verdict == {"ok": False, "negotiated": 3, "refused_scripts": 3,
+                       "refused_kinds": {"inline-script": 1, "inline-handler": 1, "javascript-url": 1}}
+    # The candidate may navigate itself to a new document; ownership follows the frame, not its old URL.
+    candidate.url = "blob:http://127.0.0.1:123/candidate"
+    nested.url = "data:text/html,nested"
+    events["framenavigated"](candidate)
+    events["framenavigated"](nested)
+    emit("Executing inline script", candidate.url)
+    emit("Executing inline event handler", nested.url)
+    assert verdict["refused_scripts"] == 5
+
+
 def _engine_env(tree: Path, tmp_path: Path, **over: str) -> dict:
     dist = tmp_path / "dist"
     dist.mkdir(exist_ok=True)
@@ -912,6 +1059,40 @@ def _browser_ready() -> bool:
         return False
     dist = os.environ.get("WICKED_STUDIO_DIST")
     return bool(dist) and (Path(dist) / "index.html").is_file() and sync_playwright is not None
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST")
+@pytest.mark.parametrize("fixture, failures", [
+    ("hostile-dom", {"10-keyboard", "11-theme"}),
+    ("refused-script", {"9-liveness"}),
+])
+def test_conformance_rejects_hostile_dom_and_browser_script_refusals(fixture, failures):
+    from playwright.sync_api import sync_playwright
+    mod = _conformance_module()
+    pack = REPO / "tests/fixtures/editor" / fixture
+    editor = json.loads((pack / "wicked-pack.json").read_text())["editors"][0]
+    raw = (pack / editor["entry"]).read_bytes()
+    server = mod.make_server({(editor["id"], editor["version"]): (raw, editor["sha256"])}, None,
+                             Path(os.environ["WICKED_STUDIO_DIST"]))
+    origin = f"http://127.0.0.1:{server.server_address[1]}"
+    report = {"cases": {}}
+    try:
+        with sync_playwright() as driver:
+            browser = driver.chromium.launch()
+            try:
+                mod.run_editor(browser, origin, editor, editor["sha256"], report)
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert set(report["cases"]) == set(EVERY_EDITOR) - {"0-manifest"}, report
+    assert {key for key, value in report["cases"].items() if not value["ok"]} == failures, report
+    assert "host_failure" not in report
+    if fixture == "refused-script":
+        refusal = report["cases"]["9-liveness"]
+        assert refusal["refused_scripts"] >= 3
+        assert set(refusal["refused_kinds"]) == {"inline-script", "inline-handler", "javascript-url"}
 
 
 @pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
