@@ -112,6 +112,7 @@ class _Estate:
     """The store's write surface, with estate's replace-by-key semantics."""
     def __init__(self):
         self.writes = {}
+        self.anns = {}
     def read_clusters(self):
         return []
     def list_nodes(self):
@@ -122,11 +123,22 @@ class _Estate:
         return f"def {sid}(): ..."
     def annotate(self, symbol_id, **kw):
         self.writes.setdefault(symbol_id, {})["ann"] = kw
+        anns = self.anns.setdefault(symbol_id, [])
+        if kw.get("replace", True):
+            anns[:] = [a for a in anns if (a["type"], a["key"]) != (kw["type"], kw["key"])]
+        anns.append(kw)
     def set_requirement(self, symbol_id, requirement, validated, validated_by="extract-loop"):
         self.writes.setdefault(symbol_id, {})["req"] = (requirement, validated, validated_by)
+    def write_batch(self, rows):
+        for row in rows:
+            fields = {k: v for k, v in row.items() if k not in {"op", "symbol"}}
+            if row["op"] == "annotate":
+                self.annotate(row["symbol"], **fields)
+            else:
+                self.set_requirement(row["symbol"], **fields)
+        return {"rows": len(rows)}
     def read_annotations(self, symbol_id):
-        ann = self.writes.get(symbol_id, {}).get("ann")
-        return [{"key": ann["key"]}] if ann else []
+        return list(self.anns.get(symbol_id, []))
 
 
 class _Core:
@@ -1108,19 +1120,20 @@ def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------
 
-def test_a_write_that_fails_halfway_through_a_rule_says_so(tmp_path, monkeypatch, capsys):
+def test_a_batch_failure_is_reported_without_partial_writes(tmp_path, monkeypatch, capsys):
     db, repo, wt, estate, core = _apply_env(tmp_path)
     _write_rules(wt, "", [_rule("s::core")])
 
-    def semantics_times_out(*a, **k):
+    def batch_times_out(*a, **k):
         raise RuntimeError("wicked-estate exceeded 120s")
-    estate.set_requirement = semantics_times_out  # the annotation lands, the requirement does not
+    estate.write_batch = batch_times_out
     monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
     monkeypatch.setattr(_clients, "host_core_client", lambda: core)
     monkeypatch.chdir(wt)
     assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1
     err = capsys.readouterr().err
-    assert "FAILED after writing" in err and "s::core may be partly written" in err
+    assert "FAILED: wicked-estate exceeded 120s" in err
+    assert "partly written" not in err and estate.writes == {}
 
 
 def test_prepare_reads_a_store_whose_path_has_uri_characters(tmp_path):
@@ -1775,3 +1788,62 @@ def test_check_rules_checks_local_evidence_without_git_or_symbol_store(tmp_path,
         raise AssertionError("the seat must not ask git or the host store")
     monkeypatch.setattr(rules_file, "tracked_files", no_git)
     assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 0
+
+
+def test_apply_batches_all_rules_and_domain_picks_once(tmp_path, monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _fixture, _write
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    _write(wt, [{**_rule(sid), "domain": "payments", "domain_confidence": 0.8}
+                for sid in ("s::core", "s::a")], business_domains=_catalog())
+    batches = []
+
+    def batch(rows):
+        batches.append(list(rows))
+        for row in rows:
+            sid = row["symbol"]
+            if row["op"] == "annotate":
+                ann = {k: v for k, v in row.items() if k not in ("op", "symbol")}
+                estate.writes.setdefault(sid, {})["ann"] = ann
+                estate.anns.setdefault(sid, {})[(row["type"], row["key"])] = ann
+            else:
+                estate.writes.setdefault(sid, {})["req"] = (
+                    row["requirement"], row["validated"], row["validated_by"])
+        return {"rows": len(rows), "annotations": 4, "replaced": 0, "semantics": 2}
+
+    monkeypatch.setattr(estate, "write_batch", batch, raising=False)
+    monkeypatch.setattr(estate, "annotate", lambda *a, **k: pytest.fail("per-write annotate"))
+    monkeypatch.setattr(estate, "set_requirement", lambda *a, **k: pytest.fail("per-write semantics"))
+    report = _apply(wt, db, repo, estate, core)
+    assert len(batches) == 1 and len(batches[0]) == 6
+    assert [r["op"] for r in batches[0]].count("semantics") == 2
+    assert sum(r.get("type") == "business_domain" for r in batches[0]) == 2
+    assert report["applied"] == {"resolved": 2, "risk": 0, "kept": 0}
+    assert report["business_domains"]["picked"] == 2
+    assert report["coverage"]["resolved"] == 2
+
+
+def test_apply_read_back_miss_after_batch_is_applied_then_failed(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    batches, answered = [], []
+    monkeypatch.setattr(estate, "write_batch", lambda rows: batches.append(list(rows)), raising=False)
+    monkeypatch.setattr(estate, "read_annotations", lambda sid: [])
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 rule.*write not durable"):
+        _apply(wt, db, repo, estate, core)
+    assert len(batches) == 1 and answered == [["s::core"]]
+
+
+def test_apply_batch_failure_records_no_answered_units(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    answered = []
+
+    def refuse(rows):
+        raise rules_file.RulesFileRefused("batch refused row 2")
+
+    monkeypatch.setattr(estate, "write_batch", refuse, raising=False)
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(RuntimeError, match="nothing was written to the store, then: batch refused row 2"):
+        _apply(wt, db, repo, estate, core)
+    assert answered == [] and estate.writes == {}

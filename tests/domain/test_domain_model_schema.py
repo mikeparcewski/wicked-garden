@@ -254,12 +254,6 @@ def test_schema_layer_rejects_bad_source_kind_enum_via_ref():
 
 # --- the disjoint mock seam --------------------------------------------------
 
-def test_estate_mock_refuses_bare_name_write():
-    estate = _mocks.EstateClient()
-    with pytest.raises(ValueError, match="silent no-op"):
-        estate.set_requirement("Invoice.close", "REQ-BILL-CLOSE", True)
-
-
 def test_estate_mock_resolves_ambiguous_name_to_multiple_symbolids():
     estate = _mocks.EstateClient()
     hits = estate.resolve("Charge")

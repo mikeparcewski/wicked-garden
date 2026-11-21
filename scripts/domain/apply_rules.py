@@ -18,7 +18,7 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     (anything less keeps its rule: a real requirement is never degraded by a page);
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence >= 0.75 to
-    resolve, the RISK floor, a read-back per write), authored
+    resolve, the RISK floor, read-backs after one page transaction), authored
     `extract-loop:<agent>` when the engine names the upstream extract seat, else `extract-loop`;
     the seat a file names is its own claim, so it is only reported;
   * a rule about a unit whose source the host cannot read (re-read here from the store, never
@@ -351,10 +351,12 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
     return plan
 
 
-def _write_domain(estate, by_id: dict, sid: str, did: str, conf: float, author: str) -> None:
-    estate.annotate(sid, type=business_domains.ANN_TYPE, key=business_domains.ANN_KEY,
-                    value=business_domains.annotation_value(by_id[did]), confidence=float(conf),
-                    provenance=business_domains.PROVENANCE, replace=True, author=author)
+def _write_domain(page, by_id: dict, sid: str, did: str, conf: float, author: str) -> None:
+    value = business_domains.annotation_value(by_id[did])
+    page.annotate(sid, type=business_domains.ANN_TYPE, key=business_domains.ANN_KEY,
+                  value=value, confidence=float(conf),
+                  provenance=business_domains.PROVENANCE, replace=True, author=author)
+    page.expect(sid, business_domains.ANN_KEY, value)
 
 
 def _apply_domains(db: str, estate, domains: dict, picks: list[tuple[str, str, float]],
@@ -409,6 +411,20 @@ def _print_domain_problems(domains: dict) -> None:
               file=sys.stderr)
 
 
+def _page_read_back(db: str, estate):
+    """Read CLI writes from the store and injected writes through their client."""
+    direct = (_annotation_read_back(db) if isinstance(estate, _clients.CliEstateClient)
+              else None)
+    if direct is not None:
+        return direct
+
+    def check(sid: str, key: str, value: str | None = None) -> bool:
+        return any(a.get("key") == key and (value is None or a.get("value") == value)
+                   for a in estate.read_annotations(sid))
+
+    return check
+
+
 def _assignment_page(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str,
                      estate, core) -> dict:
     """Apply only domain assignments and a catalog proposal on a page that framed no units."""
@@ -428,7 +444,9 @@ def _assignment_page(db: str, repo_root: str, base: Path, rules_rel: str, covera
     rules_file.check_writable(base, coverage_rel)
     rules_file.check_writable(base, REPORT_REL)
     domains = _domain_plan(db, doc or {}, rules_file.tracked_files(repo_root), repo_root, set())
-    by_id = _apply_domains(db, estate, domains, [], _author())
+    page = _clients.PageWrites(estate)
+    by_id = _apply_domains(db, page, domains, [], _author())
+    page.flush(_page_read_back(db, estate))
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
     what = (f"assigned {len(domains['assign'])} business domain(s) on a page that framed no units"
@@ -526,25 +544,23 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
 
     # Only the engine can name the upstream author; the file's declared seat is only reported.
     author = _author()
-    # The estate CLI writes into `db`, so its writes read back from `db` directly; any other
-    # client (an injected one) reads back through itself.
-    read_back = (_annotation_read_back(db) if isinstance(estate, _clients.CliEstateClient)
-                 else None)
+    page = _clients.PageWrites(estate)
+    check = _page_read_back(db, estate)
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
     restated = 0  # changed mapped behaviours restated (counted in "resolved" too)
     reworked = 0  # this run's own earlier answers restated on a rework (counted in "resolved" too)
     # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
     unconfirmed = {extract_loop.NO_SOURCE_REASON: 0, extract_loop.NOT_PRODUCT_REASON: 0}
-    in_progress = None  # the symbol whose writes have started and not finished
     answered: list[str] = []  # the page's units written (or kept): closed with the page
     try:
         for entry in eligible:
             sid = entry["symbol_id"]
             now = _accounting(db, [sid])
             if sid in before_state and sid in now and now[sid] != before_state[sid]:
-                # Another writer mapped it after the coverage snapshot: theirs stands. (This narrows
-                # the window to one read before the write; the store has no conditional write.)
+                # Another writer mapped it after the coverage snapshot: theirs stands. The
+                # check stays per entry, but the window now lasts until the page commits;
+                # there is no conditional write.
                 refused.append({"index": None, "symbol_id": rules_file._shown(sid),
                                 "why": "was mapped by another writer while this step ran"})
                 continue
@@ -565,31 +581,23 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 outcomes["kept"] += 1
                 answered.append(sid)
                 continue
-            in_progress = sid
             # Earlier rule rows under other keys (another seat's, an older harness's): the
             # restatement supersedes them too, or the graph keeps the obsolete statement beside
             # it (codex r1). Read before the write; the estate CLI replaces by key.
             superseded = ([k for k in _rule_keys(db, sid)
                            if k != extract_loop.rule_key(sid, author)] if sid in restate else [])
-            outcome = extract_loop.decide_and_write(estate, store, sid,
+            outcome = extract_loop.decide_and_write(page, store, sid,
                                                     nodes[sid].get("name", ""), entry, ids, nc,
-                                                    sizes, seat=author, read_back=read_back,
+                                                    sizes, seat=author, read_back=page.expect,
                                                     unconfirmed=why)
             if outcome == "unconfirmed":  # a RISK write, counted apart by its reason
                 unconfirmed[why] += 1
                 outcome = "risk"
             for key in superseded:
-                estate.annotate(sid, type="business_rule", key=key, value=entry["statement"],
-                                confidence=float(entry["confidence"]),
-                                provenance="extract-loop:restated", replace=True, author=author)
-                if read_back is not None:
-                    ok = read_back(sid, key, entry["statement"])
-                else:
-                    ok = any(a.get("key") == key and a.get("value") == entry["statement"]
-                             for a in estate.read_annotations(sid))
-                if not ok:
-                    raise RuntimeError(f"write not durable: {sid} rule {key} on read-back")
-            in_progress = None
+                page.annotate(sid, type="business_rule", key=key, value=entry["statement"],
+                              confidence=float(entry["confidence"]),
+                              provenance="extract-loop:restated", replace=True, author=author)
+                page.expect(sid, key, entry["statement"])
             outcomes[outcome] += 1
             if "domain" in entry:
                 picks.append((sid, entry["domain"], float(entry["domain_confidence"])))
@@ -597,25 +605,24 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             reworked += sid in restate and sid not in changed_ids
             answered.append(sid)
 
-        _record_answered(db, answered)  # before anything that can still fail (codex r3)
         # The business domains: the catalog first (the record the next page picks from), then each
         # pick and assignment on its node. Advisory: nothing here counts toward coverage.
-        domain_by_id = _apply_domains(db, estate, domains, picks, author)
+        domain_by_id = _apply_domains(db, page, domains, picks, author)
+        page.flush(check)
+        _record_answered(db, answered)
         # The report is computed in a host temp directory and published through the safe writer
         # (core writes its --out in place, which would follow a planted link or hard link).
         with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
         rules_file.write_json_file(base, coverage_rel, after)
     except (rules_file.RulesFileRefused, RuntimeError, OSError, ValueError) as e:
-        _record_answered(db, answered)  # what was written before the failure still counts
-        written = outcomes["resolved"] + outcomes["risk"]
-        partly = (f"; {rules_file._shown(in_progress)} may be partly written (its annotation "
-                  "without its requirement)") if in_progress else ""
-        if not written and not in_progress:
+        if not page.written:
             if isinstance(e, rules_file.RulesFileRefused):
                 raise RuntimeError(f"nothing was written to the store, then: {e}") from e
-            raise  # nothing reached the store; a plain failure
-        raise AppliedThenFailed(f"{written} rule(s) were written to the store{partly} before this "
+            raise
+        _record_answered(db, answered)
+        written = outcomes["resolved"] + outcomes["risk"]
+        raise AppliedThenFailed(f"{written} rule(s) were written to the store before this "
                                 f"failed: {e}") from e
 
     report = {

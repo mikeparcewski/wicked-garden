@@ -126,6 +126,14 @@ class _Estate:
         self.anns.setdefault(symbol_id, {})[(type, key)] = value
     def set_requirement(self, symbol_id, requirement, validated, validated_by="extract-loop"):
         self.reqs[symbol_id] = (requirement, validated)
+    def write_batch(self, rows):
+        for row in rows:
+            fields = {k: v for k, v in row.items() if k not in {"op", "symbol"}}
+            if row["op"] == "annotate":
+                self.annotate(row["symbol"], **fields)
+            else:
+                self.set_requirement(row["symbol"], **fields)
+        return {"rows": len(rows)}
     def read_annotations(self, symbol_id):
         return [{"key": k, "value": v} for (_t, k), v in self.anns.get(symbol_id, {}).items()]
 
