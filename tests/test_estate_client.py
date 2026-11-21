@@ -46,6 +46,42 @@ def pinned_graph(monkeypatch):
     monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")
 
 
+@pytest.fixture()
+def project_scope_workspace(tmp_path, monkeypatch):
+    """Give scope tests a deterministic cwd outside any checkout or configured scope."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    monkeypatch.setattr(_estate_client, "checkout_root", lambda: None)
+    return workspace
+
+
+def test_project_scope_outside_checkout_uses_run_project(monkeypatch, project_scope_workspace):
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "p1")
+    assert _estate_client.project_scope() == "project:p1"
+
+
+@pytest.mark.parametrize("project", ["", "   "])
+def test_project_scope_blank_run_project_uses_cwd(monkeypatch, project_scope_workspace, project):
+    monkeypatch.setenv("WICKED_RUN_PROJECT", project)
+    assert _estate_client.project_scope() == "project:workspace"
+
+
+def test_project_scope_checkout_wins_over_run_project(monkeypatch, project_scope_workspace):
+    checkout = project_scope_workspace / "tiny-math"
+    monkeypatch.setattr(_estate_client, "checkout_root", lambda: checkout)
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "p1")
+    assert _estate_client.project_scope() == "project:tiny-math"
+
+
+def test_project_scope_explicit_scope_wins(monkeypatch, project_scope_workspace):
+    monkeypatch.setattr(_estate_client, "checkout_root", lambda: project_scope_workspace / "tiny-math")
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "p1")
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE", "project:configured")
+    assert _estate_client.project_scope() == "project:configured"
+
+
 # ── minimal fake MCP server (used in broker integration tests) ────────────────
 # Written to a tempfile and invoked via sys.executable so it runs on any OS
 # that has Python — no shebang dependency, no chmod required on Windows.
