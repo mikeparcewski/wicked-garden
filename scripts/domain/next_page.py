@@ -149,6 +149,7 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         page = points[-1]["page"] + (0 if choice else 1)
     page = max(page, 1)
     kept = next((p for p in points if p["page"] == page), None)
+    was_assign_only = generation.assign_only(doc)
     framed, page_real = generation.close_page(doc, cov)
     if choice and kept is not None:
         # An answer to an ask: no page ran, so the page keeps its own time (codex r1: an
@@ -166,6 +167,20 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
             point["framed"] = kept["framed"]
             if "page_real" in kept:
                 point["page_real"] = kept["page_real"]
+    # Domain assignments are advisory, but a progressing backfill can use the remaining budget.
+    import sqlite3
+    from domain import business_domains, extract_loop
+    try:
+        unassigned = business_domains.resolved_without_domain(
+            db, rules_file.tracked_files(repo_root), extract_loop.RESOLVE_THRESHOLD,
+            business_domains.not_product)[1]
+    except sqlite3.Error:
+        unassigned = 0
+    previous = next((p for p in points if p["page"] == page - 1), {})
+    # Mapping pages always get a first assignment page at the minimum. Only an assignment
+    # page can stall the backfill; a missing prior count proves no reduction.
+    assign_progress = not was_assign_only or unassigned < previous.get("unassigned", unassigned)
+    point["unassigned"] = unassigned
     doc["points"] = sorted([p for p in points if p["page"] != page] + [point],
                            key=lambda p: p["page"])
 
@@ -179,22 +194,26 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         # the store holds now, whichever attempt wrote the target. No repository target in force
         # (no share to lower to, so the daemon's minimum applies): the report is not touched.
         _restate_apply_report(core, db, worktree, target)
-    if run_id != "standalone":
-        generation.save(db, run_id, doc)
-
     max_pages, max_minutes = generation.budget_from_env(env)
     decision = generation.decide(doc, repo=repo, target=target, now=now, max_pages=max_pages,
                                  max_minutes=max_minutes,
                                  left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)),
                                  # "Lower the minimum ... and build the graph" ends the mapping
                                  # as its label says, changed units left or not (codex r2).
-                                 changed_left=0 if choice == "lower" else generation.changed_left(doc))
+                                 changed_left=0 if choice == "lower" else generation.changed_left(doc),
+                                 assign_left=unassigned, assign_progress=assign_progress)
     if choice == "finish":
         decision = {"next": "done", "line": generation.progress_line(
             repo, doc["points"], target, next_page=None, left_to_map=0)
             + " · going on as the operator chose"}
     if choice == "lower" and decision["next"] == "done":
         decision["line"] += f" · minimum lowered to {target}% for {repo}"
+    if decision.pop("assign_only", False):
+        doc["assign_only"] = True
+    else:
+        doc.pop("assign_only", None)
+    if run_id != "standalone":
+        generation.save(db, run_id, doc)
     print(f"[extract-next] {decision['line']} (minimum from the {source})")
     print(generation.marker(decision))
     return decision

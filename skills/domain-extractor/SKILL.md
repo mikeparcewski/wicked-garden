@@ -44,11 +44,15 @@ behaviours whose code changed since the map was built, marked `changed_since_bui
 `wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
 and only this:
 
-0. **A worklist with no units** (`"units": []`): there is nothing to state. Write no file and
-   say so in one line. The host's apply step reads its own record of the page it prepared and
-   finishes it ("map already current … nothing to extract"); it applies no rules file for such
-   a page. It refuses a missing file for a page that had units, so never leave the file out
-   when the worklist has any. A review that sends back a page with no units asks for work the
+0. **A worklist with no units.** With `"units": []` and a non-empty `assign` list,
+   this assignment page needs no harness run; write the rules file with `"rules": []` and the `assignments`, plus
+   `business_domains` when `propose: true`. Follow "Business domains first" below, then check
+   the file with `wicked-garden run scripts/domain/extract_loop.py --check-rules
+   .wicked/domain/rules.json --worklist .wicked/domain/worklist.json` and fix what it names.
+   With `"units": []` and an empty `assign` list, write no file and say so in one line.
+   The host finishes that page ("map already current … nothing to extract"). It refuses a
+   missing file for a page that had units, so never leave the file out when the worklist has
+   any. A review that sends back a page with no units asks for work the
    host cannot apply: say so plainly, and the person decides at the step's gate.
 
 **Business domains first.** Read the worklist's `business_domains` block. When it says
@@ -61,6 +65,10 @@ area fits; a unit marked `changed_since_build` keeps the domain it had unless yo
 answer every entry of the worklist's `assign` list in the file's top-level
 `"assignments": [{"symbol_id", "domain", "confidence"}]`. The harness below keeps both top-level
 lists when it rewrites the file and gives its model the domain list.
+Choose each domain pick and assignment per symbol from that symbol's source.
+Never use a script or a path/directory mapping to assign domains. A file's units can serve
+different business areas. Set domain confidence from that symbol's read; never stamp one
+value on the page.
 
 1. Run the harness in file mode (one `Bash` call; it stops inside its budget):
    ```bash

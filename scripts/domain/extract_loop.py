@@ -456,9 +456,13 @@ def _bare_name(name: str) -> str:
     return tail.split("(", 1)[0].strip()
 
 
-# Test directories in any case (`Tests/` in .NET, `Specs/`); file-name patterns keep their case
-# (`*Tests.cs` is a test, `Contest.py` is not).
-_TEST_DIR = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/", re.IGNORECASE)
+# These rules mirror core's domain_model.rs: TEST_DIR, e2e_test_dirs,
+# estate_not_behaviour and is_product_node. File-name patterns keep their case.
+_TEST_DIR = re.compile(
+    r"(^|/)(tests?|__tests__|__mocks__|specs?|e2e|fixtures?|testdata|"
+    r"(unit|integration|functional|system|acceptance|smoke|regression|contract|component|"
+    r"end[_-]to[_-]end|api|ui|perf|load|stress)[_-]tests?|"
+    r"tests?[_-](utils?|helpers?|support|fixtures?|common))/", re.IGNORECASE)
 _TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|(^|/)conftest\.py$|"
                         r"_test\.(py|go|rs|c|cc|cpp|cxx|h|hpp)$|_spec\.rb$|"
                         r"Tests?\.(cs|java|kt|swift|scala|php)$")
@@ -466,7 +470,8 @@ _TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?
 
 def is_test_path(file: str) -> bool:
     """A test, spec or fixture file: mapped in its turn, never where a page starts."""
-    return bool(_TEST_DIR.search(file or "") or _TEST_PATH.search(file or ""))
+    norm = (file or "").replace("\\", "/")
+    return bool(_TEST_DIR.search(norm) or _TEST_PATH.search(norm))
 
 
 # Files whose "behaviours" are keys and headings, not code: a data fixture, a manifest, a
@@ -480,6 +485,51 @@ _DATA_EXTS = (".json", ".jsonc", ".json5", ".jsonl", ".yaml", ".yml", ".toml", "
 def is_data_path(file: str) -> bool:
     """A data, manifest or document file (by extension): its nodes are not product code."""
     return (file or "").lower().endswith(_DATA_EXTS)
+
+
+_E2E_SUFFIX_DIR = re.compile(r"(^|/)[^/]+[_-]e2e$", re.IGNORECASE)
+NOT_COUNTED_BEHAVIOURS = frozenset({"stub", "data", "test_support"})
+
+
+def e2e_test_dirs(files) -> set[str]:
+    """Directories ending in `_e2e` or `-e2e` whose direct code files are mostly tests."""
+    tally = {}
+    for file in {(file or "").replace("\\", "/") for file in files}:
+        directory, sep, name = file.rpartition("/")
+        if (not sep or not _E2E_SUFFIX_DIR.search(directory) or is_data_path(file)
+                or name == "__init__.py"):
+            continue
+        tests, other = tally.get(directory, (0, 0))
+        if _TEST_PATH.search(file):
+            tests += 1
+        else:
+            other += 1
+        tally[directory] = (tests, other)
+    return {directory for directory, (tests, other) in tally.items() if tests > other}
+
+
+def under_any(file: str, dirs: set[str]) -> bool:
+    """Whether `file` sits under one of `dirs` at any depth."""
+    current = (file or "").replace("\\", "/")
+    while "/" in current:
+        current = current.rsplit("/", 1)[0]
+        if current in dirs:
+            return True
+    return False
+
+
+def behaviour_of(data) -> str | None:
+    """The estate behaviour classification in node JSON, when it is a string."""
+    try:
+        behaviour = json.loads(data or "{}").get("metadata", {}).get("behaviour")
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return behaviour if isinstance(behaviour, str) else None
+
+
+def not_counted(file: str, data, e2e_dirs: set[str]) -> bool:
+    """Whether core leaves this node out by estate classification or an evidenced test directory."""
+    return behaviour_of(data) in NOT_COUNTED_BEHAVIOURS or under_any(file, e2e_dirs)
 
 
 def kind_of_row(row) -> str:
@@ -1173,7 +1223,32 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
     return rc
 
 
-def check_domains(doc: dict, worklist: dict, accepted: list[dict]) -> list[dict]:
+class _WorktreeEvidence:
+    """File membership and directories visible to the seat without consulting git."""
+
+    def __init__(self, base: Path):
+        self.base = base.resolve()
+
+    def _path(self, rel: str) -> Path | None:
+        try:
+            path = self.base / rel
+            if path.is_symlink():
+                return None
+            real = path.resolve()
+            return real if self.base in real.parents else None
+        except (OSError, ValueError):
+            return None
+
+    def __contains__(self, rel: str) -> bool:
+        path = self._path(rel)
+        return path is not None and path.is_file()
+
+    def is_dir(self, rel: str) -> bool:
+        path = self._path(rel)
+        return path is not None and path.is_dir()
+
+
+def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -> list[dict]:
     """What the seat's business-domain answers get wrong against the worklist (reqgraph Fix B):
     the seat's own check of what the host will check again. One `{index, symbol_id, why}` each."""
     block = worklist.get("business_domains")
@@ -1199,6 +1274,18 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict]) -> list[dict]
         dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
         try:
             domains = business_domains.check_catalog_shape(proposed, dirs)
+            # Symbol presence is not checked in the seat; the host checks it against the store.
+            domains, dropped = business_domains.check_catalog_evidence(
+                domains, _WorktreeEvidence(base), lambda file, symbol: "",
+                business_domains.repo_reader(str(base)),
+                lambda file, kind: not business_domains.not_product(file, kind))
+            positions = {d["id"]: i for i, d in enumerate(proposed)}
+            for item in dropped:
+                where = f"business_domains[{positions[item['domain']]}]"
+                if item["index"] is not None:
+                    where += f".evidence[{item['index']}]"
+                problems.append({"index": None, "symbol_id": None,
+                                 "why": f"{where}: {item['why']}"})
         except business_domains.CatalogRefused as e:
             problems.append({"index": None, "symbol_id": None, "why": str(e)})
     ids = {d["id"] for d in domains or [] if isinstance(d, dict) and isinstance(d.get("id"), str)}
@@ -1238,7 +1325,8 @@ def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
             print(f"[extract-loop] worklist {worklist_rel}: {e}", file=sys.stderr)
             return 1
         units = worklist["units"]
-        refused += check_domains(rules_file.read_json_file(base, rules_rel), worklist, accepted)
+        refused += check_domains(rules_file.read_json_file(base, rules_rel), worklist, accepted,
+                                 base)
         unit_ids = {u["symbol_id"] for u in units}
         refused += [{"index": None, "symbol_id": e["symbol_id"],
                      "why": "is not a unit of the worklist (copy the symbol_id verbatim)"}

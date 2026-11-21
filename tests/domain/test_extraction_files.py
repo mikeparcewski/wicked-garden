@@ -208,6 +208,155 @@ def test_apply_writes_conforming_rules_as_the_seat_and_reports_coverage(tmp_path
     assert (report_file["refused_count"], report_file["declared_seat"]) == (0, "codex")
 
 
+def test_a_catalog_stored_between_plan_and_save_wins_over_picks_and_assignments(tmp_path,
+                                                                            monkeypatch):
+    from domain import business_domains
+    from tests.domain.test_business_domains import (
+        _annotations_table, _catalog, _domain_of, _fixture, _write)
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    _annotations_table(db, [("s::b", "business_rule", "refund never exceeds the charge", 0.9)])
+    page = _catalog()
+    winner = [{**d, "id": d["id"] + "-first"} if i < 2 else
+              {**d, "purpose": "Reports the revenue the first page recorded."}
+              for i, d in enumerate(page)]
+    save = business_domains.save_catalog
+
+    def another_page_first(db, domains, run_id=""):
+        save(db, winner, "other-page")
+        return save(db, domains, run_id)
+
+    monkeypatch.setattr(business_domains, "save_catalog", another_page_first)
+    _write(wt, [{**_rule("s::core"), "domain": "payments", "domain_confidence": 0.8},
+                {**_rule("s::a"), "domain": "reporting", "domain_confidence": 0.8}],
+           business_domains=page,
+           assignments=[{"symbol_id": "s::b", "domain": "accounts", "confidence": 0.9}])
+    report = _apply(wt, db, repo, estate, core)
+    assert business_domains.load_catalog(db) == winner
+    bd = report["business_domains"]
+    assert bd["catalog"] == "stored by another page"
+    assert bd["picked"] == 1 and bd["assigned"] == 0
+    assert _domain_of(estate, "s::core") is None and _domain_of(estate, "s::b") is None
+    assert _domain_of(estate, "s::a") == ("reporting", 0.8)
+    value = estate.anns["s::a"][(business_domains.ANN_TYPE, business_domains.ANN_KEY)]["value"]
+    assert json.loads(value)["purpose"] == winner[2]["purpose"]
+    assert bd["refused_count"] == 2
+    assert all("catalog another page stored first (written without one)" in r["why"]
+               for r in bd["refused"])
+
+
+def _assignment_fixture(tmp_path):
+    from tests.domain.test_business_domains import _annotations_table, _fixture
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    for sid in _STAR:
+        estate.writes[sid] = {"req": ("amount must be positive", True, "extract-loop")}
+    _annotations_table(db, [(sid, "business_rule", "amount must be positive", 0.9)
+                            for sid in ("s::a", "s::b", "s::c")])
+    return db, repo, wt, estate, core
+
+
+def test_prepare_without_units_publishes_and_records_three_assignments(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500,
+                                   estate=estate, core=core)
+    assert doc["units"] == []
+    assert [a["symbol_id"] for a in doc["assign"]] == ["s::a", "s::b", "s::c"]
+    record = generation.load(db, "run-1")
+    assert record["assign_framed"] == 3 and generation.assign_framed(record) == 3
+
+
+def test_apply_assignment_page_writes_catalog_and_assignments_and_refuses_rules(tmp_path,
+                                                                             monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _domain_of, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [_rule("s::core"), "malformed rule"], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8},
+                        {"symbol_id": "s::b", "domain": "accounts", "confidence": 0.7},
+                        {"symbol_id": "s::i1", "domain": "accounts", "confidence": 0.7}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["assignment_page"] is True
+    assert report["business_domains"]["assigned"] == 2
+    assert report["business_domains"]["refused_count"] == 1
+    assert _domain_of(estate, "s::a") == ("payments", 0.8)
+    assert _domain_of(estate, "s::b") == ("accounts", 0.7)
+    assert estate.writes["s::core"]["req"] == ("amount must be positive", True, "extract-loop")
+    assert report["refused_count"] == 2
+    assert all(r["why"] == "this page framed no units: only assignments (and a catalog proposal) apply"
+               for r in report["refused"])
+    assert report["line"] == "assigned 2 business domain(s) on a page that framed no units"
+    assert json.loads((wt / apply_rules.REPORT_REL).read_text())["assignment_page"] is True
+    assert json.loads((wt / "coverage-report.json").read_text())["resolved"] == len(_STAR)
+
+
+def test_assignment_page_without_a_rules_file_reports_no_assignments(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    before = json.dumps(estate.writes, sort_keys=True)
+    report = _apply(wt, db, repo, estate, core)
+    assert report["assignment_page"] is True and report["business_domains"]["assigned"] == 0
+    assert report["line"] == "the extract step wrote no assignments"
+    assert json.dumps(estate.writes, sort_keys=True) == before
+    assert not (wt / rules_file.RULES_REL).exists()
+
+
+def test_assignment_page_refuses_a_null_rules_document(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    rules_file.write_json_file(wt, rules_file.RULES_REL, None)
+    with pytest.raises(rules_file.RulesFileRefused, match="expected a JSON object"):
+        _apply(wt, db, repo, estate, core)
+
+
+@pytest.mark.parametrize("upstream,author", [
+    ("extract=codex,critique=claude", "extract-loop:codex"),
+    ("critique=claude,extract=pi", "extract-loop:pi"),
+    ("extract=bad token", "extract-loop"),
+    ("extract=", "extract-loop"),
+    ("notextract=codex", "extract-loop"),
+    (None, "extract-loop"),
+])
+def test_apply_authors_rules_from_the_engine_upstream_extract_seat(tmp_path, monkeypatch,
+                                                                 upstream, author):
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _Core(estate, {s: "f.py" for s in _STAR})
+    if upstream is None:
+        monkeypatch.delenv("WICKED_UPSTREAM_AGENTS", raising=False)
+    else:
+        monkeypatch.setenv("WICKED_UPSTREAM_AGENTS", upstream)
+    _write_rules(wt, "claimed-seat", [_rule("s::core")])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["author"] == author and report["declared_seat"] == "claimed-seat"
+    ann = estate.writes["s::core"]["ann"]
+    assert ann["author"] == author and ann["key"] == extract_loop.rule_key("s::core", author)
+    assert estate.writes["s::core"]["req"][2] == author
+
+
+def test_empty_page_reports_the_engine_upstream_author(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_UPSTREAM_AGENTS", "extract=codex,critique=claude")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    assert _apply(wt, db, repo, estate, core)["author"] == "extract-loop:codex"
+
+
+def test_assignment_page_authors_domains_from_the_engine_upstream_seat(tmp_path, monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_UPSTREAM_AGENTS", "extract=codex")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(), assignments=[
+        {"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["author"] == "extract-loop:codex"
+    assert estate.writes["s::a"]["ann"]["author"] == "extract-loop:codex"
+
+
 def test_apply_refuses_a_bad_file_and_writes_nothing(tmp_path):
     db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
@@ -1578,3 +1727,51 @@ def test_full_coverage_without_a_build_commit_is_never_called_current(tmp_path, 
     assert report["nothing_to_extract"] is True and report["map_current"] is False
     assert "already current" not in report["line"]
     assert "no commit the map was built from" in report["line"], report["line"]
+
+
+def _catalog_check_worktree(tmp_path, extra_evidence):
+    from tests.domain.test_business_domains import _catalog
+    wt = _wt(tmp_path)
+    (wt / "f.py").write_text("x = 1\n", encoding="utf-8")
+    (wt / "pay").mkdir()
+    catalog = _catalog()
+    catalog.append({**catalog[2], "id": "maintenance", "name": "Scheduled maintenance"})
+    catalog[0]["evidence"].append(extra_evidence)
+    rules_file.write_json_file(wt, rules_file.WORKLIST_REL, {
+        "schema": rules_file.WORKLIST_SCHEMA, "units": [], "assign": [],
+        "business_domains": {"catalog": None, "propose": True}})
+    rules_file.write_json_file(wt, rules_file.RULES_REL,
+                               rules_file.rules_doc("codex", [], {"business_domains": catalog}))
+    return wt
+
+
+def test_check_rules_names_catalog_evidence_text_missing_from_the_worktree(tmp_path, capsys):
+    wt = _catalog_check_worktree(tmp_path, {
+        "kind": "cli-verb", "file": "f.py", "text": "backfill apply"})
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 1
+    err = capsys.readouterr().err
+    assert "business_domains[0].evidence[2]" in err
+    assert "backfill apply" in err and "does not occur" in err
+
+
+@pytest.mark.parametrize("kind,file", [
+    ("entry-point", "missing.py"), ("entry-point", "link.py"),
+    ("entry-point", "../outside.py"), ("directory", "missing-dir"),
+])
+def test_check_rules_refuses_catalog_evidence_outside_plain_worktree_files(tmp_path, capsys,
+                                                                         kind, file):
+    wt = _catalog_check_worktree(tmp_path, {"kind": kind, "file": file, "symbol": "core"})
+    outside = tmp_path / "outside.py"
+    outside.write_text("x = 1\n", encoding="utf-8")
+    (wt / "link.py").symlink_to(outside)
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 1
+    assert "business_domains[0].evidence[2]" in capsys.readouterr().err
+
+
+def test_check_rules_checks_local_evidence_without_git_or_symbol_store(tmp_path, monkeypatch):
+    wt = _catalog_check_worktree(tmp_path, {
+        "kind": "entry-point", "file": "f.py", "symbol": "only-the-host-knows"})
+    def no_git(*args, **kwargs):
+        raise AssertionError("the seat must not ask git or the host store")
+    monkeypatch.setattr(rules_file, "tracked_files", no_git)
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 0

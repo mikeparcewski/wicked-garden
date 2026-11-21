@@ -116,6 +116,12 @@ def _valid(doc: Any) -> bool:
         ids = doc.get(key) or []
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
             return False
+    if "assign_only" in doc and not isinstance(doc["assign_only"], bool):
+        return False
+    if "assign_framed" in doc:
+        n = doc["assign_framed"]
+        if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+            return False
     return (isinstance(grant, dict) and isinstance(grant.get("page"), int)
             and isinstance(grant.get("at"), int))
 
@@ -183,6 +189,16 @@ def page_in_flight(doc: dict[str, Any] | None) -> list[str] | None:
     return list(pending) if isinstance(pending, list) else None
 
 
+def assign_only(doc: dict[str, Any] | None) -> bool:
+    """Whether the next prepared page only assigns business domains to resolved requirements."""
+    return bool(doc and doc.get("assign_only") is True)
+
+
+def assign_framed(doc: dict[str, Any] | None) -> int:
+    """How many assignments the host framed for the page in flight, else zero."""
+    return int(doc.get("assign_framed", 0)) if page_in_flight(doc) is not None else 0
+
+
 def changed(doc: dict[str, Any] | None) -> set[str]:
     """Mapped units this generation found changed since the map was built (wicked-garden#1425):
     the only resolved units a page may ask again (prepare frames each once: a closed page's units
@@ -198,7 +214,7 @@ def changed_left(doc: dict[str, Any] | None) -> int:
 
 
 def frame_page(db: str, run_id: str, symbol_ids: list[str],
-               changed_ids: list[str] | None = None) -> None:
+               changed_ids: list[str] | None = None, *, assign_count: int = 0) -> None:
     """Record the units the page being prepared framed (`pending`). Re-preparing the same page
     (a retried step) replaces them, so a failed attempt never hides a unit from the next. Raises
     when the record cannot be saved: it decides what the next page skips and what the page's
@@ -206,6 +222,7 @@ def frame_page(db: str, run_id: str, symbol_ids: list[str],
     doc = load(db, run_id)
     if doc is None:
         raise ValueError(f"no generation record for run {run_id}")
+    doc["assign_framed"] = int(assign_count)
     doc["pending"] = list(symbol_ids)
     doc[PAGE_OPEN] = True  # this page is open until `close_page` (see `page_in_flight`)
     if changed_ids:  # kept for the whole generation: apply accepts these, next-page counts them
@@ -236,6 +253,7 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     (real before the page: it stays open). (0, 0) when an answer to an ask
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
+    doc.pop("assign_framed", None)
     if not pending:
         doc["pending"] = []
         doc.pop(PAGE_OPEN, None)
@@ -374,7 +392,8 @@ def _budget_spent(doc: dict[str, Any], now: int, max_pages: int,
 
 
 def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: int,
-           max_minutes: int, left_to_map: int, changed_left: int = 0) -> dict[str, Any]:
+           max_minutes: int, left_to_map: int, changed_left: int = 0,
+           assign_left: int = 0, assign_progress: bool = False) -> dict[str, Any]:
     """The loop's decision after the record's last point (pure). Returns the `wicked-repeat`
     object: `done` when the REAL share reaches the target and no mapped behaviour that changed
     since the map was built is left to re-ask (`changed_left`, wicked-garden#1425: those are
@@ -387,6 +406,12 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     if last["pct"] >= target:
         line = progress_line(repo, points, target, next_page=None, done=True)
         if changed_left <= 0:
+            if assign_left > 0:
+                if assign_progress and not _budget_spent(doc, now, max_pages, max_minutes):
+                    return {"next": "continue", "line": line +
+                            f" · {count(assign_left)} requirement(s) left to give a business domain",
+                            "assign_only": True}
+                line += f" · {count(assign_left)} requirement(s) left without a business domain"
             return {"next": "done", "line": line}
         line += (f" · {count(changed_left)} mapped behaviour{'s' if changed_left != 1 else ''} "
                  f"changed since the map was built left to re-ask")

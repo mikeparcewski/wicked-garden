@@ -783,3 +783,96 @@ def test_a_failed_mismatch_read_stops_the_write():
     store._c = sqlite3.connect(":memory:")
     store.sid_of = {sid: 1}
     assert store.mismatch_now(sid) is False, "no annotations table: nothing to clear"
+
+
+def test_the_extractor_handles_assignment_only_worklists():
+    from tests.domain.test_extraction_files import _extractor_texts
+
+    text = _extractor_texts()[0]
+    assert 'With `"units": []` and a non-empty `assign` list' in text
+    assert 'write the rules file with `"rules": []` and the `assignments`' in text
+    assert '`business_domains` when `propose: true`' in text
+    assert 'With `"units": []` and an empty `assign` list, write no file' in text
+    assert '--check-rules' in text
+    assert ('A review that sends back a page with no units asks for work the host cannot apply: '
+            'say so plainly, and the person decides at the step\'s gate.') in text
+
+
+def test_the_extractor_chooses_business_domains_from_each_symbols_source():
+    from tests.domain.test_extraction_files import _extractor_texts
+
+    text = _extractor_texts()[0]
+    assert "Choose each domain pick and assignment per symbol from that symbol's source" in text
+    assert 'Never use a script or a path/directory mapping to assign domains' in text
+    assert "A file's units can serve different business areas" in text
+    assert "Set domain confidence from that symbol's read; never stamp one value on the page" in text
+
+
+def test_the_modeler_covers_entry_points_and_describes_evidence_drops():
+    from pathlib import Path
+
+    skill = Path(__file__).resolve().parents[2] / 'skills' / 'domain-modeler' / 'SKILL.md'
+    text = ' '.join(skill.read_text(encoding='utf-8').split())
+    assert 'Cover every entry-point group the code shows' in text
+    assert 'scheduled and housekeeping jobs (cron/scheduler jobs, maintenance, notices)' in text
+    assert "A multi-purpose module's symbols can land in different domains" in text
+    assert 'An item the code does not show is dropped' in text
+    assert 'no symbol the graph holds is dropped' in text
+    assert 'catalog is refused only when fewer than 3 domains remain' in text
+    assert "seat's `--check-rules` names a bad file or text first" in text
+    assert 'refuses the whole catalog otherwise' not in text
+
+
+@pytest.mark.parametrize("file", ["__mocks__/api.py", "integration_tests/api.py",
+                                  "unit-tests/api.py", "end_to_end-tests/api.py",
+                                  "test_helpers/api.py", r"src\Test_Utils\api.py"])
+def test_core_test_directory_patterns_are_recognised(file):
+    assert extract_loop.is_test_path(file)
+
+
+def test_e2e_directory_evidence_counts_only_direct_unique_code_files():
+    files = ["billing_e2e/a_test.py", r"billing_e2e\a_test.py", "billing_e2e/b_test.py",
+             "billing_e2e/provider.py", "billing_e2e/config.json", "billing_e2e/__init__.py",
+             "crypto_e2e/keys_test.py", "crypto_e2e/keys.py",
+             "plain_e2e/nested/a_test.py", "plain_e2e/provider.py"]
+    dirs = extract_loop.e2e_test_dirs(files)
+    assert dirs == {"billing_e2e"}
+    assert extract_loop.under_any(r"billing_e2e\nested\child.py", dirs)
+    assert not extract_loop.under_any("other/billing_e2e/child.py", dirs)
+
+
+@pytest.mark.parametrize("data, expected", [
+    ('{"metadata": {"behaviour": "test_support"}}', "test_support"),
+    ('{"metadata": {"behaviour": true}}', None),
+    ('{"metadata": []}', None), ('[]', None), ('bad JSON', None), (None, None),
+])
+def test_behaviour_of_tolerates_old_or_malformed_node_data(data, expected):
+    assert extract_loop.behaviour_of(data) == expected
+
+
+def test_seat_accepts_directory_evidence_naming_a_regular_file(tmp_path):
+    """Round 2 R3: a host-valid file used as directory evidence survives the seat check."""
+    from domain import business_domains
+    from tests.domain.test_business_domains import _catalog
+
+    (tmp_path / "f.py").write_text("def core(): pass\n", encoding="utf-8")
+    catalog = _catalog()
+    catalog[0]["evidence"][1]["file"] = "f.py"
+    kept, dropped = business_domains.check_catalog_evidence(
+        catalog, {"f.py"}, lambda file, symbol: "function",
+        lambda file: "def core(): pass\n", lambda file, kind: True)
+    assert kept == catalog and dropped == []
+    assert extract_loop.check_domains(
+        {"business_domains": catalog},
+        {"units": [{"symbol_id": "s::core"}], "business_domains": {"propose": True}},
+        [], tmp_path) == []
+
+
+def test_assignment_page_instructions_skip_harness_run():
+    from pathlib import Path
+
+    skill = (Path(__file__).resolve().parents[2] / "skills/domain-extractor/SKILL.md").read_text()
+    step_zero = skill.split("0. **A worklist with no units.**", 1)[1].split(
+        "**Business domains first.**", 1
+    )[0]
+    assert "no harness run" in step_zero

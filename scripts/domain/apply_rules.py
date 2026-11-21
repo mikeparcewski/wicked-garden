@@ -19,7 +19,8 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence >= 0.75 to
     resolve, the RISK floor, a read-back per write), authored
-    `extract-loop` — the seat a file names is the seat's own claim, so it is only reported;
+    `extract-loop:<agent>` when the engine names the upstream extract seat, else `extract-loop`;
+    the seat a file names is its own claim, so it is only reported;
   * a rule about a unit whose source the host cannot read (re-read here from the store, never
     taken from the worklist), or about a test or data file, is written unconfirmed, never
     validated;
@@ -56,10 +57,18 @@ from domain import (_clients, _rule_extractor, business_domains, extract_loop, g
                     refresh, rules_file)
 
 REPORT_REL = ".wicked/domain/apply-report.json"
-# Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
-# would take a seat's identity from the seat's own file.
+# The host's default author when the engine supplies no valid upstream extract seat.
 AUTHOR = "extract-loop"
 COVERAGE_REL = "coverage-report.json"
+
+
+def _author() -> str:
+    """The upstream extract seat supplied by the engine, never by a seat-written file."""
+    for pair in os.environ.get("WICKED_UPSTREAM_AGENTS", "").split(","):
+        step, sep, agent = pair.partition("=")
+        if sep and step == "extract":
+            return f"{AUTHOR}:{agent}" if agent and rules_file.seat_name(agent) == agent else AUTHOR
+    return AUTHOR
 
 
 class AppliedThenFailed(RuntimeError):
@@ -249,7 +258,7 @@ def _nothing_to_extract(db: str, base: Path, rules_rel: str, coverage_rel: str, 
     rules_file.write_json_file(base, coverage_rel, after)
     report = {
         "declared_seat": None,
-        "author": AUTHOR,
+        "author": _author(),
         "entries": 0,
         "applied": {"resolved": 0, "risk": 0, "kept": 0},
         "eligible": 0,
@@ -293,7 +302,7 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
     write: the catalog (the stored one, else the page's proposal when it is grounded in code the
     host can see), and the assignments that name a resolved requirement with no domain yet."""
     plan: dict = {"catalog": None, "store": False, "state": "none", "assign": [],
-                  "refused": []}
+                  "refused": [], "dropped": []}
     stored = business_domains.load_catalog(db)
     proposed = doc.get("business_domains")
     if stored:
@@ -306,14 +315,15 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
         try:
             business_domains.check_catalog_shape(proposed,
                                                  business_domains.directory_names(tracked))
-            business_domains.check_catalog_evidence(
+            kept, dropped = business_domains.check_catalog_evidence(
                 proposed, tracked, business_domains.symbol_lookup(db),
                 business_domains.repo_reader(repo_root),
                 lambda f, kind: not business_domains.not_product(f, kind))
-            plan.update(catalog=proposed, store=True, state="proposed")
+            plan.update(catalog=kept, dropped=dropped, store=True, state="proposed")
         except business_domains.CatalogRefused as e:
             # Refused whole: the page's rules still apply, without a domain; the next page asks
             # for a catalog again.
+            plan["dropped"] = e.dropped
             plan["state"] = f"refused: {e}"
             plan["refused"].append({"index": None, "symbol_id": None,
                                     "why": f"business_domains refused: {e}"})
@@ -347,12 +357,110 @@ def _write_domain(estate, by_id: dict, sid: str, did: str, conf: float, author: 
                     provenance=business_domains.PROVENANCE, replace=True, author=author)
 
 
+def _apply_domains(db: str, estate, domains: dict, picks: list[tuple[str, str, float]],
+                   author: str) -> dict:
+    """Save the first catalog, then write only picks and assignments that belong to it."""
+    catalog = domains["catalog"] or []
+    if domains["store"]:
+        stored = business_domains.save_catalog(
+            db, catalog, (os.environ.get("WICKED_RUN_ID") or "").strip())
+        if not stored:
+            domains["state"] = "a catalog file is stored but cannot be read"
+        elif {d["id"] for d in stored} != domains["ids"]:
+            domains["state"] = "stored by another page"
+        catalog = stored
+    by_id = {d["id"]: d for d in catalog}
+
+    def write(sid: str, did: str, conf: float) -> bool:
+        if did not in by_id:
+            why = (domains["state"]
+                   if domains["state"] == "a catalog file is stored but cannot be read" else
+                   f"domain {did} is not in the catalog another page stored first"
+                   if domains["state"] == "stored by another page" else
+                   f"domain {did!r} is not an id of the repository's business domains")
+            domains["refused"].append({"index": None, "symbol_id": rules_file._shown(sid),
+                                       "why": why + " (written without one)"})
+            return False
+        _write_domain(estate, by_id, sid, did, conf, author)
+        return True
+
+    picks[:] = [(sid, did, conf) for sid, did, conf in picks if write(sid, did, conf)]
+    domains["assign"] = [a for a in domains["assign"]
+                         if write(a["symbol_id"], a["domain"], a["confidence"])]
+    return by_id
+
+
+def _domain_report(domains: dict, by_id: dict, picked: int = 0) -> dict:
+    """The catalog and all advisory evidence and assignment outcomes for either page kind."""
+    return {"catalog": domains["state"], "domains": len(by_id), "picked": picked,
+            "assigned": len(domains["assign"]),
+            "dropped_evidence": domains["dropped"][:50],
+            "dropped_evidence_count": len(domains["dropped"]),
+            "refused": domains["refused"][:200], "refused_count": len(domains["refused"])}
+
+
+def _print_domain_problems(domains: dict) -> None:
+    """Name the first dropped evidence items and refused domain answers on stderr."""
+    for r in domains["dropped"][:10]:
+        print(f"[extract-apply] business domains: {r['domain']} evidence[{r['index']}]: "
+              f"{r['why']}", file=sys.stderr)
+    for r in domains["refused"][:10]:
+        print(f"[extract-apply] business domains: {r['symbol_id'] or '-'}: {r['why']}",
+              file=sys.stderr)
+
+
+def _assignment_page(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str,
+                     estate, core) -> dict:
+    """Apply only domain assignments and a catalog proposal on a page that framed no units."""
+    seat = None
+    try:
+        doc = rules_file.read_json_file(base, rules_rel)
+    except FileNotFoundError:
+        doc = None
+    else:
+        seat, _accepted, _refused = rules_file.check_rules_doc(doc)
+    refused = []
+    if doc is not None:
+        refused = [{"index": i, "symbol_id": rules_file._shown(e.get("symbol_id"))
+                    if isinstance(e, dict) else None,
+                    "why": "this page framed no units: only assignments (and a catalog proposal) apply"}
+                   for i, e in enumerate(doc["rules"])]
+    rules_file.check_writable(base, coverage_rel)
+    rules_file.check_writable(base, REPORT_REL)
+    domains = _domain_plan(db, doc or {}, rules_file.tracked_files(repo_root), repo_root, set())
+    by_id = _apply_domains(db, estate, domains, [], _author())
+    with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
+        after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+    what = (f"assigned {len(domains['assign'])} business domain(s) on a page that framed no units"
+            if doc is not None else "the extract step wrote no assignments")
+    rules_file.write_json_file(base, coverage_rel, after)
+    report = {
+        "declared_seat": seat, "author": _author(), "entries": len((doc or {}).get("rules", [])),
+        "applied": {"resolved": 0, "risk": 0, "kept": 0}, "eligible": 0,
+        "changed_since_build": {"listed": 0, "restated": 0}, "reworked": 0,
+        "unsourced": 0, "not_product": 0, "refused": refused[:500],
+        "refused_count": len(refused), "assignment_page": True,
+        "assigned": len(domains["assign"]), "business_domains": _domain_report(domains, by_id),
+        "line": what,
+        "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
+                                                "risk_flagged", "unaccounted")},
+        "minimum_met": met, "coverage_line": line,
+    }
+    rules_file.write_json_file(base, REPORT_REL, report)
+    _print_domain_problems(domains)
+    print(f"[extract-apply] {what}. {line or ''}".rstrip(), file=sys.stderr)
+    return report
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
     core = core or _clients.host_core_client()
     estate = estate or _clients.host_estate_client(db)
     if _page_framed_nothing(db):
+        run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+        if generation.assign_framed(generation.load(db, run_id)) > 0:
+            return _assignment_page(db, repo_root, base, rules_rel, coverage_rel, estate, core)
         # The host's record says this pass's prepare framed nothing: there is nothing to apply,
         # with or without a file. A page with units, a closed page or no record goes on below, where
         # a missing file is refused: an extract step that skipped its work fails closed.
@@ -395,7 +503,6 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     nodes = {**restate, **unmapped}
     tracked = rules_file.tracked_files(repo_root)
     domains = _domain_plan(db, doc, tracked, repo_root, {e["symbol_id"] for e in accepted})
-    domain_by_id = {d["id"]: d for d in domains["catalog"] or []}
     picks: list[tuple[str, str, float]] = []
 
     eligible: list[dict] = []
@@ -417,9 +524,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     nc: dict[str, str] = {}
     sizes: dict[str, int] = {}
 
-    # The host writes these, so the host is the author: the seat named in the file is the seat's
-    # own claim (a seat-written file proves nothing about who wrote it) and is only reported.
-    author = AUTHOR
+    # Only the engine can name the upstream author; the file's declared seat is only reported.
+    author = _author()
     # The estate CLI writes into `db`, so its writes read back from `db` directly; any other
     # client (an injected one) reads back through itself.
     read_back = (_annotation_read_back(db) if isinstance(estate, _clients.CliEstateClient)
@@ -486,13 +592,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             in_progress = None
             outcomes[outcome] += 1
             if "domain" in entry:
-                if entry["domain"] in domain_by_id:
-                    picks.append((sid, entry["domain"], float(entry["domain_confidence"])))
-                else:
-                    domains["refused"].append({
-                        "index": None, "symbol_id": rules_file._shown(sid),
-                        "why": f"domain {entry['domain']!r} is not an id of the repository's "
-                               "business domains (written without one)"})
+                picks.append((sid, entry["domain"], float(entry["domain_confidence"])))
             restated += sid in restate and sid in changed_ids
             reworked += sid in restate and sid not in changed_ids
             answered.append(sid)
@@ -500,14 +600,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         _record_answered(db, answered)  # before anything that can still fail (codex r3)
         # The business domains: the catalog first (the record the next page picks from), then each
         # pick and assignment on its node. Advisory: nothing here counts toward coverage.
-        if domains["store"]:
-            business_domains.save_catalog(db, domains["catalog"],
-                                          (os.environ.get("WICKED_RUN_ID") or "").strip())
-        for sid, did, conf in picks:
-            _write_domain(estate, domain_by_id, sid, did, conf, author)
-        for a in domains["assign"]:
-            _write_domain(estate, domain_by_id, a["symbol_id"], a["domain"], a["confidence"],
-                          author)
+        domain_by_id = _apply_domains(db, estate, domains, picks, author)
         # The report is computed in a host temp directory and published through the safe writer
         # (core writes its --out in place, which would follow a planted link or hard link).
         with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
@@ -537,14 +630,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],
         "refused_count": len(refused),
-        "business_domains": {
-            "catalog": domains["state"],
-            "domains": len(domain_by_id),
-            "picked": len(picks),
-            "assigned": len(domains["assign"]),
-            "refused": domains["refused"][:200],
-            "refused_count": len(domains["refused"]),
-        },
+        "business_domains": _domain_report(domains, domain_by_id, len(picks)),
         "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
                                                 "risk_flagged", "unaccounted")},
         "minimum_met": met,
@@ -569,9 +655,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
           f"(written as {author}); business domains: {domains['state']}, {len(picks)} picked, "
           f"{len(domains['assign'])} assigned, {len(domains['refused'])} refused. "
           f"{line or ''}".rstrip(), file=sys.stderr)
-    for r in domains["refused"][:10]:
-        print(f"[extract-apply] business domains: {r['symbol_id'] or '-'}: {r['why']}",
-              file=sys.stderr)
+    _print_domain_problems(domains)
     return report
 
 
