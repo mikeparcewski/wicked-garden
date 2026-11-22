@@ -97,7 +97,7 @@
     },
     {
       "token": "plugin-data-path",
-      "rule": "each backticked `.claude-plugin/<file>` named in body prose (.md under skills/, frontmatter excluded) must be resolved in its own paragraph: by `wicked-garden path .claude-plugin/<file>` naming that very file, or by a fenced reader attached to the paragraph that runs `wicked-garden run …`. A paragraph ends at a blank line outside a fence or where a new list item starts. OpenCode, Pi and Antigravity copy only the skill directories, so the bare plugin-root path does not exist there (#1413)",
+      "rule": "each backticked `.claude-plugin/<file>` named in body prose (.md under skills/, frontmatter excluded) must be resolved in its own paragraph: by `wicked-garden path .claude-plugin/<file>` naming that very file, or by a fenced `wicked-garden run …` reader attached to the paragraph whose script is named for that file (`stack_registry.py` reads `stack-registry.json`). The path may be quoted. A paragraph ends at a blank line outside a fence or where a new list item starts. OpenCode, Pi and Antigravity copy only the skill directories, so the bare plugin-root path does not exist there (#1413)",
       "garden": "fail"
     },
     {
@@ -247,6 +247,14 @@
       {
         "file": "skills/archetype/refs/modernize.md",
         "text": "Read the dispatch truth in `.claude-plugin/stack-registry.json` via the reader:\n```bash\n\nwicked-garden run scripts/crew/stack_registry.py resolve --stack <stack-id>\n```"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` (`wicked-garden path \".claude-plugin/archetypes.json\"` prints where it is)."
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` (`wicked-garden path '.claude-plugin/archetypes.json'` prints where it is)."
       }
     ],
     "trips": [
@@ -363,6 +371,16 @@
       {
         "file": "skills/classify/SKILL.md",
         "text": "Read `.claude-plugin/archetypes.json`; `wicked-garden run scripts/x.py` does something else.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/archetype/refs/modernize.md",
+        "text": "Read `.claude-plugin/stack-registry.json` and also `.claude-plugin/archetypes.json` via the reader:\n```bash\nwicked-garden run scripts/crew/stack_registry.py resolve --stack <stack-id>\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/phase_manager.py list\n```",
         "token": "plugin-data-path"
       }
     ]

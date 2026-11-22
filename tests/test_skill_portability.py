@@ -584,11 +584,16 @@ def scan_plugin_data_paths(rel_file: str, text: str, fm_end: int) -> list[Violat
 
     def close() -> None:
         joined = "\n".join([t for _, t in prose] + fenced)
-        reader = any(GRX["plugin_data_reader"].search(t) for t in fenced)
+        fence_text = "\n".join(fenced)
+        readers = [fence_text.replace("-", "_")] if GRX["plugin_data_reader"].search(fence_text) else []
         for lineno, t in prose:
             for m in GRX["plugin_data_path"].finditer(t):
                 rel = m.group(0).strip("`")
-                if reader or re.search(r"wicked-garden path\s+" + re.escape(rel) + r"(?![\w./-])", joined):
+                # a reader resolves the file it is named for (`stack-registry.json` <- `stack_registry.py`)
+                stem = Path(rel).stem.replace("-", "_")
+                if any(stem in r for r in readers):
+                    continue
+                if re.search(r"wicked-garden path\s+([\"']?)" + re.escape(rel) + r"\1(?![\w./-])", joined):
                     continue
                 out.append(Violation("plugin-data-path", rel_file, lineno,
                                      f"{m.group(0)} is a plugin-root path that hosts copying only the skill "
