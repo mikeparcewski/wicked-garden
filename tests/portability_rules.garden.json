@@ -12,7 +12,9 @@
     "bare_script_span": "`((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s+[^`]+)`",
     "bare_script_line": "^(\\s*)(?:\\$ )?((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s.*)?$",
     "verdict_line": "^\\s*VERDICT[:=]",
-    "verdict_legacy_footer": "^\\s*VERDICT=(?:PASS|FAIL|\\{PASS\\|FAIL\\}) REVIEWER=wicked-garden-qe-[a-z0-9-]+ RUN_ID=\\{RUN_ID\\}\\s*$"
+    "verdict_legacy_footer": "^\\s*VERDICT=(?:PASS|FAIL|\\{PASS\\|FAIL\\}) REVIEWER=wicked-garden-qe-[a-z0-9-]+ RUN_ID=\\{RUN_ID\\}\\s*$",
+    "plugin_data_path": "`\\.claude-plugin/[^`\\s]+`",
+    "plugin_data_resolver": "\\bwicked-garden (?:path|run)\\b"
   },
   "launcher": {
     "bin": "wicked-garden",
@@ -91,6 +93,11 @@
     {
       "token": "cwd-script",
       "garden_extension": "a bare `scripts/<x>.py <args>` code span, or a shell-fence line that starts with such a path and is not a `\\` continuation, with no interpreter at all — an instruction no host can execute — when the path exists at the plugin root and not inside the referencing skill",
+      "garden": "fail"
+    },
+    {
+      "token": "plugin-data-path",
+      "rule": "a body paragraph (.md under skills/, frontmatter excluded) that names a backticked `.claude-plugin/<file>` path must also name `wicked-garden path` or `wicked-garden run` in the same paragraph: OpenCode, Pi and Antigravity copy only the skill directories, so the bare plugin-root path does not exist there; `wicked-garden path .claude-plugin/<file>` resolves it on every host (#1413)",
       "garden": "fail"
     },
     {
@@ -228,6 +235,14 @@
       {
         "file": "skills/governed-worker/SKILL.md",
         "text": "```\nMODE: produced-test\nREVIEWER: wicked-garden-qe-test-code-quality-auditor\nRUN_ID: {RUN_ID}\nVERDICT: PASS|FAIL\n```"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "The work-shape archetypes are defined in\n`.claude-plugin/archetypes.json` (`wicked-garden path .claude-plugin/archetypes.json` prints\nwhere it is on this host). Read it once at the start of this skill."
+      },
+      {
+        "file": "skills/archetype/refs/modernize.md",
+        "text": "Read the dispatch truth in `.claude-plugin/stack-registry.json` via the reader:\n```bash\nwicked-garden run \\\n  scripts/crew/stack_registry.py\n```"
       }
     ],
     "trips": [
@@ -315,6 +330,16 @@
         "file": "skills/qe-a11y-test-engineer/SKILL.md",
         "text": "VERDICT=CONDITIONAL REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}",
         "token": "verdict-spelling"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "`.claude-plugin/archetypes.json` defines the work-shape archetypes. Read it\nonce at the start of this skill.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/qe/refs/accept.md",
+        "text": "The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`.",
+        "token": "plugin-data-path"
       }
     ]
   }

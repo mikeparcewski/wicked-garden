@@ -18,6 +18,11 @@ gates are hard enforcement; two interaction modes (normal / yolo).
 
 Facilitator-rubric orchestration with hard quality gates.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Decision Engine — `propose-process`
 
 ```
@@ -61,7 +66,8 @@ Brackets = optional phases. The facilitator picks which phases apply based on
 factor readings. Per-phase gate config and ordering are **workflows-as-data**:
 crew's `WorkflowDef` (id + ordered `PhaseDef[]` with `gate`, `depends_on`,
 `skill_ref`) is the engine contract; garden-side hard gates mirror
-`.claude-plugin/archetypes.json` via `scripts/crew/phase_manager.py`.
+`.claude-plugin/archetypes.json` via `scripts/crew/phase_manager.py`
+(`wicked-garden path .claude-plugin/archetypes.json` prints where the catalog is on any host).
 
 > **Drift-guard**: `tests/test_workflow_drift.py` pins this skill to the
 > engine's data — verdict vocabulary to `scripts/_event_schema.py` and the

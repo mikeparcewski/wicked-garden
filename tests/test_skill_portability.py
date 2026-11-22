@@ -561,6 +561,41 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
                     add("cwd-script", lineno, f"bare `{m.group(2)}` command line is cwd-relative; write `wicked-garden run {m.group(2)}`")
         if line.strip():
             prev_nonblank = line
+    if is_md:
+        out.extend(scan_plugin_data_paths(rel_file, text, fm_end))
+    return out
+
+
+def scan_plugin_data_paths(rel_file: str, text: str, fm_end: int) -> list[Violation]:
+    """`plugin-data-path` (garden, #1413): a body paragraph naming a backticked `.claude-plugin/<file>`
+    must name the launcher (`wicked-garden path` / `wicked-garden run`) too. The hosts that copy only
+    the skill directories (OpenCode, Pi, Antigravity) have no `.claude-plugin/` beside the skill; the
+    launcher resolves the plugin root on every host. A paragraph is a run of non-blank lines (a fenced
+    block with no blank line before it belongs to the paragraph that introduces it)."""
+    out: list[Violation] = []
+    para: list[tuple[int, str]] = []
+
+    def close() -> None:
+        joined = "\n".join(t for _, t in para)
+        if para and not GRX["plugin_data_resolver"].search(joined):
+            for lineno, t in para:
+                m = GRX["plugin_data_path"].search(t)
+                if m:
+                    out.append(Violation("plugin-data-path", rel_file, lineno,
+                                         f"{m.group(0)} is a plugin-root path that hosts copying only the skill "
+                                         "directories do not have; say `wicked-garden path "
+                                         f"{m.group(0).strip('`')}` resolves it"))
+                    break
+        para.clear()
+
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        if lineno <= fm_end:
+            continue
+        if not line.strip():
+            close()
+            continue
+        para.append((lineno, line))
+    close()
     return out
 
 
