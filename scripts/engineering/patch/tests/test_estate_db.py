@@ -242,6 +242,13 @@ class EstateDbAdapterTests(unittest.TestCase):
         self.assertEqual(r.returncode, estate_db.EXIT_NO_GRAPH, r.stderr)
         self.assertFalse(Path(self.out).exists())
 
+    def test_a_false_broker_marker_is_not_a_container_seat(self):
+        # Read as the shim reads it (_estate_client._env_truthy): 0/false/no mean unset.
+        for off in ("0", "false", "no", ""):
+            r = self._cli({"WICKED_ESTATE_DB": self.store, "WICKED_ESTATE_BROKER": off})
+            self.assertEqual(r.returncode, 0, f"{off!r}: {r.stderr}")
+            self.assertEqual(json.loads(r.stdout)["symbols"], _EXPECTED["symbols"])
+
     def test_unreadable_store_without_broker_gets_the_same_line(self):
         for bad in (Path(self._tmp.name) / "nope.db", Path(self._tmp.name)):  # missing; a directory
             r = self._cli({}, "--estate-db", str(bad))
