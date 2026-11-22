@@ -519,7 +519,8 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
     return out
 
 
-def _inlines(s: str, offsets: list[int], refs: dict[str, Link]) -> list[Link]:
+def _inlines(s: str, offsets: list[int], refs: dict[str, Link],
+             code: list[tuple[int, int]] | None = None) -> list[Link]:
     index = _Destinations(s)
     missing: set[str] = set()
     # Precompute equal-length backtick successors, avoiding rescans on unmatched runs.
@@ -553,6 +554,8 @@ def _inlines(s: str, offsets: list[int], refs: dict[str, Link]) -> list[Link]:
             if i in next_tick:
                 end = next_tick[i][1]
                 excluded.append((i, end))
+                if code is not None:
+                    code.append((offsets[i], offsets[end - 1] + 1))
                 i = end
             else:
                 i = end
@@ -630,9 +633,11 @@ def _inlines(s: str, offsets: list[int], refs: dict[str, Link]) -> list[Link]:
     return [link for _, link in out]
 
 
-def _read(text: str) -> tuple[list[Link], list[Link]]:
+def _read(text: str, code: list[tuple[int, int]] | None = None) -> tuple[list[Link], list[Link]]:
+    """Links and definitions of ``text``; with a ``code`` list, the source spans of code spans and
+    code blocks are appended to it (offsets into ``normalise(text)``)."""
     text = normalise(text)
-    parsed = blocks(text)
+    parsed = blocks(text, code)
     refs: dict[str, Link] = {}
     definitions: list[Link] = []
     pending = []
@@ -641,7 +646,7 @@ def _read(text: str) -> tuple[list[Link], list[Link]]:
         pending.append((kind, content[consumed:], offsets[consumed:]))
     out = []
     for kind, content, offsets in pending:
-        out.extend(_html_links(content, offsets) if kind == 'html' else _inlines(content, offsets, refs))
+        out.extend(_html_links(content, offsets) if kind == 'html' else _inlines(content, offsets, refs, code))
     # A multiline attribute may cross stripped container markers. raw describes
     # the contiguous source span; destination describes what the reader opens.
     raw_spans: dict[tuple[int, int], str] = {}

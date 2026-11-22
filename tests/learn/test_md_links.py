@@ -634,3 +634,17 @@ def test_round2_new_list_item_resets_ordered_list_interruption_context(prefix):
 ])
 def test_round2_blank_list_continuation_respects_quote_boundaries(source):
     assert destinations(source) == ["/shown"]
+
+
+def test_read_reports_the_source_spans_of_code():
+    text = "a `x<y>` b\n\n```\n<?xml?>\n```\n\n    pkg@1.2.3\n\n> ``q@r.st``\n"
+    code: list = []
+    md._read(text, code)
+    covered = "".join(text[a:b] for a, b in sorted(code))
+    for piece in ("`x<y>`", "<?xml?>", "pkg@1.2.3", "``q@r.st``"):
+        assert piece in covered, (piece, code)
+    assert "a `" not in covered and " b" not in covered
+    # a paragraph continuation line indented four spaces is paragraph text, not code
+    code = []
+    md._read("para\n    <?xml?>\n", code)
+    assert code == []

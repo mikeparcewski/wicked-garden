@@ -751,11 +751,13 @@ def test_r1_findings_05_through_13_floor_bypasses_are_refused(text):
 
 
 @pytest.mark.parametrize("text", [
-    "`<a href=//evil.invalid>`", "~~~\n<img srcset='//evil.invalid/x 1x'>\n~~~",
-    "`<!-- hidden -->`", "~~~\n<?x?>\n~~~", "<!DOCTYPE html>",
+    # coord review L1: in code only a link-bearing tag is refused; `<!-- hidden -->` and `<?x?>` in code
+    # moved to test_code_that_looks_like_html_or_an_email_is_text
+    "`<a href=//evil.invalid>`", "~~~\n<img srcset='//evil.invalid/x 1x'>\n~~~", "`<A\thref=//evil.invalid>`",
+    "    <iframe src=//evil.invalid>", "<!-- hidden -->", "<?x?>", "<!DOCTYPE html>",
     "<span class=x>", "<br  />", "<span\t>", "<SPAN/ >", "</span >", "<ſpan>",
 ])
-def test_raw_html_is_lexically_refused_even_in_code(text):
+def test_raw_html_is_lexically_refused_and_html_links_even_in_code(text):
     # Non-ASCII lookalikes are plain text, but their following Markdown still
     # needs to be read; the allowlist itself is ASCII-only.
     if text == "<ſpan>":
@@ -819,7 +821,7 @@ def test_r2_container_boundary_rendered_links_are_refused(report):
      "a reference definition the floor did not read"),
 ])
 def test_r2_container_payloads_are_refused_when_parser_misses_all_links(monkeypatch, report, reason):
-    monkeypatch.setattr(rc, "_read", lambda text: ([], []))
+    monkeypatch.setattr(rc, "_read", lambda text, code=None: ([], []))
     out = run_check(packet(report=report))[1]
     assert any(f["rule"] == "url-form" and reason in f["message"]
                for f in out["findings"]), out["findings"]
@@ -834,8 +836,10 @@ def test_r2_emphasized_encoded_at_is_lexically_refused(encoded):
                for f in out["findings"]), out["findings"]
 
 
-@pytest.mark.parametrize("text", ["`&commat;`", "~~~\n&#00064;\n~~~", "plain &#X00040; text"])
-def test_encoded_at_sweep_includes_code_and_non_email_text(text):
+@pytest.mark.parametrize("text", ["plain &#X00040; text", "_someone&commat;example.org_"])
+def test_encoded_at_sweep_includes_non_email_text(text):
+    # coord review L1: `&commat;` in a code span or block renders as those characters, never as an @;
+    # those cases moved to test_code_that_looks_like_html_or_an_email_is_text
     out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
     assert any(f["rule"] == "url-form" and "an encoded @" in f["message"]
                for f in out["findings"]), out["findings"]
@@ -856,7 +860,7 @@ def test_link_syntax_backstop_includes_code_and_non_http_schemes(text, reason):
 
 @pytest.mark.parametrize("text", ["<ftp://example.org/file>", "<custom+scheme:/evil>"])
 def test_autolink_backstop_refuses_non_http_schemes_when_parser_misses_them(monkeypatch, text):
-    monkeypatch.setattr(rc, "_read", lambda text: ([], []))
+    monkeypatch.setattr(rc, "_read", lambda text, code=None: ([], []))
     out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
     assert any(f["rule"] == "url-form" and "an autolink the floor did not read" in f["message"]
                for f in out["findings"]), out["findings"]
@@ -874,7 +878,7 @@ def test_link_syntax_backstop_accepts_exact_logged_forms(text):
 
 @pytest.mark.parametrize("prefix", ["", "   ", "> ", "- ", "+ ", "* ", "1. ", "2) ", "> 2. "])
 def test_reference_backstop_recognizes_container_prefixes_when_parser_misses_them(monkeypatch, prefix):
-    monkeypatch.setattr(rc, "_read", lambda text: ([], []))
+    monkeypatch.setattr(rc, "_read", lambda text, code=None: ([], []))
     report = "[C1] [C2] [C3]\n\n" + prefix + "[r]: /evil"
     out = run_check(packet(report=report))[1]
     assert any(f["rule"] == "url-form" and "a reference definition the floor did not read" in f["message"]
@@ -882,7 +886,7 @@ def test_reference_backstop_recognizes_container_prefixes_when_parser_misses_the
 
 
 def test_reference_backstop_recognizes_a_multiline_label_when_parser_misses_it(monkeypatch):
-    monkeypatch.setattr(rc, "_read", lambda text: ([], []))
+    monkeypatch.setattr(rc, "_read", lambda text, code=None: ([], []))
     out = run_check(packet(report="[C1] [C2] [C3]\n\nprose [multi\nline]: /evil"))[1]
     assert any(f["rule"] == "url-form" and "a reference definition the floor did not read" in f["message"]
                for f in out["findings"]), out["findings"]
@@ -925,3 +929,42 @@ def test_report_mode_states_the_web_and_stop_rules():
     assert "`url-form`" in claims and "`[title](url)`" in claims
     for needle in ("receipt", "`args`", "fetched_at"):
         assert needle in check and needle in claims, needle
+
+
+@pytest.mark.parametrize("text", [
+    # coord review L1: code renders as text, so generics, XML/PHP prologues, comments and package pins pass
+    "`Vec<String>`", "`Promise<void>` and `<T>`", "```rust\nlet v: Vec<String> = Vec::new();\n```",
+    "`<?xml version=\"1.0\"?>`", "~~~\n<?php echo 1; ?>\n~~~", "`<!DOCTYPE html>`", "`<!-- hidden -->`",
+    "~~~\n<?x?>\n~~~", "`npm i lodash@4.17.21`", "```\ngit clone git@github.com:org/repo\n```",
+    "    pip install pkg@1.2.3", "`&commat;`", "~~~\n&#00064;\n~~~", "> - `<String>` and `a@b.co`",
+])
+def test_code_that_looks_like_html_or_an_email_is_text(text):
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" not in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("text", ["Vec<String> in prose", "<?xml version=\"1.0\"?>", "lodash@4.17.21 in prose",
+                                  # an indented line that continues a paragraph is not code
+                                  "para\n    <?xml version=\"1.0\"?>", "para\n    pkg@1.2.3", "`unclosed <?xml"])
+def test_the_same_text_outside_code_is_still_refused(text):
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+def test_a_reference_definition_with_an_escaped_bracket_in_its_label_is_refused_by_the_backstop(monkeypatch):
+    # coord review B1: `[a\[b]: //evil.example` is a definition; its last `[` is escaped label text
+    monkeypatch.setattr(rc, "_read", lambda text, code=None: ([], []))
+    for text in ("[a\\[b]: //evil.example\n\n[a\\[b]", "> [x\\[y\\[z]: /evil", "[a\\]b]: /evil", "- [a\\[b\n c]: /evil"):
+        out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+        assert any(f["rule"] == "url-form" and "a reference definition the floor did not read" in f["message"]
+                   for f in out["findings"]), (text, out["findings"])
+    # an escaped backslash before `[` leaves the `[` a real opener; prose stays quiet
+    out = run_check(packet(report="[C1] [C2] [C3]\n\nsee \\[C1]: the result"))[1]
+    assert "url-form" not in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("text", ["ftp://example.org/file", "see FTP://example.org/x.", "`ftp://example.org/f`"])
+def test_an_ftp_url_is_refused(text):
+    # coord review B2: cmark-gfm and markdown-it linkify ftp://
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]

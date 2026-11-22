@@ -39,13 +39,15 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
   CommonMark links/images and GFM autolinks are parsed before enforcing these rules;
   titles, whitespace/controls, backslashes or ``&...;`` references anywhere in a destination
   (including its fragment), non-web destinations, email links, bare and ``www.`` URLs are refused
-  (``url-form``). Independent lexical sweeps refuse plain URLs, email addresses, an encoded ``@``
-  (``&commat;``, decimal or hexadecimal references, including leading zeros), and raw HTML even
-  in code, except the exact attribute-less formatting tags documented in refs/report-check.md.
+  (``url-form``). Independent lexical sweeps refuse plain ``http(s)://`` and ``ftp://`` URLs (in
+  code too), and, outside code spans and code blocks, email addresses, an encoded ``@``
+  (``&commat;``, decimal or hexadecimal references, including leading zeros), and raw HTML except
+  the exact attribute-less formatting tags documented in refs/report-check.md; in code only the
+  link-bearing tags (``a``, ``img``, ``iframe``, ``link``, ``area``, ``form``) are refused.
   Email and encoded-``@`` sweeps exempt accepted HTTP(S) destination spans. A fail-closed lexical
   backstop checks all normalised text, including code: every ``](``, candidate reference definition
   ``]:`` and ``<scheme:`` must lead to an accepted destination. Reference candidates start at a
-  line's container prefix or have a multiline label, with the last ``[`` within 1000 characters;
+  line's container prefix or have a multiline label, with the last unescaped ``[`` within 1000 characters;
   prose such as ``see [C1]: the result`` is not a candidate. Destination starts allow spaces/tabs,
   at most one line ending and an optional ``<``. Thus even non-rendered link syntax is refused
   when the floor did not accept its destination.
@@ -63,6 +65,7 @@ Standard library only.
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import re
 import sys
@@ -102,7 +105,7 @@ CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
 CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
 # Parsed destinations are compared literally; a separate sweep refuses plain URLs,
 # including URLs in code. URL starts inside another destination are part of it.
-URL_START_RE = re.compile(r"https?://", re.IGNORECASE | re.ASCII)
+URL_START_RE = re.compile(r"(?:https?|ftp)://", re.IGNORECASE | re.ASCII)  # some renderers link ftp://
 # Unicode White_Space plus C0/C1 controls, deliberately stricter than the
 # CommonMark grammar. Check before urlsplit, which silently removes controls.
 URL_BAD_CHAR_RE = re.compile(
@@ -112,6 +115,8 @@ URL_ESCAPE_RE = re.compile(r"\\|&[^&;\x00-\x20]*;")
 # Detect tag prefixes without interpreting attributes or HTML token boundaries.
 # Refusing incomplete tags too is intentional: browser repair is outside the floor.
 RAW_HTML_RE = re.compile(r"<!|<\?|</?[A-Za-z][A-Za-z0-9-]*(?=[\x09-\x0d />])")
+# Inside a code span or block raw HTML is text; these link-bearing tags are refused there too, as before #1427.
+CODE_HTML_LINK_RE = re.compile(r"<(?:a|img|iframe|link|area|form)(?![A-Za-z0-9-])", re.IGNORECASE | re.ASCII)
 SAFE_HTML_NAMES = "br|sup|sub|b|i|em|strong|kbd|code|s|u|mark|small|details|summary|p|span|div"
 SAFE_HTML_RE = re.compile(
     r"<(?:" + SAFE_HTML_NAMES + r")(?:>| ?/>)|</(?:" + SAFE_HTML_NAMES + r")>",
@@ -203,11 +208,23 @@ def _link_syntax_backstop(text: str, starts: dict[str, set[int]]) -> list[tuple[
     prefix_end = REFERENCE_PREFIX_RE.match(text).end()
     last_open = -1
     starts_line = False
-    for m in re.finditer(r"\n|\[|\]:", text):
+    for m in re.finditer(r"\n|\[|\]:?", text):
         if m[0] == "\n":
             line_start = m.end()
             prefix_end = REFERENCE_PREFIX_RE.match(text, line_start).end()
-        elif m[0] == "[":
+            continue
+        # An escaped bracket is label text (`[a\[b]: x`, `[a\]b]: x`). Each backslash run precedes
+        # one bracket, so counting it keeps the sweep linear.
+        slashes = 0
+        while m.start() - slashes > 0 and text[m.start() - slashes - 1] == "\\":
+            slashes += 1
+        if m[0] == "]":
+            if not slashes % 2:
+                last_open = -1  # an unescaped ']' closes the bracket; a label holds none
+            continue
+        if m[0] == "[":
+            if slashes % 2:
+                continue
             last_open = m.start()
             starts_line = last_open == prefix_end
         elif (last_open >= 0 and m.start() - last_open <= 1000
@@ -230,7 +247,19 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
     only accepted HTTP(S) spans exempt email/encoded-'@' spellings.
     """
     text = normalise(text or "")
-    links, definitions = _read(text)
+    code: list[tuple[int, int]] = []
+    links, definitions = _read(text, code)
+    code_spans: list[tuple[int, int]] = []
+    for a, b in sorted(code):
+        if code_spans and a <= code_spans[-1][1]:
+            code_spans[-1] = (code_spans[-1][0], max(b, code_spans[-1][1]))
+        else:
+            code_spans.append((a, b))
+    code_starts = [a for a, _ in code_spans]
+
+    def in_code(pos: int) -> bool:
+        k = bisect.bisect_right(code_starts, pos) - 1
+        return k >= 0 and pos < code_spans[k][1]
     # Definitions are checked even when unused, as in the original floor. Their
     # spans also prevent the plain sweep from re-reading a destination.
     links += definitions
@@ -281,9 +310,14 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
             if link.angle:
                 starts["angle"].add(link.start)
             out.append((link.destination, link.destination))
-    # These sweeps deliberately include code and opaque HTML tokens. Never
-    # depend on an attribute-name list or Markdown's HTML token boundaries.
+    # The raw-HTML, encoded-@ and email sweeps skip code spans and code blocks, which render as text
+    # (`Vec<String>`, `<?xml`, `lodash@4.17.21`); a link-bearing tag is refused in code too. Outside code
+    # they never depend on an attribute-name list or Markdown's HTML token boundaries.
     for m in RAW_HTML_RE.finditer(text):
+        if in_code(m.start()):
+            if CODE_HTML_LINK_RE.match(text, m.start()):
+                out.append((None, text[m.start():m.start() + 80] + " (a raw HTML link)"))
+            continue
         if not SAFE_HTML_RE.match(text, m.start()):
             out.append((None, text[m.start():m.start() + 80] + " (raw HTML the floor does not read)"))
     accepted_spans = sorted(accepted)
@@ -294,7 +328,8 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         if (cursor < len(accepted_spans)
                 and accepted_spans[cursor][0] <= m.start() < accepted_spans[cursor][1]):
             continue
-        out.append((None, m[0][:80] + " (an encoded @)"))
+        if not in_code(m.start()):
+            out.append((None, m[0][:80] + " (an encoded @)"))
     out.extend(_link_syntax_backstop(text, starts))
     cursor = 0
     # Searching the full email regex at every character is quadratic on long
@@ -306,7 +341,7 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         if (cursor < len(accepted_spans)
                 and accepted_spans[cursor][0] <= at < accepted_spans[cursor][1]):
             continue
-        if at == 0 or text[at - 1] not in EMAIL_LOCAL:
+        if at == 0 or text[at - 1] not in EMAIL_LOCAL or in_code(at):
             continue
         domain = EMAIL_DOMAIN_RE.match(text, at + 1)
         if domain is not None:

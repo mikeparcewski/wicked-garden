@@ -192,12 +192,16 @@ def _html_closed(ending: str, line: str, pos: int) -> bool:
     return ending != "blank" and ending in line[pos:]
 
 
-def blocks(text: str) -> list[tuple[str, str, list[int]]]:
+def blocks(text: str, code: list[tuple[int, int]] | None = None) -> list[tuple[str, str, list[int]]]:
     """Yield inline paragraphs and raw HTML, mapped into normalised source text.
 
     Container continuations are consumed before leaf blocks. Ambiguous lazy
     continuation stays inline; it is never silently classified as code.
+    When ``code`` is a list, each source line of a fenced or indented code
+    block (fence lines included) is appended to it as a ``(start, end)`` span.
     """
+    if code is None:
+        code = []
     result: list[tuple[str, str, list[int]]] = []
     pieces: list[str] = []
     offsets: list[int] = []
@@ -254,6 +258,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
             blank = end == len(line) or line[end:] == "\n"
 
         if fence:
+            code.append((offset, offset + len(original)))
             char, count = fence
             close = _FENCE.match(line, end) if width <= 3 else None
             if (close and close[1][0] == char and len(close[1]) >= count
@@ -291,6 +296,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
         if opening and (opening[1][0] != "`" or "`" not in opening[2]):
             flush()
             fence = (opening[1][0], len(opening[1]))
+            code.append((offset, offset + len(original)))
             containers = next_containers
             indented = False
             offset += len(original)
@@ -331,6 +337,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
 
         if width >= 4 and not pieces:
             indented = True
+            code.append((offset, offset + len(original)))
             containers = next_containers
             offset += len(original)
             continue
