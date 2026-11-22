@@ -100,8 +100,9 @@ def _resolve_bin(
 _DEFAULT_TIMEOUT = 120
 
 
-class CliTimeout(RuntimeError):
-    """The peer ran past its bound and was killed: what it did before that is unknown."""
+class CliOutcomeUnknown(RuntimeError):
+    """The peer ran but its result cannot be read (killed at its bound, or output that is not
+    UTF-8): what it did is unknown."""
 
 
 def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
@@ -118,9 +119,9 @@ def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     except FileNotFoundError as e:
         raise RuntimeError(f"{argv[0]} not found or not executable: {e}") from e
     except subprocess.TimeoutExpired as e:
-        raise CliTimeout(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
+        raise CliOutcomeUnknown(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
     except ValueError as e:  # invalid UTF-8 in the peer's stdout/stderr
-        raise RuntimeError(f"{argv[0]} produced undecodable (non-UTF-8) output: {e}") from e
+        raise CliOutcomeUnknown(f"{argv[0]} produced undecodable (non-UTF-8) output: {e}") from e
     except OSError as e:
         raise RuntimeError(f"{argv[0]} could not be executed: {e}") from e
 
@@ -373,28 +374,37 @@ class CliEstateClient:
                                          ignore_cleanup_errors=True) as tmp:
             path = Path(tmp) / "writes.ndjson"
             path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
-            # A non-zero exit means estate committed nothing: the commit is its last fallible
-            # step, and a refused row says so ("...; nothing was written"). Killed at the time
-            # bound, it may have committed first.
+            # Estate's commit is its last fallible step, so its own non-zero exit (a refused row
+            # says "...; nothing was written") means nothing was committed. Killed (at the time
+            # bound or by a signal) or with a reply that is not its count, it may have committed.
+            argv = self._argv("write-batch", str(path), "--json")
             try:
-                out = _run(self._argv("write-batch", str(path), "--json"))
-            except CliTimeout as e:
+                proc = _invoke(argv)
+            except CliOutcomeUnknown as e:
                 raise BatchOutcomeUnknown(str(e)) from e
-        # An estate without write-batch prints its usage banner for the unknown command and exits
-        # 0, so the reply's row count is what tells a written page from one never written.
+        if proc.returncode < 0:
+            raise BatchOutcomeUnknown(
+                f"{argv[0]} write-batch was killed by signal {-proc.returncode}")
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"{argv[0]} exited {proc.returncode}: {proc.stderr.strip() or proc.stdout.strip()}")
+        out = proc.stdout
         try:
             reply = json.loads(out)
         except json.JSONDecodeError:
             reply = None
-        if isinstance(reply, dict) and reply.get("rows") != len(rows):
-            raise BatchOutcomeUnknown(
-                f"wicked-estate write-batch did not report {len(rows)} written row(s): "
-                f"{out.strip()[:200]!r}")
-        if not isinstance(reply, dict):
+        if isinstance(reply, dict) and reply.get("rows") == len(rows):
+            return reply
+        lines = out.strip().splitlines()
+        if lines and lines[0].startswith("wicked-estate ") and "usage" in lines[0].lower():
+            # An estate without write-batch prints its usage banner for the unknown command and
+            # exits 0, having written nothing.
             raise RuntimeError(
-                f"wicked-estate write-batch did not report {len(rows)} written row(s) "
-                f"(an estate without write-batch prints its usage instead): {out.strip()[:200]!r}")
-        return reply
+                f"wicked-estate write-batch did not report {len(rows)} written row(s): this estate "
+                f"has no write-batch (it printed its usage); wicked-estate 0.35.9 or later has it")
+        raise BatchOutcomeUnknown(
+            f"wicked-estate write-batch did not report {len(rows)} written row(s): "
+            f"{out.strip()[:200]!r}")
 
     def read_annotations(self, symbol_id: str) -> list[dict[str, Any]]:
         # MUST use `--symbol` (not the positional `<name>` form, which name-searches

@@ -367,38 +367,41 @@ def test_write_batch_sends_exact_ndjson_and_one_command(monkeypatch):
     paths = []
     reply = {"rows": 3, "annotations": 2, "replaced": 0, "semantics": 1}
 
-    def run(argv):
+    def invoke(argv):
+        import subprocess
         cap.calls.append(argv)
         path = Path(argv[2])
         paths.append(path)
         assert [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] == rows
-        return json.dumps(reply)
+        return subprocess.CompletedProcess(argv, 0, json.dumps(reply), "")
 
-    monkeypatch.setattr(_clients, "_run", run)
+    monkeypatch.setattr(_clients, "_invoke", invoke)
     assert est.write_batch(rows) == reply
     assert cap.calls == [["wicked-estate", "write-batch", str(paths[0]),
                           "--json", "--db", "/tmp/estate.db"]]
     assert not paths[0].exists()
 
 
-@pytest.mark.parametrize("reply", [{"rows": 0}, {"rows": 2}, {}, [], None])
-def test_write_batch_rejects_an_incompatible_reply(monkeypatch, reply):
-    est, _ = _cli_estate(monkeypatch)
-    monkeypatch.setattr(_clients, "_run", lambda argv: json.dumps(reply))
-    # A JSON object came from a write-batch that ran: its commit is unknown. Anything else is
-    # not write-batch's reply at all.
-    with pytest.raises(RuntimeError, match="write-batch did not report 1 written row") as raised:
+@pytest.mark.parametrize("stdout", [json.dumps({"rows": 0}), json.dumps({"rows": 2}), "{}", "[]",
+                                    "null", "", '{"rows": 1', "Error: something else"])
+def test_write_batch_reply_that_is_not_its_count_has_an_unknown_outcome(monkeypatch, stdout):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke",
+                        lambda argv: subprocess.CompletedProcess(argv, 0, stdout, ""))
+    est = _clients.CliEstateClient(["wicked-estate"], "estate.db")
+    # write-batch ran and exited 0: without its count, the page may have committed.
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="did not report 1 written row"):
         est.write_batch([{"op": "semantics", "symbol": "opaque"}])
-    assert isinstance(raised.value, _clients.BatchOutcomeUnknown) == isinstance(reply, dict)
 
 
 def test_write_batch_rejects_a_non_json_usage_banner(monkeypatch):
     import subprocess
     monkeypatch.setattr(_clients, "_invoke", lambda argv: subprocess.CompletedProcess(
-        argv, 0, "Usage: wicked-estate <command>", ""))
+        argv, 0, "wicked-estate 0.35.8 \u2014 usage:\n  wicked-estate --version\n", ""))
     est = _clients.CliEstateClient(["wicked-estate"], "estate.db")
-    with pytest.raises(RuntimeError, match="write-batch.*estate"):
+    with pytest.raises(RuntimeError, match="has no write-batch") as raised:
         est.write_batch([{"op": "semantics", "symbol": "opaque"}])
+    assert not isinstance(raised.value, _clients.BatchOutcomeUnknown)
 
 
 def test_write_batch_surfaces_estate_refusal_naming_the_row(monkeypatch):
@@ -525,9 +528,9 @@ def test_an_estate_without_write_batch_fails_on_its_recorded_usage_banner(monkey
                           "stdout": banner["stdout_first_line"] + "\n  wicked-estate --version\n"})
     page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
                    _CONTRACT["page"])
-    with pytest.raises(RuntimeError, match="did not report 5 written row"):
+    with pytest.raises(RuntimeError, match="has no write-batch"):
         page.flush(lambda *args: pytest.fail("no read-back without a commit"))
-    assert not page.written
+    assert not page.written and not page.uncertain
 
 
 def _live_estate():
@@ -537,7 +540,11 @@ def _live_estate():
            else shutil.which("wicked-estate"))
     if not exe:
         return None
-    usage = subprocess.run([exe, "--help"], capture_output=True, text=True, encoding="utf-8")
+    try:  # a stale or missing override skips the live test; it never breaks collection
+        usage = subprocess.run([exe, "--help"], capture_output=True, text=True, encoding="utf-8",
+                               timeout=30)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
     return exe if "write-batch" in usage.stdout + usage.stderr else None
 
 
@@ -612,9 +619,10 @@ def test_a_write_batch_that_times_out_has_an_unknown_outcome(monkeypatch):
 
 
 def test_a_write_batch_reply_with_a_wrong_count_has_an_unknown_outcome(monkeypatch):
-    est, _ = _cli_estate(monkeypatch)
-    monkeypatch.setattr(_clients, "_run", lambda argv: json.dumps({"rows": 1}))
-    page = _clients.PageWrites(est)
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke", lambda argv: subprocess.CompletedProcess(
+        argv, 0, json.dumps({"rows": 1}), ""))
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
     page.annotate("opaque", "rule", "k", "v")
     page.annotate("opaque", "rule", "k2", "v")
     with pytest.raises(_clients.BatchOutcomeUnknown, match="did not report 2 written row"):
@@ -630,3 +638,33 @@ def test_a_refused_batch_is_known_unwritten(monkeypatch, tmp_path):
         page.flush(lambda *args: True)
     assert not isinstance(raised.value, _clients.BatchOutcomeUnknown)
     assert not page.uncertain and not page.written
+
+
+@pytest.mark.parametrize("returncode", [-9, -15])
+def test_a_write_batch_killed_by_a_signal_has_an_unknown_outcome(monkeypatch, returncode):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke",
+                        lambda argv: subprocess.CompletedProcess(argv, returncode, "", ""))
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="killed by signal"):
+        page.flush(lambda *args: True)
+    assert page.uncertain and not page.written
+
+
+def test_a_write_batch_with_undecodable_output_has_an_unknown_outcome(monkeypatch):
+    def run(argv, **kwargs):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr(_clients.subprocess, "run", run)
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="undecodable"):
+        page.flush(lambda *args: True)
+    assert page.uncertain
+
+
+@pytest.mark.parametrize("override", ["wicked-estate-not-installed", "/nonexistent/wicked-estate"])
+def test_a_missing_estate_override_skips_the_live_test(monkeypatch, override):
+    monkeypatch.setenv("WICKED_ESTATE_BIN", override)
+    assert _live_estate() is None
