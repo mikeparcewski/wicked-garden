@@ -4,7 +4,7 @@ description: |
   Product demo domain: plan, record and review a polished demo video.
   plan — frames the audience, builds the story, picks hero cases and fresh
   alternates, runs a live rehearsal with measured timings, and writes a
-  presenter script with a chapter list ready for recording.
+  presenter script with a chapter list.
   record — records each chapter as its own captioned, chaptered segment via
   Playwright + ffmpeg (DevTools screencast encoded live to H.264, no frame
   files on disk, final CRF 17), then stitches them into one MP4 with chapters.
