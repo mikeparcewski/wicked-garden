@@ -347,6 +347,10 @@ def test_allow_file_releases_an_id_with_characters_outside_the_anchor_set(tmp_pa
     ids.write_text(json.dumps([entry["id"]]), encoding="utf-8")
     proc = subprocess.run(base + ["--allow-file", str(ids)], capture_output=True, text=True)
     assert proc.returncode == 0, proc.stdout + proc.stderr
+    # a UTF-8 BOM (Windows PowerShell 5 `Set-Content -Encoding UTF8`) is not data
+    ids.write_bytes(b"\xef\xbb\xbf" + json.dumps([entry["id"]]).encode("utf-8"))
+    proc = subprocess.run(base + ["--allow-file", str(ids)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
 @pytest.mark.parametrize("content", ['{"ids": []}', "[1, 2]", "not json"])

@@ -487,7 +487,7 @@ def _allow_file_ids(paths: list[str]) -> list[str]:
     ids: list[str] = []
     for p in paths:
         try:
-            data = json.loads(Path(p).read_text(encoding="utf-8"))
+            data = json.loads(Path(p).read_text(encoding="utf-8-sig"))  # a BOM (PowerShell 5 UTF8) is not data
         except RecursionError:
             raise ValueError(f"--allow-file {p}: nested too deeply to be a list of entry ids") from None
         if not isinstance(data, list) or not all(isinstance(x, str) for x in data):

@@ -235,3 +235,36 @@ def test_the_subject_must_own_the_check_and_the_sentence_go_on():
     assert "process-word" in kinds("<p>The device self-check: PASS</p>")
     assert "process-word" in kinds("<p>Final self-check: PASS means done</p>")
     assert ls.scan("<p>The control unit self-check: PASS means the motor may start.</p>")["ok"] is True
+
+
+def test_an_unquoted_url_in_a_prelude_opens_no_comment():
+    # coord review F1: `url(x/*)` is one URL token (CSS Syntax 3 §4.3.6), not a comment that hides the sheet
+    assert kinds('<style>@import url(x/*); p::before{content:"[S]"}</style><p>x</p>') == {"source-marker"}
+    assert kinds('<style>@import url( x/* ); p::before{content:"[S]"}</style><p>x</p>') == {"source-marker"}
+
+
+def test_an_inline_data_stylesheet_in_a_prelude_is_read():
+    assert kinds("<style>@import \"data:text/css,p::before{content:'[S]'}\";</style><p>x</p>") == {"source-marker"}
+    assert kinds("<style>@import url(data:text/css,p::before{content:'[S]'});</style><p>x</p>") == {"source-marker"}
+    # an ordinary import and selector strings stay clean
+    assert ls.scan('<style>@import url(theme.css); @import "print.css"; a[href^="https"] { color: red }</style>'
+                   "<p>x</p>")["ok"] is True
+
+
+def test_a_var_fallback_nest_too_deep_to_read_is_a_finding():
+    # coord review F3: about 1,000 nested var() fallbacks crashed the scan with no finding
+    deep = "p::before { content: " + "var(--a, " * 1000 + '"[S]"' + ")" * 1000 + " }"
+    r = ls.scan(f"<style>{deep}</style><p>x</p>")
+    assert r["ok"] is False and "css-unread" in r["by_kind"]
+    deep_attr = "content: " + "var(--a, " * 1000 + "'x'" + ")" * 1000
+    r = ls.scan(f'<p style="{deep_attr}">x</p>')
+    assert r["ok"] is False and "css-unread" in r["by_kind"]
+    # a few levels read as before
+    assert kinds('<style>p::before { content: var(--a, var(--b, var(--c, "[S]"))) }</style><p>x</p>') == {"source-marker"}
+
+
+def test_an_artifact_nouns_self_check_is_the_drafting_check():
+    # coord review N1: "The deck self-check: PASS means ..." is the drafting verdict worded as a subject
+    for noun in ("deck", "document", "doc", "page", "slide", "report", "artifact"):
+        assert "process-word" in kinds(f"<p>The {noun} self-check: PASS means it is ready.</p>")
+    assert "process-word" not in kinds("<p>The device self-check: PASS means the motor may start.</p>")

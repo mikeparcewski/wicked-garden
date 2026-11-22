@@ -76,7 +76,8 @@ _PROCESS_WORD = re.compile(
 # drafting qualifier ("Final", "The completed", "My") or a clause break ("Done, self-check: PASS") stays flagged.
 _BARE_SELF_CHECK = re.compile(r"(?i:\bself[- ]check\b)(?!\.py)" + _VERDICT)
 _QUALIFIERS = (r"(?:draft|drafting|final|last|latest|full|first|second|automated|required|initial|completed|complete"
-               r"|overall|current|previous|manual|quick|local|new|updated|my|our|this|that)")
+               r"|overall|current|previous|manual|quick|local|new|updated|my|our|this|that"
+               r"|document|doc|deck|page|slide|report|artifact)")
 _SUBJECT_WORD = r"(?!" + _QUALIFIERS + r"\b)[^\W\d_][\w-]*"
 _OWNED = re.compile(
     r"(?i:(?:\b(?:the|a|an|its|their|each|every|your|his|her)(?:\s+" + _SUBJECT_WORD + r"){1,3}(?:['’]s)?"
@@ -190,6 +191,7 @@ def _css_url(css: str, i: int) -> int:
 
 _CSS_WS = " \t\n"
 _CSS_VAR_DEPTH = 8
+_CSS_NEST_MAX = 32       # var() nested inside var() fallbacks; past it the stylesheet is not read
 _CSS_ALTS_MAX = 32       # distinct texts one value may render through var(); past it the value is not read
 _CSS_TEXT_MAX = 100_000  # characters one rendered alternative may hold; past it the value is not read
 
@@ -199,11 +201,14 @@ def _css_comment_end(css: str, i: int) -> int:
     return len(css) if end < 0 else end + 2
 
 
-def _css_value(css: str, i: int, in_var: bool) -> tuple[list, int]:
+def _css_value(css: str, i: int, in_var: bool, nest: int = 0) -> tuple[list, int]:
     """The parts of a declaration value from ``css[i]``: decoded strings and ``("var", name, fallback)``
     references. Ends at ``;``, ``{``, ``}`` or ``!`` outside parentheses (index left on it), or for a ``var()``
     fallback at its closing ``)`` (index after it). An unquoted ``url(...)`` is one token whose characters
-    are data (a ``/*`` or a quote inside it opens nothing; CSS Syntax 3 §4.3.6)."""
+    are data (a ``/*`` or a quote inside it opens nothing; CSS Syntax 3 §4.3.6). Raises :class:`_Unread` past
+    :data:`_CSS_NEST_MAX` nested ``var()`` fallbacks."""
+    if nest > _CSS_NEST_MAX:
+        raise _Unread
     parts: list = []
     depth = 0
     n = len(css)
@@ -235,7 +240,7 @@ def _css_value(css: str, i: int, in_var: bool) -> tuple[list, int]:
                     while k < n and (css[k] in _CSS_WS or css.startswith("/*", k)):
                         k = _css_comment_end(css, k) if css.startswith("/*", k) else k + 1
                     ref, k = _css_ident(css, k)
-                    fallback, i = _css_value(css, k, True)  # the rest up to the matching ")"
+                    fallback, i = _css_value(css, k, True, nest + 1)  # the rest up to the matching ")"
                     # the tokens between the name and its comma are not text; the fallback follows the comma
                     parts.append(("var", ref, fallback if _css_has_comma(css, k, i) else None))
                     continue
@@ -275,7 +280,9 @@ def _css_has_comma(css: str, start: int, end: int) -> bool:
 def _css_declarations(css: str) -> list[tuple[str, list]]:
     """Every declaration ``(property, parts)`` in a stylesheet or a ``style`` attribute, read by tokenizing
     (CSS Syntax 3), never by pattern. Strings are decoded (``"\\5b S\\5d "`` is ``[S] ``); a ``;`` or an escaped
-    quote inside a string, comments, and nested blocks (``@media``) change nothing."""
+    quote inside a string, comments, and nested blocks (``@media``) change nothing. Outside declarations, a
+    string or an unquoted ``url(...)`` body (an ``@import`` prelude, a selector) is one URL token, never a
+    comment opener, and its text is returned as ``("", [text])`` so an inline ``data:`` stylesheet is read."""
     css = css.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n").replace("\x00", "�")
     out: list[tuple[str, list]] = []
     n = len(css)
@@ -287,7 +294,9 @@ def _css_declarations(css: str) -> list[tuple[str, list]]:
             continue
         c = css[i]
         if c in "\"'":
-            _, i = _css_string(css, i)  # a string in a selector or a prelude renders nothing
+            text, i = _css_string(css, i)  # a selector or prelude string: read, it may be a data: stylesheet
+            if text:
+                out.append(("", [text]))
             continue
         if c in ";{}":
             expect_name = True
@@ -299,6 +308,18 @@ def _css_declarations(css: str) -> list[tuple[str, list]]:
                 i += 1
                 continue
             i = j
+            if name.lower() == "url" and i < n and css[i] == "(":
+                k = i + 1
+                while k < n and css[k] in _CSS_WS:  # whitespace only: a comment here is URL data
+                    k += 1
+                if not (k < n and css[k] in "\"'"):
+                    end = _css_url(css, i + 1)
+                    body = css[i + 1:end - 1 if css[end - 1:end] == ")" else end]
+                    if body.strip(_CSS_WS):
+                        out.append(("", [body]))
+                    i = end
+                    expect_name = False
+                    continue
             if expect_name:
                 k = i
                 while k < n and (css[k] in _CSS_WS or css.startswith("/*", k)):
@@ -348,12 +369,17 @@ def _css_units(sources: list[tuple[str, str]]) -> list[tuple[str, str, str]]:
     attribute): each declaration's own strings joined (always read, whatever else happens), and, for a
     declaration that uses ``var()``, each text it can render with the document's custom properties
     substituted. A value that cannot be read within the bounds is a ``css-unread`` unit."""
-    decls = [(loc, prop, parts) for loc, css in sources for prop, parts in _css_declarations(css)]
+    decls: list[tuple[str, str, list]] = []
+    units: list[tuple[str, str, str]] = []
+    for loc, css in sources:
+        try:
+            decls += [(loc, prop, parts) for prop, parts in _css_declarations(css)]
+        except (_Unread, RecursionError):
+            units.append(("css-unread", loc, "a CSS value nests var() too deeply to read"))
     custom: dict[str, list[list]] = {}
     for _, prop, parts in decls:
         if prop.startswith("--"):
             custom.setdefault(prop, []).append(parts)
-    units: list[tuple[str, str, str]] = []
     for loc, _, parts in decls:
         literal = "".join(p for p in parts if isinstance(p, str))
         if literal:
