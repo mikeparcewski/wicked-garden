@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+## [12.68.5] - 2026-11-22
+
+Patch release on the train-11 cut d093a838, carrying 13 PRs since 12.68.4: #1500, #1501, #1505, #1506, #1507, #1508, #1510, #1512, #1515, #1516, #1517, #1518, #1520.
+
+### Added
+
+- pack check: spec-2 editors may declare `description` and `visuals` (icon, color, preview, live), checked the way crew reads them. A malformed value is a PK089 warning, never a refusal, and `editor install` stages the declared images. (#1357) (#1515)
+- The `acme-terms` sample pack has a real editor (reads, lists banned-term hits, contributes checks, points, replaces in one version) that passes every conformance case, and `docs/extending.md` has an authoring guide that walks it. Crew's install of a pack with skills or blocks is tracked in wicked-crew#1703. (#1338) (#1515)
+- **Editor install:** the dry-run plan names what each editor and run plugin asks to do (`asks`), so the install consent can show it (wicked-crew#1424). (#1517)
+
+### Changed
+
+- Editor conformance case 7: click data-wicked-reveal toggles first (refs studio#1214). (#1500)
+
+### Fixed
+
+- editor-scaffold: the template's `host.hello` handshake now requires `e.source === parent` and protocol `v === 1`, so a scaffolded editor passes its own security review (#1354). (#1501)
+- **demo:** the storyline check refuses `"in": "content"` on a page app whose probe found no frame inside the page, naming the field and saying to drop `"in"`, instead of the take failing `app_not_ready` after a 60 s wait. The probe verdict now carries `frames` for a page app. (#1463) (#1505)
+- **Editor conformance (case 18):** an editor that renders the artifact in a nested sandboxed frame now passes "shows the content it is handed". The case reads the editor frame and its visible nested frames (3 deep, 16 frames at most) and records each frame it did not read and why. A protocol-2 editor is judged on its full surface (its card when it declares no full), not the settings-only options instance. (#1504) (#1506)
+- **Business domains: a bad evidence row drops that row, not the catalog; backfill finishes on assignment-only pages; extraction frames only what the requirements share counts (#1453, #1447, #1450, #1454).** (#1507)
+  - A business-domain evidence item the code does not show is dropped and reported. The catalog is refused only below 3 domains, and `--check-rules` names the bad item on the page.
+  - At the target, requirements without a domain get assignment-only pages. The first catalog is stored exclusively.
+  - Refresh and the assign backfill skip units core leaves out: test dirs, e2e test dirs, and estate `stub`/`data`/`test_support` units.
+  - `extract-apply` takes the extract seat from the engine's `WICKED_UPSTREAM_AGENTS` once core sets it (#1364).
+- Changed: on a domain-extraction page with nothing to extract, the extractor writes an empty rules file instead of none, which the engine now requires from every page (wicked-core#1232). (#1508)
+- **mem**: a governed run with no project now uses the run's project, else the checkout's own name, else none. Before, it filed and recalled memories under the directory above the checkout (`repos`) (#1373). A no-repo run's default recall scope is its run project (#1336). `ingest` accepts `{"title", "path"}` for binary documents, which estate converts, and reports estate's refusal reason. mem-ingest uses vision for images only (#1462). (#1510)
+- editor conformance: the runner serves the candidate exactly as crew serves a third-party editor (the WebRTC prelude, hash-only plus inline-only script policies, no URL frames, at most 200 inline scripts), and any script the browser refuses fails case 9 (r1 for a run plugin). Cases 10 and 11 measure from a CDP isolated world, so an editor cannot answer them by replacing DOM functions. (#1384, #1420) (#1512)
+- A seat's jam says it is one model's view; the pointer label avoids app text (#1513, #1514). (#1516)
+- **Editor install:** a permission the install itself grants (such as `mcp.session`) is listed as the grant it is, not among the permissions you allow later in Plugins (wicked-crew#1424). (#1518)
+- **mem:** a no-project run's memory proposal, made from the run's worktree, names the repository in `facets.project` and `facets.repo` instead of the run id. On the k8s floor the worktree's `.git` is a plain directory, so the worktree now resolves to its repository by the engine's `wicked-worktrees/<run id>` layout (#1519). (#1520)
+
 ## [12.68.4] - 2026-11-20
 
 Patch release on main 27a4ff62, carrying 13 PRs since 12.68.3: #1474, #1481, #1483, #1484, #1486, #1489, #1490, #1491, #1494, #1495, #1496, #1498, #1499. The estate shim now refuses a graph read with nothing behind it and tells a failure from an empty answer (#1481, #1483, #1491, #1494), which 12.68.3 does not have.
