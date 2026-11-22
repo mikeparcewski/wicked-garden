@@ -116,3 +116,155 @@ def test_self_check_fails_without_notes_and_on_a_leak(tmp_path: Path):
     html.write_text("<html><body><p>Hello [S]</p></body></html>", encoding="utf-8")
     leaked = sc.run(str(html), check_pages=False, notes=str(tmp_path / "notes.json"))
     assert leaked["verdict"] == "FAIL" and leaked["failed"] == ["leaks"]
+
+
+# --- #1429: CSS content is tokenized, and a subject's own self-check verdict is prose -------------
+
+def test_css_content_escapes_are_decoded():
+    assert kinds(r'<style>p::before { content: "\5b S\5d "; }</style><p>Hello</p>') == {"source-marker"}
+    assert kinds(r'<style>p::before { content: "I us\65 d SearchEntity"; }</style><p>Hello</p>') == {"narration"}
+    assert kinds(r'<p style="content: &quot;\5b S\5d&quot;">Hello</p>') == {"source-marker"}
+    assert kinds(r'<style>p::before { cont\65nt: "[S]"; }</style><p>Hello</p>') == {"source-marker"}
+
+
+def test_css_content_strings_are_read_as_tokens():
+    # a `;` inside a string does not end the value; comments between strings are skipped
+    assert kinds('<style>p::before { content: "Note; I used " /* x */ "SearchEntity"; }</style><p>Hello</p>') == {"narration"}
+    # an escaped quote stays inside the string
+    assert kinds(r'<style>p::before { content: "\"q\" [S]"; }</style><p>Hello</p>') == {"source-marker"}
+    # an escaped line break continues the string
+    assert kinds('<style>p::before { content: "I used \\\nSearchEntity"; }</style><p>Hello</p>') == {"narration"}
+    # a selector named content, and a value that is not a string, are not text
+    assert ls.scan('<style>.content:hover { color: red } p::before { content: counter(x) "." }</style><p>Hello</p>')["ok"] is True
+
+
+def test_css_reading_is_bounded():
+    import time
+    t = time.monotonic()
+    ls.scan("<style>" + "\\" * 200000 + "content:" * 20000 + '"' * 20000 + "</style><p>x</p>")
+    assert time.monotonic() - t < 3
+
+
+def test_a_subjects_own_self_check_verdict_is_prose():
+    assert ls.scan("<p>The device self-check: PASS means the motor may start.</p>")["ok"] is True
+    assert ls.scan("<p>When the pump's self-check: FAIL appears, call service.</p>")["ok"] is True
+
+
+def test_the_drafting_self_check_verdict_still_fails():
+    for html in ("<p>Self-check: PASS</p>", "<p>Draft self-check: PASS</p>", "<p>Status: self-check: PASS</p>",
+                 "<p>The self-check: FAIL</p>", "<p>Done. Self-check: UNVERIFIED</p>", "<p>self_check.py: PASS</p>",
+                 "<p>The device self-check.py: PASS</p>", "<p>keep_check: PASS</p>"):
+        assert "process-word" in kinds(html), html
+
+
+def test_many_bare_verdicts_are_read_in_linear_time():
+    import time
+    t = time.monotonic()
+    ls.scan("<p>" + "word " * 50000 + "self-check: PASS " * 5000 + "</p>")
+    assert time.monotonic() - t < 3
+
+
+# --- review round 1 (codex) -----------------------------------------------------------------------
+
+def test_a_comment_opener_inside_an_unquoted_url_hides_nothing():
+    html = '<style>\np { background: url(data:,/*) }\np::before { content: "[S]" }\n</style><p>Hello</p>'
+    assert kinds(html) == {"source-marker"}
+    assert kinds("<style>p { background: url(x'y) } p::before { content: \"[S]\" }</style><p>Hello</p>") == {"source-marker"}
+
+
+def test_strings_reached_through_custom_properties_are_read():
+    assert kinds('<style>p::before { --content: "[S]"; content: var(--content) }</style><p>Hello</p>') == {"source-marker"}
+    assert kinds('<style>:root { --tool: "SearchEntity" } p::before { content: "I used " var(--tool) }</style><p>x</p>') == {"narration"}
+    assert kinds('<style>p { quotes: "[S" "]" }</style><p>x</p>') == {"source-marker"}
+    assert kinds('<style>@media print { p::before { content: "I used SearchEntity" } }</style><p>x</p>') == {"narration"}
+    # a reference cycle and a deep chain end; the expansion is bounded
+    assert ls.scan("<style>:root { --a: var(--b); --b: var(--a) } p { content: var(--a) }</style><p>x</p>")["ok"] is True
+    import time
+    chain = "".join(f"--v{i}: var(--v{i + 1}) var(--v{i + 1});" for i in range(3000))
+    t = time.monotonic()
+    ls.scan("<style>:root {" + chain + '--v3000: "a" } p { content: var(--v0) }</style><p>x</p>')
+    assert time.monotonic() - t < 3
+
+
+def test_a_drafting_qualifier_or_a_clause_break_does_not_own_the_verdict():
+    for html in ("<p>Final self-check: PASS</p>", "<p>Done, self-check: PASS</p>", "<p>The final self-check: PASS</p>",
+                 "<p>My self-check: PASS</p>"):
+        assert "process-word" in kinds(html), html
+    assert ls.scan("<p>Each pump's self-check: PASS is logged.</p>")["ok"] is True
+
+
+# --- review round 2 (codex) -----------------------------------------------------------------------
+
+def test_a_comment_inside_a_bad_unquoted_url_is_url_data():
+    assert kinds('<style>\np { background: url(/*x*/"bad) }\np::before { content: "[S]" }\n</style><p>Hello</p>') == {"source-marker"}
+    # on one line: an unescaped newline would otherwise have ended the stray "string"
+    assert kinds('<style>p { background: url(/*x*/"bad) } p::before { content: "[S]" }</style><p>Hello</p>') == {"source-marker"}
+
+
+def test_var_reads_every_declaration_of_the_property_document_wide():
+    # a later, unrelated (or losing) declaration does not hide the one that applies
+    assert kinds('<style>:root { --part: "S" } p::before { content: "[" var(--part) "]" } .unused { --part: "x" }</style>'
+                 "<p>Hello</p>") == {"source-marker"}
+    # across <style> elements and from a style attribute
+    assert kinds('<style>:root { --part: "S" }</style><style>p::before { content: "[" var(--part) "]" }</style><p>x</p>') == {"source-marker"}
+    assert kinds("<div style='--part: \"S\"'><p>x</p></div><style>p::before { content: \"[\" var(--part) \"]\" }</style>") == {"source-marker"}
+    # the fallback is an alternative, never glued to the value
+    assert kinds('<style>:root { --part: "S" } p::before { content: "[" var(--part, "unused") "]" }</style><p>x</p>') == {"source-marker"}
+    assert kinds('<style>:root { --p: "S" } p::before { content: "[" var( /*c*/ --p /*d*/ ) "]" }</style><p>x</p>') == {"source-marker"}
+
+
+def test_each_declaration_is_read_on_its_own():
+    assert kinds('<style>p::before { content: "Self-check: PASS"; font-family: "Arial"; }</style><p>Hello</p>') == {"process-word"}
+
+
+def test_a_large_stylesheet_never_stops_the_literal_reading():
+    assert kinds('<style>p { font-family: "' + "a" * 1_000_000 + '" } p::before { content: "[S]" }</style><p>x</p>') == {"source-marker"}
+
+
+def test_a_composition_too_wide_to_read_does_not_pass():
+    css = ":root {" + "".join(f'--a: "{i}";' for i in range(40)) + "} p::before { content: var(--a) var(--a) }"
+    r = ls.scan(f"<style>{css}</style><p>x</p>")
+    assert r["ok"] is False and set(r["by_kind"]) == {"css-unread"}
+    # ordinary design tokens read fine
+    assert ls.scan('<style>:root { --accent: "*"; --gap: 4px } p::before { content: var(--accent) " " }'
+                   ' h1 { font-family: "Inter", sans-serif; margin: var(--gap) }</style><p>x</p>')["ok"] is True
+
+
+def test_the_subject_must_own_the_check_and_the_sentence_go_on():
+    assert "process-word" in kinds("<p>The completed self-check: PASS</p>")
+    assert "process-word" in kinds("<p>The device self-check: PASS</p>")
+    assert "process-word" in kinds("<p>Final self-check: PASS means done</p>")
+    assert ls.scan("<p>The control unit self-check: PASS means the motor may start.</p>")["ok"] is True
+
+
+def test_an_unquoted_url_in_a_prelude_opens_no_comment():
+    # coord review F1: `url(x/*)` is one URL token (CSS Syntax 3 §4.3.6), not a comment that hides the sheet
+    assert kinds('<style>@import url(x/*); p::before{content:"[S]"}</style><p>x</p>') == {"source-marker"}
+    assert kinds('<style>@import url( x/* ); p::before{content:"[S]"}</style><p>x</p>') == {"source-marker"}
+
+
+def test_an_inline_data_stylesheet_in_a_prelude_is_read():
+    assert kinds("<style>@import \"data:text/css,p::before{content:'[S]'}\";</style><p>x</p>") == {"source-marker"}
+    assert kinds("<style>@import url(data:text/css,p::before{content:'[S]'});</style><p>x</p>") == {"source-marker"}
+    # an ordinary import and selector strings stay clean
+    assert ls.scan('<style>@import url(theme.css); @import "print.css"; a[href^="https"] { color: red }</style>'
+                   "<p>x</p>")["ok"] is True
+
+
+def test_a_var_fallback_nest_too_deep_to_read_is_a_finding():
+    # coord review F3: about 1,000 nested var() fallbacks crashed the scan with no finding
+    deep = "p::before { content: " + "var(--a, " * 1000 + '"[S]"' + ")" * 1000 + " }"
+    r = ls.scan(f"<style>{deep}</style><p>x</p>")
+    assert r["ok"] is False and "css-unread" in r["by_kind"]
+    deep_attr = "content: " + "var(--a, " * 1000 + "'x'" + ")" * 1000
+    r = ls.scan(f'<p style="{deep_attr}">x</p>')
+    assert r["ok"] is False and "css-unread" in r["by_kind"]
+    # a few levels read as before
+    assert kinds('<style>p::before { content: var(--a, var(--b, var(--c, "[S]"))) }</style><p>x</p>') == {"source-marker"}
+
+
+def test_an_artifact_nouns_self_check_is_the_drafting_check():
+    # coord review N1: "The deck self-check: PASS means ..." is the drafting verdict worded as a subject
+    for noun in ("deck", "document", "doc", "page", "slide", "report", "artifact"):
+        assert "process-word" in kinds(f"<p>The {noun} self-check: PASS means it is ready.</p>")
+    assert "process-word" not in kinds("<p>The device self-check: PASS means the motor may start.</p>")
