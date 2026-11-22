@@ -459,3 +459,134 @@ def test_cli_passes_ids_through_and_surfaces_estate_refusal(monkeypatch, operati
     with pytest.raises(RuntimeError, match="exited 1: unknown node: Charge"):
         getattr(est, operation)(*args[operation])
     assert len(calls) == 1 and "Charge" in calls[0]
+
+
+# --- estate write-batch: the recorded contract ------------------------------------------------
+# garden CI installs no wicked-estate, so a real estate's write-batch answers are recorded in
+# fixtures/estate_write_batch_contract.json and replayed here. With wicked-estate installed, the
+# live test re-runs the recording against it (WICKED_RECORD_ESTATE_CONTRACT=1 re-records it).
+
+_CONTRACT_PATH = Path(__file__).parent / "fixtures" / "estate_write_batch_contract.json"
+_CONTRACT = json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
+def _queued(estate, calls):
+    page = _clients.PageWrites(estate)
+    for op, kwargs in calls:
+        getattr(page, op)(**kwargs)
+    return page
+
+
+def _replay(monkeypatch, recorded):
+    import subprocess
+    calls = []
+
+    def invoke(argv):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, recorded["exit"], recorded.get("stdout", ""),
+                                           recorded.get("stderr", ""))
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    return calls
+
+
+def test_a_page_queues_exactly_the_rows_estate_accepted():
+    assert _queued(None, _CONTRACT["page"]).rows == _CONTRACT["page_rows"]
+
+
+def test_the_recorded_commit_writes_the_whole_page_in_one_call(monkeypatch, tmp_path):
+    calls = _replay(monkeypatch, _CONTRACT["committed"])
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["page"])
+    page.expect(_CONTRACT["page"][0][1]["symbol_id"], _CONTRACT["page"][0][1]["key"])
+    checked = []
+    page.flush(lambda *args: checked.append(args) or True)
+    assert page.written and len(checked) == 1
+    assert [argv[1] for argv in calls] == ["write-batch"]
+
+
+def test_the_recorded_refusal_fails_the_page_with_nothing_written(monkeypatch, tmp_path):
+    _replay(monkeypatch, _CONTRACT["refused"])
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["refused_page"])
+    page.expect(_CONTRACT["refused_page"][0][1]["symbol_id"], "never-read")
+    with pytest.raises(RuntimeError, match=r"exited 1: .*row 2: .*not a node.*nothing was written"):
+        page.flush(lambda *args: pytest.fail("no read-back after a refused batch"))
+    assert not page.written
+    assert _CONTRACT["refused_left_annotations"] == []  # the good row 1 did not land either
+
+
+def test_an_estate_without_write_batch_fails_on_its_recorded_usage_banner(monkeypatch, tmp_path):
+    banner = _CONTRACT["without_write_batch"]
+    _replay(monkeypatch, {"exit": banner["exit"],
+                          "stdout": banner["stdout_first_line"] + "\n  wicked-estate --version\n"})
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["page"])
+    with pytest.raises(RuntimeError, match="did not report 5 written row"):
+        page.flush(lambda *args: pytest.fail("no read-back without a commit"))
+    assert not page.written
+
+
+def _live_estate():
+    import os
+    import subprocess
+    exe = (os.environ["WICKED_ESTATE_BIN"].strip() if "WICKED_ESTATE_BIN" in os.environ
+           else shutil.which("wicked-estate"))
+    if not exe:
+        return None
+    usage = subprocess.run([exe, "--help"], capture_output=True, text=True, encoding="utf-8")
+    return exe if "write-batch" in usage.stdout + usage.stderr else None
+
+
+_LIVE_ESTATE = _live_estate()
+
+
+@pytest.mark.skipif(_LIVE_ESTATE is None,
+                    reason="no wicked-estate with write-batch installed (garden CI has none)")
+def test_live_estate_answers_the_recorded_contract(tmp_path):
+    import os
+    import subprocess
+    exe = _LIVE_ESTATE
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for name, text in _CONTRACT["repo_files"].items():
+        (repo / name).write_text(text, encoding="utf-8")
+    db = str(tmp_path / "estate.db")
+    subprocess.run([exe, "index", str(repo), "--db", db], check=True, capture_output=True)
+
+    def run(*args):
+        p = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8")
+        return {"exit": p.returncode, "stdout": p.stdout, "stderr": p.stderr}
+
+    def batch(calls):
+        path = tmp_path / "page.ndjson"
+        path.write_text("".join(json.dumps(r) + "\n" for r in _queued(None, calls).rows),
+                        encoding="utf-8")
+        return run("write-batch", str(path), "--json", "--db", db)
+
+    first = _CONTRACT["page"][0][1]["symbol_id"]
+    refused = batch(_CONTRACT["refused_page"])
+    left = json.loads(run("annotations", "--symbol", first, "--json", "--db", db)["stdout"])
+    committed = batch(_CONTRACT["page"])
+    banner = run("no-such-command", "--json", "--db", db)
+    observed = dict(_CONTRACT, estate=run("--version")["stdout"].strip(),
+                    page_rows=_queued(None, _CONTRACT["page"]).rows, committed=committed,
+                    refused=refused, refused_left_annotations=left["annotations"],
+                    without_write_batch={"exit": banner["exit"],
+                                         "stdout_first_line": banner["stdout"].splitlines()[0]})
+    if os.environ.get("WICKED_RECORD_ESTATE_CONTRACT") == "1":
+        _CONTRACT_PATH.write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
+    version = lambda line: line.replace(observed["estate"], _CONTRACT["estate"])  # noqa: E731
+    observed["without_write_batch"]["stdout_first_line"] = version(
+        observed["without_write_batch"]["stdout_first_line"])
+    assert {k: v for k, v in observed.items() if k != "estate"} == \
+        {k: v for k, v in _CONTRACT.items() if k != "estate"}
+
+    # The same page again through garden's own client: one call replaces the page's own
+    # replace=True rows, and every annotation reads back.
+    est = _clients.CliEstateClient([exe], db)
+    page = _queued(est, _CONTRACT["page"])
+    again = page.estate.write_batch(page.rows)
+    assert again["rows"] == len(page.rows) and again["replaced"] >= 1
+    keys = {(a["key"], a["value"]) for a in est.read_annotations(first)}
+    assert (_CONTRACT["page"][0][1]["key"], _CONTRACT["page"][0][1]["value"]) in keys

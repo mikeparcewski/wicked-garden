@@ -525,9 +525,8 @@ _CORE = (_bin("WICKED_CORE_BIN", "wicked-core") if "WICKED_CORE_BIN" in os.envir
          else (os.environ.get("WICKED_CORE_EXE") or "").strip() or shutil.which("wicked-core"))
 
 
-@pytest.mark.skipif(_ESTATE is None or _CORE is None,
-                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
-def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
+def _real_page(tmp_path, monkeypatch):
+    """A page framed and extracted on the real binaries, ready for extract-apply."""
     repo = Path(_git_repo(tmp_path, tracked=()))
     (repo / "math.js").write_text(
         "export function sum(xs) { let t = 0; for (const x of xs) t += x; return t; }\n"
@@ -544,13 +543,73 @@ def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
     monkeypatch.setenv("WICKED_RUN_AGENT", "claude")
     assert extract_loop.main(["--worklist", rules_file.WORKLIST_REL, "--rules-out",
                               rules_file.RULES_REL, "--dry-run"]) == 0
+    return db, repo, wt
+
+
+def _estate_commands(monkeypatch):
+    """The estate subcommands the host runs from here on."""
+    seen, real = [], _clients._invoke
+
+    def invoke(argv):
+        if argv[0] == _ESTATE:
+            seen.append(argv[1])
+        return real(argv)
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    return seen
+
+
+def _annotation_rows(db):
+    import sqlite3
+    con = sqlite3.connect(db)
+    try:
+        return con.execute("SELECT count(*) FROM annotations").fetchone()[0]
+    finally:
+        con.close()
+
+
+@pytest.mark.skipif(_ESTATE is None or _CORE is None,
+                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
+def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
+    db, repo, wt = _real_page(tmp_path, monkeypatch)
+    estate_commands = _estate_commands(monkeypatch)
     assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 0
+    # The whole page is one estate transaction: no write runs as a process of its own.
+    assert estate_commands.count("write-batch") == 1
+    assert not {"annotate", "semantics"} & set(estate_commands)
     cov = json.loads((wt / "coverage-report.json").read_text())
     assert cov["unaccounted"] == 0 and cov["resolved"] >= 2
     out = tmp_path / "rg.json"
     subprocess.run([_CORE, "domain-graph", "--db", db, "--out", str(out)], check=True,
                    capture_output=True)
     assert json.loads(out.read_text())["metadata"]["coverage"]["real_pct"] == 100
+
+
+@pytest.mark.skipif(_ESTATE is None or _CORE is None,
+                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
+def test_real_binaries_one_refused_row_refuses_the_whole_page(tmp_path, monkeypatch, capsys):
+    db, repo, wt = _real_page(tmp_path, monkeypatch)
+    before = _annotation_rows(db)
+    real_flush = _clients.PageWrites.flush
+
+    def flush_with_a_gone_node(self, read_back):
+        # Queued after the page's good rows: a node that is not in the graph (estate refuses it).
+        self.annotate("ts-javascript . . . math/gone().", "business_rule", "k", "v")
+        return real_flush(self, read_back)
+
+    monkeypatch.setattr(_clients.PageWrites, "flush", flush_with_a_gone_node)
+    assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 1
+    err = capsys.readouterr().err
+    assert "[extract-apply] FAILED: " in err and "after writing" not in err
+    assert "not a node in this graph" in err and "nothing was written" in err
+    assert _annotation_rows(db) == before  # the page's good rows did not land either
+    assert not (wt / "coverage-report.json").exists()
+
+    # The same page applies cleanly once the bad row is gone.
+    monkeypatch.setattr(_clients.PageWrites, "flush", real_flush)
+    assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 0
+    assert _annotation_rows(db) > before
+    assert json.loads((wt / "coverage-report.json").read_text())["unaccounted"] == 0
 
 
 def test_the_host_uses_the_engines_core_cli(monkeypatch):
