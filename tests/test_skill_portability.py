@@ -568,6 +568,7 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
 
 _LIST_ITEM_START = re.compile(r"^\s*(?:[-*+]|\d{1,9}[.)])\s")
 _FENCE_MARK = re.compile(r"^\s*(`{3,}|~{3,})")
+_READER_SCRIPT = re.compile(r"(?<![\w./-])(?:scripts|hooks)/(?:[\w.-]+/)*([\w-]+)\.(?:py|mjs|js|cjs|sh)(?![\w./-])")
 
 
 def scan_plugin_data_paths(rel_file: str, text: str, fm_end: int) -> list[Violation]:
@@ -585,13 +586,15 @@ def scan_plugin_data_paths(rel_file: str, text: str, fm_end: int) -> list[Violat
     def close() -> None:
         joined = "\n".join([t for _, t in prose] + fenced)
         fence_text = "\n".join(fenced)
-        readers = [fence_text.replace("-", "_")] if GRX["plugin_data_reader"].search(fence_text) else []
+        # a reader resolves the file it is named for (`stack-registry.json` <- `stack_registry.py`): the
+        # script's basename is matched as a path token, so an argument (`--archetypes`) or a longer script
+        # name (`archetypes_v11.py`) does not stand in for it
+        readers = ({b.replace("-", "_") for b in _READER_SCRIPT.findall(fence_text)}
+                   if GRX["plugin_data_reader"].search(fence_text) else set())
         for lineno, t in prose:
             for m in GRX["plugin_data_path"].finditer(t):
                 rel = m.group(0).strip("`")
-                # a reader resolves the file it is named for (`stack-registry.json` <- `stack_registry.py`)
-                stem = Path(rel).stem.replace("-", "_")
-                if any(stem in r for r in readers):
+                if Path(rel).stem.replace("-", "_") in readers:
                     continue
                 if re.search(r"wicked-garden path\s+([\"']?)" + re.escape(rel) + r"\1(?![\w./-])", joined):
                     continue

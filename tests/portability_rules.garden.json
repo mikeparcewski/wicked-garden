@@ -97,7 +97,7 @@
     },
     {
       "token": "plugin-data-path",
-      "rule": "each backticked `.claude-plugin/<file>` named in body prose (.md under skills/, frontmatter excluded) must be resolved in its own paragraph: by `wicked-garden path .claude-plugin/<file>` naming that very file, or by a fenced `wicked-garden run …` reader attached to the paragraph whose script is named for that file (`stack_registry.py` reads `stack-registry.json`). The path may be quoted. A paragraph ends at a blank line outside a fence or where a new list item starts. OpenCode, Pi and Antigravity copy only the skill directories, so the bare plugin-root path does not exist there (#1413)",
+      "rule": "each backticked `.claude-plugin/<file>` named in body prose (.md under skills/, frontmatter excluded) must be resolved in its own paragraph: by `wicked-garden path .claude-plugin/<file>` naming that very file, or by a fenced `wicked-garden run …` reader attached to the paragraph whose script basename is that file's stem, with `-` read as `_` (`scripts/crew/stack_registry.py` reads `stack-registry.json`; an argument such as `--archetypes` or a longer name such as `archetypes_v11.py` does not count). The path may be quoted. A paragraph ends at a blank line outside a fence or where a new list item starts. OpenCode, Pi and Antigravity copy only the skill directories, so the bare plugin-root path does not exist there (#1413)",
       "garden": "fail"
     },
     {
@@ -381,6 +381,21 @@
       {
         "file": "skills/classify/SKILL.md",
         "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/phase_manager.py list\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/phase_manager.py list --archetypes\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/archetypes_v11.py list\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/qe/refs/accept.md",
+        "text": "The pinned range lives in `.claude-plugin/plugin.json`:\n```bash\nwicked-garden run scripts/qe/ledger_pin.py --plugin .claude-plugin\n```",
         "token": "plugin-data-path"
       }
     ]
