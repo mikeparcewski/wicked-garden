@@ -385,8 +385,11 @@ def test_write_batch_sends_exact_ndjson_and_one_command(monkeypatch):
 def test_write_batch_rejects_an_incompatible_reply(monkeypatch, reply):
     est, _ = _cli_estate(monkeypatch)
     monkeypatch.setattr(_clients, "_run", lambda argv: json.dumps(reply))
-    with pytest.raises(RuntimeError, match="write-batch.*estate"):
+    # A JSON object came from a write-batch that ran: its commit is unknown. Anything else is
+    # not write-batch's reply at all.
+    with pytest.raises(RuntimeError, match="write-batch did not report 1 written row") as raised:
         est.write_batch([{"op": "semantics", "symbol": "opaque"}])
+    assert isinstance(raised.value, _clients.BatchOutcomeUnknown) == isinstance(reply, dict)
 
 
 def test_write_batch_rejects_a_non_json_usage_banner(monkeypatch):
@@ -590,3 +593,40 @@ def test_live_estate_answers_the_recorded_contract(tmp_path):
     assert again["rows"] == len(page.rows) and again["replaced"] >= 1
     keys = {(a["key"], a["value"]) for a in est.read_annotations(first)}
     assert (_CONTRACT["page"][0][1]["key"], _CONTRACT["page"][0][1]["value"]) in keys
+
+
+# --- review r1 (codex): a batch whose outcome is unknown is never reported as unwritten -----------
+
+def test_a_write_batch_that_times_out_has_an_unknown_outcome(monkeypatch):
+    import subprocess
+
+    def run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, 120)
+
+    monkeypatch.setattr(_clients.subprocess, "run", run)
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="exceeded"):
+        page.flush(lambda *args: pytest.fail("no read-back without a reply"))
+    assert page.uncertain and not page.written
+
+
+def test_a_write_batch_reply_with_a_wrong_count_has_an_unknown_outcome(monkeypatch):
+    est, _ = _cli_estate(monkeypatch)
+    monkeypatch.setattr(_clients, "_run", lambda argv: json.dumps({"rows": 1}))
+    page = _clients.PageWrites(est)
+    page.annotate("opaque", "rule", "k", "v")
+    page.annotate("opaque", "rule", "k2", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="did not report 2 written row"):
+        page.flush(lambda *args: True)
+    assert page.uncertain and not page.written
+
+
+def test_a_refused_batch_is_known_unwritten(monkeypatch, tmp_path):
+    _replay(monkeypatch, _CONTRACT["refused"])
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["refused_page"])
+    with pytest.raises(RuntimeError) as raised:
+        page.flush(lambda *args: True)
+    assert not isinstance(raised.value, _clients.BatchOutcomeUnknown)
+    assert not page.uncertain and not page.written

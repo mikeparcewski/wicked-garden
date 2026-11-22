@@ -100,6 +100,10 @@ def _resolve_bin(
 _DEFAULT_TIMEOUT = 120
 
 
+class CliTimeout(RuntimeError):
+    """The peer ran past its bound and was killed: what it did before that is unknown."""
+
+
 def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     """Run ``argv`` (argv list, never a shell string), bounded + fail-loud."""
     try:
@@ -114,7 +118,7 @@ def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     except FileNotFoundError as e:
         raise RuntimeError(f"{argv[0]} not found or not executable: {e}") from e
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
+        raise CliTimeout(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
     except ValueError as e:  # invalid UTF-8 in the peer's stdout/stderr
         raise RuntimeError(f"{argv[0]} produced undecodable (non-UTF-8) output: {e}") from e
     except OSError as e:
@@ -184,6 +188,11 @@ def semantics_row(symbol_id: str, requirement: str, validated: bool,
             "validated": bool(validated), "validated_by": validated_by or "extract-loop"}
 
 
+class BatchOutcomeUnknown(RuntimeError):
+    """A write-batch whose commit cannot be told from its reply (killed at its time bound, or a
+    reply counting other rows): the page may be in the store, so it is never "nothing written"."""
+
+
 class PageWrites:
     """Queue a page's writes and verify its annotations after the batch commits."""
 
@@ -192,6 +201,7 @@ class PageWrites:
         self.rows: list[dict] = []
         self.expectations: list[tuple[str, str, str | None]] = []
         self.written = False
+        self.uncertain = False  # the batch ran but its outcome is unknown
 
     def __getattr__(self, name):
         return getattr(self.estate, name)
@@ -213,7 +223,11 @@ class PageWrites:
     def flush(self, read_back) -> None:
         """One estate transaction for the page, then every recorded read-back. An empty page
         touches nothing, so it never counts as written."""
-        self.estate.write_batch(self.rows)
+        try:
+            self.estate.write_batch(self.rows)
+        except BatchOutcomeUnknown:
+            self.uncertain = True
+            raise
         self.written = bool(self.rows)
         for sid, key, value in self.expectations:
             if not read_back(sid, key, value):
@@ -354,18 +368,29 @@ class CliEstateClient:
         """Write one page through estate's transaction and require its row count."""
         if not rows:
             return {"rows": 0, "annotations": 0, "replaced": 0, "semantics": 0}
-        with tempfile.TemporaryDirectory(prefix="wicked-domain-batch-") as tmp:
+        # A cleanup failure after the call must not hide a committed page.
+        with tempfile.TemporaryDirectory(prefix="wicked-domain-batch-",
+                                         ignore_cleanup_errors=True) as tmp:
             path = Path(tmp) / "writes.ndjson"
             path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
-            # A refused batch exits non-zero naming its row; `_run` raises with estate's text.
-            out = _run(self._argv("write-batch", str(path), "--json"))
+            # A non-zero exit means estate committed nothing: the commit is its last fallible
+            # step, and a refused row says so ("...; nothing was written"). Killed at the time
+            # bound, it may have committed first.
+            try:
+                out = _run(self._argv("write-batch", str(path), "--json"))
+            except CliTimeout as e:
+                raise BatchOutcomeUnknown(str(e)) from e
         # An estate without write-batch prints its usage banner for the unknown command and exits
         # 0, so the reply's row count is what tells a written page from one never written.
         try:
             reply = json.loads(out)
         except json.JSONDecodeError:
             reply = None
-        if not isinstance(reply, dict) or reply.get("rows") != len(rows):
+        if isinstance(reply, dict) and reply.get("rows") != len(rows):
+            raise BatchOutcomeUnknown(
+                f"wicked-estate write-batch did not report {len(rows)} written row(s): "
+                f"{out.strip()[:200]!r}")
+        if not isinstance(reply, dict):
             raise RuntimeError(
                 f"wicked-estate write-batch did not report {len(rows)} written row(s) "
                 f"(an estate without write-batch prints its usage instead): {out.strip()[:200]!r}")

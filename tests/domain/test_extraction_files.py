@@ -549,9 +549,11 @@ def _real_page(tmp_path, monkeypatch):
 def _estate_commands(monkeypatch):
     """The estate subcommands the host runs from here on."""
     seen, real = [], _clients._invoke
+    # The host resolves the binary to its real path; _ESTATE may be a bare name or a symlink.
+    estate = os.path.realpath(shutil.which(_ESTATE) or _ESTATE)
 
     def invoke(argv):
-        if argv[0] == _ESTATE:
+        if os.path.realpath(argv[0]) == estate:
             seen.append(argv[1])
         return real(argv)
 
@@ -1891,6 +1893,55 @@ def test_apply_read_back_miss_after_batch_is_applied_then_failed(tmp_path, monke
     with pytest.raises(apply_rules.AppliedThenFailed, match="1 rule.*write not durable"):
         _apply(wt, db, repo, estate, core)
     assert len(batches) == 1 and answered == [["s::core"]]
+
+
+def test_apply_with_an_unknown_batch_outcome_never_says_nothing_was_written(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    answered = []
+
+    def lost_reply(rows):
+        raise _clients.BatchOutcomeUnknown("wicked-estate exceeded 120s")
+
+    monkeypatch.setattr(estate, "write_batch", lost_reply, raising=False)
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(RuntimeError, match="may be in the store") as raised:
+        _apply(wt, db, repo, estate, core)
+    assert "nothing was written" not in str(raised.value) and answered == []
+    assert not (wt / "coverage-report.json").exists()
+
+
+def test_assignment_page_read_back_miss_after_the_batch_is_applied_then_failed(tmp_path,
+                                                                               monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    monkeypatch.setattr(estate, "read_annotations", lambda sid: [])
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 business domain.*write not durable"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_assignment_page_report_refused_after_the_batch_is_applied_then_failed(tmp_path,
+                                                                               monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    real = rules_file.write_json_file
+
+    def refuse_the_report(base, rel, doc):
+        if rel == apply_rules.REPORT_REL:
+            raise rules_file.RulesFileRefused("a link was planted at the report")
+        return real(base, rel, doc)
+
+    monkeypatch.setattr(rules_file, "write_json_file", refuse_the_report)
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 business domain.*planted"):
+        _apply(wt, db, repo, estate, core)
 
 
 def test_apply_batch_failure_records_no_answered_units(tmp_path, monkeypatch):

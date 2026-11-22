@@ -425,6 +425,13 @@ def _page_read_back(db: str, estate):
     return check
 
 
+def _unknown_outcome(page, e: Exception) -> None:
+    """A batch whose commit is unknown is neither "nothing written" nor a counted write."""
+    if page.uncertain:
+        raise RuntimeError(f"the page's writes may be in the store (the write-batch outcome is "
+                           f"unknown); no unit is recorded as answered: {e}") from e
+
+
 def _assignment_page(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str,
                      estate, core) -> dict:
     """Apply only domain assignments and a catalog proposal on a page that framed no units."""
@@ -445,13 +452,20 @@ def _assignment_page(db: str, repo_root: str, base: Path, rules_rel: str, covera
     rules_file.check_writable(base, REPORT_REL)
     domains = _domain_plan(db, doc or {}, rules_file.tracked_files(repo_root), repo_root, set())
     page = _clients.PageWrites(estate)
-    by_id = _apply_domains(db, page, domains, [], _author())
-    page.flush(_page_read_back(db, estate))
-    with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
-        after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+    try:
+        by_id = _apply_domains(db, page, domains, [], _author())
+        page.flush(_page_read_back(db, estate))
+        with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
+            after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+        rules_file.write_json_file(base, coverage_rel, after)
+    except (rules_file.RulesFileRefused, RuntimeError, OSError, ValueError) as e:
+        _unknown_outcome(page, e)
+        if page.written:
+            raise AppliedThenFailed(f"{len(domains['assign'])} business domain assignment(s) were "
+                                    f"written to the store before this failed: {e}") from e
+        raise
     what = (f"assigned {len(domains['assign'])} business domain(s) on a page that framed no units"
             if doc is not None else "the extract step wrote no assignments")
-    rules_file.write_json_file(base, coverage_rel, after)
     report = {
         "declared_seat": seat, "author": _author(), "entries": len((doc or {}).get("rules", [])),
         "applied": {"resolved": 0, "risk": 0, "kept": 0}, "eligible": 0,
@@ -464,7 +478,14 @@ def _assignment_page(db: str, repo_root: str, base: Path, rules_rel: str, covera
                                                 "risk_flagged", "unaccounted")},
         "minimum_met": met, "coverage_line": line,
     }
-    rules_file.write_json_file(base, REPORT_REL, report)
+    try:
+        rules_file.write_json_file(base, REPORT_REL, report)
+    except (rules_file.RulesFileRefused, OSError) as e:
+        if not page.written:
+            raise
+        raise AppliedThenFailed(f"{len(domains['assign'])} business domain assignment(s) were "
+                                f"written to the store and {coverage_rel} was written, but the "
+                                f"report was not: {e}") from e
     _print_domain_problems(domains)
     print(f"[extract-apply] {what}. {line or ''}".rstrip(), file=sys.stderr)
     return report
@@ -616,6 +637,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
         rules_file.write_json_file(base, coverage_rel, after)
     except (rules_file.RulesFileRefused, RuntimeError, OSError, ValueError) as e:
+        _unknown_outcome(page, e)
         if not page.written:
             if isinstance(e, rules_file.RulesFileRefused):
                 raise RuntimeError(f"nothing was written to the store, then: {e}") from e
