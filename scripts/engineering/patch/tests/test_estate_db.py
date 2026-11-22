@@ -213,6 +213,56 @@ class EstateDbAdapterTests(unittest.TestCase):
             estate_db.build_patch_db(Path(self._tmp.name) / "nope.db", Path(self.out))
         self.assertIn("wicked-estate index", str(ctx.exception))
 
+    def _cli(self, env_extra, *args):
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("WICKED_ESTATE_DB", "WICKED_ESTATE_BROKER")}
+        env.update(env_extra)
+        return subprocess.run(
+            [sys.executable, str(_HERE / "estate_db.py"), "--out", self.out, *args],
+            cwd=self._tmp.name, env=env, capture_output=True, text=True, timeout=60,
+        )
+
+    def test_container_seat_with_no_graph_hands_the_relay_and_never_crashes(self):
+        # garden#1526: since wicked-core#1782 a container seat has no mounted graph; the pinned
+        # path is missing and the broker marker is set. One line, the relayed read, exit 3.
+        missing = str(Path(self._tmp.name) / "unmounted" / "estate.db")
+        r = self._cli({"WICKED_ESTATE_DB": missing, "WICKED_ESTATE_BROKER": "1"})
+        self.assertEqual(r.returncode, 3, r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
+        self.assertNotIn("FileNotFoundError", r.stderr)
+        self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
+        self.assertIn("_estate_client.py --readonly call", r.stderr)
+        self.assertIn("BlastRadius", r.stderr)
+        self.assertIn("edit them by hand", r.stderr)
+        self.assertNotIn("wicked-estate index", r.stderr, "a run must not be told to index")
+        self.assertFalse(Path(self.out).exists())
+
+    def test_broker_marker_wins_over_a_present_store(self):
+        r = self._cli({estate_db.ESTATE_DB_ENV: self.store, estate_db.BROKER_ENV: "1"})
+        self.assertEqual(r.returncode, estate_db.EXIT_NO_GRAPH, r.stderr)
+        self.assertFalse(Path(self.out).exists())
+
+    def test_a_false_broker_marker_is_not_a_container_seat(self):
+        # Read as the shim reads it (_estate_client._env_truthy): 0/false/no mean unset.
+        for off in ("0", "false", "no", ""):
+            r = self._cli({"WICKED_ESTATE_DB": self.store, "WICKED_ESTATE_BROKER": off})
+            self.assertEqual(r.returncode, 0, f"{off!r}: {r.stderr}")
+            self.assertEqual(json.loads(r.stdout)["symbols"], _EXPECTED["symbols"])
+
+    def test_unreadable_store_without_broker_gets_the_same_line(self):
+        for bad in (Path(self._tmp.name) / "nope.db", Path(self._tmp.name)):  # missing; a directory
+            r = self._cli({}, "--estate-db", str(bad))
+            self.assertEqual(r.returncode, estate_db.EXIT_NO_GRAPH, r.stderr)
+            self.assertEqual(len(r.stderr.strip().splitlines()), 1, r.stderr)
+            self.assertIn("BlastRadius", r.stderr)
+            self.assertIn("wicked-estate index", r.stderr)
+            self.assertNotIn("Traceback", r.stderr)
+
+    def test_host_with_a_readable_store_translates(self):
+        r = self._cli({estate_db.ESTATE_DB_ENV: self.store})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads(r.stdout)["symbols"], _EXPECTED["symbols"])
+
     def test_idempotent_rebuild(self):
         a = self._build()
         b = self._build()  # rebuilds from scratch
