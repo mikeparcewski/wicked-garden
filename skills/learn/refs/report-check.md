@@ -21,13 +21,26 @@ fails the run, with one exception: a `quote-not-found-in-pdf-text` where you rea
 is there (the text extraction lost it). Say so for that source id. With no launcher or no Python, walk
 refs/report-claims.md's manual alternative and say you did.
 
-The floor reads CommonMark links and images, reference definitions, GFM autolinks, and HTML URL
-attributes before comparing destinations. Accepted citations use literal `<url>`, `[title](url)` or
+The floor reads CommonMark links and images, reference definitions and GFM autolinks before
+comparing destinations. Accepted citations use literal `<url>`, `[title](url)` or
 `[title](<url>)`, or reference links with a `[ref]: <url>` definition without a title. A bare destination
-containing parentheses must use angle brackets. Titles, decoded escapes or character references,
-non-http(s) destinations, HTML links, email addresses, `www.` addresses and bare URLs produce
-`url-form`. Plain URLs in code are also refused. Every accepted destination must match the source
-log exactly apart from scheme/hostname case and the fragment.
+containing parentheses must use angle brackets. Titles, whitespace or control characters (raw or
+decoded), non-http(s) destinations, email addresses, `www.` addresses and bare URLs produce
+`url-form`. A backslash or an `&...;` reference anywhere inside an accepted destination, including
+its fragment, is refused: write the percent-encoded form that the reader opens.
+
+Independent lexical sweeps refuse plain URLs, email addresses and raw HTML anywhere in the text,
+including code spans and code blocks. An `@` inside a parsed, accepted HTTP(S) destination is part
+of that URL. Raw HTML means every `<!` or `<?` construct and every ASCII-named tag, even when the
+floor cannot read its attributes. The sole exceptions are attribute-less `br`, `sup`, `sub`, `b`,
+`i`, `em`, `strong`, `kbd`, `code`, `s`, `u`, `mark`, `small`, `details`, `summary`, `p`, `span` and
+`div` tags, in exactly the forms `<x>`, `</x>`, `<x/>` and `<x />` (ASCII case-insensitive).
+Scheme autolinks such as `<https://example.org/page>` are still parsed as links.
+
+Other non-rendered Markdown remains text: code spans containing `www.unlogged.invalid` or
+`[x](/evil)` do not create links. Every accepted destination must match the source log exactly
+apart from scheme/hostname case and the fragment; the fragment still undergoes the spelling and
+character checks above.
 
 ## 2. Re-check every claim at its source
 

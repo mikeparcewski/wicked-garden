@@ -695,6 +695,105 @@ def test_an_email_created_by_a_character_reference_is_refused(address):
     assert "url-form" in rules(out)
 
 
+# PR #1525 cross-model round 1: exact review payloads, run before the fixes.
+@pytest.mark.parametrize("text", [f"[t](<{URL} >)", f"[t]({URL}\u00a0)"])
+def test_r1_finding_01_destination_whitespace_is_refused(text):
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("character", [" ", "\t", "\n", "\v", "\f", "\x01", "\x7f", "\x80", "\x85", "\u00a0"])
+@pytest.mark.parametrize("encoded", [False, True])
+def test_destination_whitespace_and_controls_are_refused_raw_or_decoded(character, encoded):
+    spelling = f"&#{ord(character)};" if encoded else character
+    out = run_check(packet(report=f"[C1] [C2] [C3]\n\n[t](<{URL}#{spelling}>)"))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+def test_r1_finding_02_del_does_not_hide_an_inner_markdown_link():
+    text = f"<{URL}#\x7f[x](/evil)>"
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+def test_r1_finding_03_nbsp_reference_label_is_not_empty():
+    text = "[\u00a0]: /evil\n\n[\u00a0]"
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+def test_r1_finding_04_nbsp_does_not_close_a_fence():
+    text = "~~~\ncode\n~~~\u00a0\n~~~\n\n[x](/evil)"
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("text", [
+    pytest.param("<pre></style>\n[x](/evil)\n</pre>", id="finding-05-type-1-end"),
+    pytest.param("<!a> `\n[x](/evil) `", id="finding-06-lowercase-declaration"),
+    pytest.param("<pre/>\n[x](/evil)", id="finding-07-type-7-exclusion"),
+    pytest.param("<d\u0130v>\n[x](/evil)", id="finding-08-dotted-i"),
+    pytest.param("<\u017ftyle>\n[x](/evil)", id="finding-08-long-s"),
+    pytest.param("paragraph\n01. [r]: /evil\n\n[r]", id="finding-09-leading-zero"),
+    pytest.param("_someone@example.org_", id="finding-10-emphasized-email"),
+    pytest.param('<img srcset="//evil.invalid/image.png 1x">', id="finding-11-srcset"),
+    pytest.param('<svg><a xlink:href="//evil.invalid">open</a></svg>', id="finding-11-xlink"),
+    pytest.param('<iframe srcdoc="&lt;a href=&quot;//evil.invalid&quot;&gt;open&lt;/a&gt;"></iframe>',
+                 id="finding-11-srcdoc"),
+    pytest.param("<div>\n<a href\f=//evil.invalid>open</a>\n</div>", id="finding-12-form-feed"),
+    pytest.param("Text <?x> <a href=//evil.invalid>open</a> ?>", id="finding-13-processing-instruction"),
+    pytest.param("Text <![CDATA[> <a href=//evil.invalid>open</a> ]]>", id="finding-13-cdata"),
+    pytest.param("Text <!-- --!> <a href=//evil.invalid>open</a> -->", id="finding-13-comment"),
+])
+def test_r1_findings_05_through_13_floor_bypasses_are_refused(text):
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("text", [
+    "`<a href=//evil.invalid>`", "~~~\n<img srcset='//evil.invalid/x 1x'>\n~~~",
+    "`<!-- hidden -->`", "~~~\n<?x?>\n~~~", "<!DOCTYPE html>",
+    "<span class=x>", "<br  />", "<span\t>", "<SPAN/ >", "</span >", "<ſpan>",
+])
+def test_raw_html_is_lexically_refused_even_in_code(text):
+    # Non-ASCII lookalikes are plain text, but their following Markdown still
+    # needs to be read; the allowlist itself is ASCII-only.
+    if text == "<ſpan>":
+        text += "\n[x](/evil)"
+    out = run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("tag", [
+    "br", "sup", "sub", "b", "i", "em", "strong", "kbd", "code", "s", "u",
+    "mark", "small", "details", "summary", "p", "span", "div",
+])
+def test_exact_attribute_less_html_allowlist_passes(tag):
+    for form in (f"<{tag}>", f"</{tag}>", f"<{tag}/>", f"<{tag} />", f"<{tag.upper()}>"):
+        out = run_check(packet(report=f"[C1] [C2] [C3]\n\n{form}"))[1]
+        assert "url-form" not in rules(out), (form, out["findings"])
+
+
+@pytest.mark.parametrize("url", [
+    "https://alice@example.org/terms", "https://example.org/someone@example.org",
+])
+def test_email_sweep_exempts_accepted_http_destination_spans(url):
+    p = packet(report=f"[C1] [C2] [C3]\n\n<{url}>")
+    p["sources"][2]["url"] = url
+    assert run_check(p)[0] == 0
+
+
+@pytest.mark.parametrize("fragment", [r"\z", "&MadeUpEntity;"])
+def test_r1_finding_19_destination_fragment_spelling_is_refused(fragment):
+    out = run_check(packet(report=f"[C1] [C2] [C3]\n\n<{URL}#{fragment}>"))[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("text", ["`www.unlogged.invalid`", "`[x](/evil)`"])
+def test_r1_finding_19_nonrendered_markdown_is_not_a_link(text):
+    assert run_check(packet(report="[C1] [C2] [C3]\n\n" + text))[0] == 0
+
+
 # --- the skill text -----------------------------------------------------------------------------
 
 def _skill() -> str:

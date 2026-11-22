@@ -500,3 +500,94 @@ def test_adversarial_half_megabyte_is_bounded(prefix):
     elapsed = time.monotonic() - started
     assert any(link.destination == "https://example.org/visible" for link in links)
     assert elapsed < 3, f"link reading took {elapsed:.3f}s"
+
+
+def test_review_02_del_cannot_hide_an_inner_markdown_link():
+    source = "<https://example.org/terms#\x7f[x](/evil)>"
+    assert "/evil" in destinations(source)
+    assert all(link.kind != "autolink" for link in md.rendered_links(source))
+
+
+def test_review_03_nbsp_is_a_nonempty_reference_label():
+    assert destinations("[\u00a0]: /evil\n\n[\u00a0]") == ["/evil"]
+
+
+def test_review_03_unicode_space_does_not_merge_distinct_labels():
+    source = "[a b]: /space\n[a\u00a0b]: /nbsp\n\n[a\u00a0b] [a b]"
+    assert destinations(source) == ["/nbsp", "/space"]
+
+
+def test_review_04_only_space_and_tab_can_follow_a_closing_fence():
+    assert destinations("~~~\ncode\n~~~\u00a0\n~~~\n\n[x](/evil)") == ["/evil"]
+
+
+def test_review_05_any_raw_html_end_tag_closes_type_one():
+    assert destinations("<pre></style>\n[x](/evil)\n</pre>") == ["/evil"]
+
+
+def test_review_06_lowercase_declaration_ends_its_block():
+    assert destinations("<!a> `\n[x](/evil) `") == ["/evil"]
+
+
+@pytest.mark.parametrize("tag", ["pre", "script", "style", "textarea"])
+def test_review_07_raw_opening_tags_are_excluded_from_type_seven(tag):
+    assert destinations(f"<{tag}/>\n[x](/evil)") == ["/evil"]
+
+
+def test_review_08_unicode_casefold_cannot_create_an_html_block():
+    assert destinations("<d\u0130v>\n[x](/evil)") == ["/evil"]
+
+
+def test_review_08_long_s_cannot_create_a_raw_tag_or_crash():
+    assert md.rendered_links("<\u017ftyle>") == []
+
+
+def test_review_09_ordered_list_interruption_compares_numeric_start():
+    assert destinations("paragraph\n01. [r]: /evil\n\n[r]") == ["/evil"]
+
+
+def test_review_12_html_attribute_whitespace_includes_form_feed():
+    assert destinations("<div>\n<a href\f=//evil.invalid>open</a>\n</div>") == ["//evil.invalid"]
+
+
+@pytest.mark.parametrize("source", [
+    pytest.param(("- " * 100_000) + "x", id="thematic-suffix"),
+    pytest.param("p\n" + ("+ " * 100_000) + "x\n", id="line-end-copy"),
+])
+def test_review_14_nested_list_prefixes_are_linear(source):
+    started = time.monotonic()
+    assert md.rendered_links(source) == []
+    elapsed = time.monotonic() - started
+    assert elapsed < 3, f"nested list reading took {elapsed:.3f}s"
+
+
+@pytest.mark.parametrize(("reference", "character"), [
+    ("&#128;", "\x80"),
+    ("&#127;", "\x7f"),
+    ("&#xFDD0;", "\ufdd0"),
+    ("&#0;", "\ufffd"),
+    ("&#xD800;", "\ufffd"),
+    ("&#x110000;", "\ufffd"),
+])
+def test_review_15_numeric_references_use_commonmark_scalars(reference, character):
+    assert destinations(f"[x](/a{reference}b)") == [f"/a{character}b"]
+
+
+def test_review_16_html_attribute_entities_respect_attribute_context():
+    assert destinations('<a href="/?x=&copycat">') == ["/?x=&copycat"]
+
+
+@pytest.mark.parametrize("source", [
+    "xmpp:someone@example.org",
+    "xmpp:someone&commat;example.org",
+])
+def test_review_17_protocol_email_preserves_scheme_and_span(source):
+    link, = md.rendered_links(source)
+    assert link.destination == "xmpp:someone@example.org"
+    assert link.raw == source
+    assert (link.start, link.end) == (0, len(source))
+
+
+@pytest.mark.parametrize("source", ["www.example.org/a)&copy;", "www.example.org/a!&copy;"])
+def test_review_18_entity_removal_resumes_autolink_trimming(source):
+    assert destinations(source) == ["http://www.example.org/a"]

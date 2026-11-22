@@ -36,9 +36,13 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
 - the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
   cites; a URL (in the report or in a claim) outside the literal ``<url>``, ``[title](url)`` or
   ``[title](<url>)`` forms, or a reference whose definition is not ``[ref]: <url>`` without a title.
-  CommonMark links/images, GFM autolinks and HTML attributes are parsed before enforcing these rules;
-  titles, escapes/character references, non-web destinations, HTML/email links, bare and ``www.``
-  URLs are refused (``url-form``), including plain URLs in code; a URL that is not exactly a web
+  CommonMark links/images and GFM autolinks are parsed before enforcing these rules;
+  titles, whitespace/controls, backslashes or ``&...;`` references anywhere in a destination
+  (including its fragment), non-web destinations, email links, bare and ``www.`` URLs are refused
+  (``url-form``). Independent lexical sweeps refuse plain URLs, email addresses and raw HTML even
+  in code, except the exact attribute-less formatting tags documented in refs/report-check.md.
+  Other non-rendered Markdown, such as a code span containing ``[x](/evil)``, is not a link.
+  A URL that is not exactly a web
   source in the log, its fragment aside (``url-not-in-log``);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
@@ -91,7 +95,23 @@ CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
 CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
 # Parsed destinations are compared literally; a separate sweep refuses plain URLs,
 # including URLs in code. URL starts inside another destination are part of it.
-URL_START_RE = re.compile(r"https?://", re.IGNORECASE)
+URL_START_RE = re.compile(r"https?://", re.IGNORECASE | re.ASCII)
+# Unicode White_Space plus C0/C1 controls, deliberately stricter than the
+# CommonMark grammar. Check before urlsplit, which silently removes controls.
+URL_BAD_CHAR_RE = re.compile(
+    r"[\x00-\x20\x7f-\x9f\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
+)
+URL_ESCAPE_RE = re.compile(r"\\|&[^&;\x00-\x20]*;")
+# Detect tag prefixes without interpreting attributes or HTML token boundaries.
+# Refusing incomplete tags too is intentional: browser repair is outside the floor.
+RAW_HTML_RE = re.compile(r"<!|<\?|</?[A-Za-z][A-Za-z0-9-]*(?=[\x09-\x0d />])")
+SAFE_HTML_NAMES = "br|sup|sub|b|i|em|strong|kbd|code|s|u|mark|small|details|summary|p|span|div"
+SAFE_HTML_RE = re.compile(
+    r"<(?:" + SAFE_HTML_NAMES + r")(?:>| ?/>)|</(?:" + SAFE_HTML_NAMES + r")>",
+    re.IGNORECASE | re.ASCII,
+)
+EMAIL_LOCAL = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-")
+EMAIL_DOMAIN_RE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+")
 URL_MAX_CHARS = 64 * 1024
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
@@ -134,8 +154,10 @@ def _iso(v: object) -> datetime | None:
 def norm_url(url: str) -> str | None:
     """The scheme and hostname lowercased and the fragment dropped; everything else (user information,
     port, path, params, query) is kept exactly as written."""
+    if URL_BAD_CHAR_RE.search(url):
+        return None
     try:
-        p = urlsplit(url.strip())
+        p = urlsplit(url)
         p.port  # noqa: B018  (raises ValueError on a malformed authority)
     except ValueError:
         return None
@@ -144,12 +166,12 @@ def norm_url(url: str) -> str | None:
     userinfo, _, hostport = p.netloc.rpartition("@")
     host, colon, port = hostport.rpartition(":") if not hostport.endswith("]") and ":" in hostport else (hostport, "", "")
     netloc = (userinfo + "@" if _ else "") + host.lower() + colon + port
-    rest = url.strip()[len(p.scheme) + 3 + len(p.netloc):].split("#", 1)[0]
+    rest = url[len(p.scheme) + 3 + len(p.netloc):].split("#", 1)[0]
     return f"{p.scheme.lower()}://{netloc}{rest}"
 
 
 def urls_in(text: str) -> list[tuple[str | None, str]]:
-    """Compare rendered destinations, and refuse every remaining plain URL start."""
+    """Compare rendered destinations, with independent HTML/plain URL/email refusals."""
     text = normalise(text or "")
     links, definitions = _read(text)
     # Definitions are checked even when unused, as in the original floor. Their
@@ -165,6 +187,7 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         else:
             merged.append((a, b))
     seen = set()
+    accepted: set[tuple[int, int]] = set()
     for link in links:
         key = (link.kind, link.start, link.end, link.title, link.angle)
         if key in seen:
@@ -173,13 +196,15 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         reason = None
         if link.kind == "html":
             reason = "a raw HTML link"
+        elif URL_BAD_CHAR_RE.search(link.raw) or URL_BAD_CHAR_RE.search(link.destination):
+            reason = "whitespace or a control character in a destination"
         elif link.kind == "email-autolink" or link.destination.lower().startswith("mailto:"):
             reason = "an email autolink"
         elif link.kind == "gfm-autolink":
             reason = "a www. address" if link.raw.lower().startswith("www.") else "a bare URL"
         elif not link.destination.lower().startswith(("http://", "https://")):
             reason = "a link destination that is not http(s)://"
-        elif link.raw != link.destination:
+        elif link.raw != link.destination or URL_ESCAPE_RE.search(link.raw):
             reason = "an escape or character reference: write the URL as the reader opens it"
         elif link.title:
             reason = "a link with a title"
@@ -192,7 +217,32 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         if reason:
             out.append((None, f"{link.raw[:80]} ({reason})"))
         else:
+            accepted.add((link.start, link.end))
             out.append((link.destination, link.destination))
+    # These sweeps deliberately include code and opaque HTML tokens. Never
+    # depend on an attribute-name list or Markdown's HTML token boundaries.
+    for m in RAW_HTML_RE.finditer(text):
+        if not SAFE_HTML_RE.match(text, m.start()):
+            out.append((None, text[m.start():m.start() + 80] + " (raw HTML the floor does not read)"))
+    accepted_spans = sorted(accepted)
+    cursor = 0
+    # Searching the full email regex at every character is quadratic on long
+    # local-part runs without '@'. Anchor each match at its actual '@' instead.
+    for m in re.finditer("@", text):
+        at = m.start()
+        while cursor < len(accepted_spans) and accepted_spans[cursor][1] <= at:
+            cursor += 1
+        if (cursor < len(accepted_spans)
+                and accepted_spans[cursor][0] <= at < accepted_spans[cursor][1]):
+            continue
+        if at == 0 or text[at - 1] not in EMAIL_LOCAL:
+            continue
+        domain = EMAIL_DOMAIN_RE.match(text, at + 1)
+        if domain is not None:
+            start = at - 1
+            while start > 0 and text[start - 1] in EMAIL_LOCAL:
+                start -= 1
+            out.append((None, text[start:min(domain.end(), start + 80)] + " (an email address)"))
     cursor = 0
     for m in URL_START_RE.finditer(text):
         while cursor < len(merged) and merged[cursor][1] <= m.start():

@@ -17,16 +17,16 @@ _HTML_TAGS = (
     "p param search section summary table tbody td tfoot th thead title tr track ul"
 )
 _HTML_BLOCK_TAG = re.compile(
-    r"</?(?:" + "|".join(_HTML_TAGS.split()) + r")(?=[ \t\n>]|/>|$)", re.I
+    r"</?(?:" + "|".join(_HTML_TAGS.split(" ")) + r")(?=[ \t\n>]|/>|$)", re.I | re.ASCII
 )
 _ATTR = r"[A-Za-z_:][A-Za-z0-9_.:-]*(?:[ \t\n]*=[ \t\n]*(?:[^ \t\n\"'=<>`]+|'[^']*'|\"[^\"]*\"))?"
 _COMPLETE_TAG = re.compile(
     r"(?:<[A-Za-z][A-Za-z0-9-]*(?:[ \t\n]+" + _ATTR + r")*[ \t\n]*/?>"
     r"|</[A-Za-z][A-Za-z0-9-]*[ \t\n]*>)[ \t]*(?:\n)?$"
 )
-_RAW_START = re.compile(r"<(script|pre|style|textarea)(?=[ \t\n>]|$)", re.I)
-_RAW_ENDS = {tag: re.compile(r"</" + tag + r">", re.I)
-             for tag in ("script", "pre", "style", "textarea")}
+_RAW_START = re.compile(r"<(script|pre|style|textarea)(?=[ \t\n>]|$)", re.I | re.ASCII)
+_RAW_END = re.compile(r"</(?:script|pre|style|textarea)>", re.I | re.ASCII)
+_TYPE_SEVEN_EXCLUDED = re.compile(r"<(?:script|pre|style|textarea)(?=[ \t\n/>]|$)", re.I | re.ASCII)
 _STRUCTURAL_PREFIX = re.compile(r"[ \t>*+0-9().-]*")
 
 
@@ -94,6 +94,10 @@ def _prefix(line: str, previous: list[tuple[str, int]], paragraph: bool,
     added = False
     if not open_containers:
         return pos, containers, continued, added
+    # Every nested marker used to rescan the remaining suffix for a thematic
+    # break and copy the whole line to locate its end. Compute both once.
+    content_end = len(line) - int(line.endswith("\n"))
+    suffix_start, third_last = _thematic_suffix(line, content_end)
     while pos < len(line):
         end, width = _indent(line, pos)
         if width > 3 or end == len(line):
@@ -105,20 +109,21 @@ def _prefix(line: str, previous: list[tuple[str, int]], paragraph: bool,
             containers.append(("quote", 0))
             added = True
             continue
-        if _THEMATIC.match(line, end):
+        if suffix_start <= end <= third_last:
             break
         marker = _LIST.match(line, end)
         if not marker:
             break
-        list_kind = "list:" + (line[marker.end() - 1] if line[end].isdigit() else line[end])
+        ordered = "0" <= line[end] <= "9"
+        list_kind = "list:" + (line[marker.end() - 1] if ordered else line[end])
         sibling = (len(containers) < len(previous)
                    and previous[len(containers)][0].startswith("list:"))
         # An ordered list can interrupt a paragraph only when it starts at 1.
         # A sibling item continues its existing list, so its number is unrestricted.
-        if paragraph and not sibling and line[end].isdigit() and line[end:marker.end() - 1] != "1":
+        if paragraph and not sibling and ordered and int(line[end:marker.end() - 1]) != 1:
             break
         after, padding = _indent(line, marker.end())
-        if paragraph and not sibling and after >= len(line.rstrip("\n")):
+        if paragraph and not sibling and after >= content_end:
             break
         pad = padding if 1 <= padding <= 4 else 1
         pos = _up_to(line, marker.end(), pad)
@@ -127,25 +132,48 @@ def _prefix(line: str, previous: list[tuple[str, int]], paragraph: bool,
     return pos, containers, continued, added
 
 
+def _thematic_suffix(line: str, end: int) -> tuple[int, int]:
+    """Bounds where a suffix has three matching markers and only space/tab.
+
+    Inspect the homogeneous suffix once, rather than at every list depth. A
+    container can begin a thematic break only at/before its third-last marker.
+    """
+    p = end - 1
+    while p >= 0 and line[p] in " \t":
+        p -= 1
+    if p < 0 or line[p] not in "*_-":
+        return 0, -1
+    marker = line[p]
+    count, third_last = 0, -1
+    while p >= 0 and (line[p] == marker or line[p] in " \t"):
+        if line[p] == marker:
+            count += 1
+            if count == 3:
+                third_last = p
+        p -= 1
+    return p + 1, third_last
+
+
 def _html_start(line: str, pos: int, paragraph: bool) -> str | None:
     raw = _RAW_START.match(line, pos)
     if raw:
-        return "raw:" + raw[1].lower()
+        return "raw"
     for start, end in (("<!--", "-->"), ("<?", "?>"), ("<![CDATA[", "]]>")):
         if line.startswith(start, pos):
             return end
-    if re.match(r"<![A-Z]", line[pos:pos + 3]):
+    if re.match(r"<![A-Za-z]", line[pos:pos + 3]):
         return ">"
     if _HTML_BLOCK_TAG.match(line, pos):
         return "blank"
-    if not paragraph and _COMPLETE_TAG.match(line, pos):
+    if (not paragraph and not _TYPE_SEVEN_EXCLUDED.match(line, pos)
+            and _COMPLETE_TAG.match(line, pos)):
         return "blank"
     return None
 
 
 def _html_closed(ending: str, line: str, pos: int) -> bool:
-    if ending.startswith("raw:"):
-        return bool(_RAW_ENDS[ending[4:]].search(line, pos))
+    if ending == "raw":
+        return bool(_RAW_END.search(line, pos))
     return ending != "blank" and ending in line[pos:]
 
 
@@ -186,7 +214,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
             open_containers=fence is None and html_end is None,
         )
         end, width = _indent(line, pos)
-        blank = not line[end:].strip("\n")
+        blank = end == len(line) or line[end:] == "\n"
         # Blank lines need no list indentation. Block quotes still require their
         # markers when their child is a fence or raw HTML rather than a paragraph.
         if (blank and not continued and not added
@@ -209,13 +237,13 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
                 line, containers, bool(pieces)
             )
             end, width = _indent(line, pos)
-            blank = not line[end:].strip("\n")
+            blank = end == len(line) or line[end:] == "\n"
 
         if fence:
             char, count = fence
             close = _FENCE.match(line, end) if width <= 3 else None
             if (close and close[1][0] == char and len(close[1]) >= count
-                    and not close[2].strip()):
+                    and not close[2].strip(" \t")):
                 fence = None
             offset += len(original)
             continue

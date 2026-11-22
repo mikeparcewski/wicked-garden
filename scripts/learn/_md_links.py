@@ -11,6 +11,7 @@ from html import unescape
 from html.entities import html5
 import re
 import string
+import unicodedata
 
 try:
     from scripts.learn._md_blocks import blocks
@@ -44,19 +45,49 @@ _SCHEME = re.compile(r'[A-Za-z][A-Za-z0-9+.-]{1,31}:')
 _EMAIL = re.compile(r"[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*")
 _TICKS = re.compile(r'`+')
 _WS = ' \t\n'
+_HTML_WS = ' \t\n\f\r'
+_LABEL_WS = re.compile(r'[ \t\n]+')
 _ATTR_NAME = re.compile(r'[A-Za-z_:][A-Za-z0-9_.:-]*')
 _TAG_NAME = re.compile(r'[A-Za-z][A-Za-z0-9-]*')
 _LINK_ATTRS = {'href', 'src', 'action', 'formaction', 'data', 'poster', 'cite'}
-_GFM_START = re.compile(r'https?://|www\.|@', re.I)
+_GFM_START = re.compile(r'https?://|www\.|@', re.I | re.ASCII)
 _EMAIL_LOCAL = frozenset(string.ascii_letters + string.digits + '._+-')
 _GFM_DOMAIN = re.compile(r'[\w-]+(?:\.[\w-]+)*')
 _GFM_EMAIL = re.compile(r'[A-Za-z0-9._+-]+@[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+')
+_HTML_ENTITY = re.compile(r'&(?:#[xX][0-9a-fA-F]+;?|#[0-9]+;?|[A-Za-z][A-Za-z0-9]*;?)')
+_HTML_ENTITY_NAME_MAX = max(map(len, html5))
 
 
 def _entity(m: re.Match) -> str:
     raw = m.group()
-    if raw.startswith('&#') or raw[1:] in html5:
-        return unescape(raw)
+    if raw.startswith('&#'):
+        hexadecimal = raw[2] in 'xX'
+        scalar = int(raw[3:-1] if hexadecimal else raw[2:-1], 16 if hexadecimal else 10)
+        # CommonMark keeps controls/noncharacters; HTML's Windows-1252 remap and
+        # removal of some controls are not part of its character-reference rules.
+        return chr(scalar) if 0 < scalar <= 0x10ffff and not 0xd800 <= scalar <= 0xdfff else '\ufffd'
+    return html5.get(raw[1:], raw)
+
+
+def _attribute_entity(m: re.Match) -> str:
+    """Decode HTML references without consuming ambiguous semicolonless names."""
+    raw = m.group()
+    if raw.startswith('&#'):
+        # Bound integer conversion even for arbitrarily long numeric HTML refs.
+        hexadecimal = raw[2:3] in ('x', 'X')
+        digits = raw[3:] if hexadecimal else raw[2:]
+        digits = digits.removesuffix(';').lstrip('0') or '0'
+        if len(digits) > (6 if hexadecimal else 7):
+            return '\ufffd'
+        return unescape('&#' + ('x' if hexadecimal else '') + digits + ';')
+    name = raw[1:]
+    for size in range(min(len(name), _HTML_ENTITY_NAME_MAX), 0, -1):
+        key = name[:size]
+        if key in html5:
+            following = name[size:size + 1] or m.string[m.end():m.end() + 1]
+            if not key.endswith(';') and following and following in string.ascii_letters + string.digits + '=':
+                return raw
+            return html5[key] + name[size:]
     return raw
 
 
@@ -66,7 +97,7 @@ def _decode(raw: str) -> str:
 
 def _label(raw: str) -> str:
     # Labels are matched before backslash/entity decoding (CommonMark §4.7).
-    return ' '.join(raw.casefold().split())
+    return _LABEL_WS.sub(' ', raw.casefold()).strip(' ')
 
 
 def _label_end(s: str, i: int) -> int | None:
@@ -77,7 +108,7 @@ def _label_end(s: str, i: int) -> int | None:
         if s[p] == '\\' and p + 1 < len(s) and s[p + 1] in string.punctuation:
             p += 2
         elif s[p] == ']':
-            return p if p > i + 1 and s[i + 1:p].strip() else None
+            return p if p > i + 1 and any(c not in _WS for c in s[i + 1:p]) else None
         elif s[p] == '[':
             return None
         else:
@@ -85,10 +116,24 @@ def _label_end(s: str, i: int) -> int | None:
     return None
 
 
-def _space(s: str, i: int) -> int:
-    while i < len(s) and s[i] in _WS:
+def _space(s: str, i: int, whitespace: str = _WS) -> int:
+    while i < len(s) and s[i] in whitespace:
         i += 1
     return i
+
+
+def _unicode_space(c: str) -> bool:
+    """CommonMark Unicode whitespace, excluding Python-only C0 separators."""
+    return c in '\t\n\f\r' or unicodedata.category(c) == 'Zs'
+
+
+def _email_start(s: str, local: int, boundary: int) -> int:
+    """Include a GFM mailto/xmpp prefix in an email's destination and span."""
+    for protocol in ('mailto:', 'xmpp:'):
+        start = local - len(protocol)
+        if start >= boundary and s[start:local].lower() == protocol:
+            return start
+    return local
 
 
 class _Destinations:
@@ -104,7 +149,7 @@ class _Destinations:
             c = s[p]
             if c == '<' and boundary < n and s[boundary] == '>':
                 self.autolinks[p] = boundary
-            if ord(c) <= 32 or c in '<>':
+            if ord(c) <= 32 or ord(c) == 127 or c in '<>':
                 boundary = p
             if c == '>':
                 self.angle[p] = p
@@ -248,7 +293,7 @@ def _html_token(s: str, i: int, missing: set[str]) -> int | None:
         if s.startswith(prefix, i):
             end = _closing(s, close, i + len(prefix), missing)
             return end + len(close) if end >= 0 else None
-    if s.startswith('<!', i) and i + 2 < n and s[i + 2].isalpha() and s[i + 2].isascii():
+    if s.startswith('<!', i) and i + 2 < n and s[i + 2] in string.ascii_letters:
         end = _closing(s, '>', i + 3, missing)
         return end + 1 if end >= 0 else None
     p = i + 1
@@ -259,7 +304,7 @@ def _html_token(s: str, i: int, missing: set[str]) -> int | None:
         return None
     p = m.end()
     while p < n:
-        q = _space(s, p)
+        q = _space(s, p, _HTML_WS)
         if s.startswith('/>', q) and not closing:
             return q + 2
         if q < n and s[q] == '>':
@@ -269,11 +314,11 @@ def _html_token(s: str, i: int, missing: set[str]) -> int | None:
         attr = _ATTR_NAME.match(s, q)
         if not attr:
             return None
-        p = _space(s, attr.end())
+        p = _space(s, attr.end(), _HTML_WS)
         if p >= n or s[p] != '=':
             p = attr.end()
             continue
-        p = _space(s, p + 1)
+        p = _space(s, p + 1, _HTML_WS)
         if p >= n:
             return None
         if s[p] in '\"\'':
@@ -283,7 +328,7 @@ def _html_token(s: str, i: int, missing: set[str]) -> int | None:
             p = end + 1
         else:
             a = p
-            while p < n and s[p] not in ' \t\n\"\'=<>`':
+            while p < n and s[p] not in _HTML_WS + '\"\'=<>`':
                 p += 1
             if a == p:
                 return None
@@ -312,7 +357,7 @@ def _html_links(s: str, offsets: list[int]) -> list[Link]:
         if m:
             p = m.end()
             while p < end:
-                if s[p].isspace() or s[p] == '/':
+                if s[p] in _HTML_WS or s[p] == '/':
                     p += 1
                     continue
                 attr = _ATTR_NAME.match(s, p)
@@ -320,10 +365,10 @@ def _html_links(s: str, offsets: list[int]) -> list[Link]:
                     p += 1
                     continue
                 name = attr.group().lower()
-                p = _space(s, attr.end())
+                p = _space(s, attr.end(), _HTML_WS)
                 if p >= end or s[p] != '=':
                     continue
-                p = _space(s, p + 1)
+                p = _space(s, p + 1, _HTML_WS)
                 if p < end and s[p] in '\"\'':
                     a = p + 1
                     b = s.find(s[p], a, end)
@@ -332,11 +377,12 @@ def _html_links(s: str, offsets: list[int]) -> list[Link]:
                     p = b + 1
                 else:
                     a = p
-                    while p < end and not s[p].isspace() and s[p] != '>':
+                    while p < end and s[p] not in _HTML_WS and s[p] != '>':
                         p += 1
                     b = p
                 if name in _LINK_ATTRS:
-                    out.append(_link(s, offsets, 'html', a, b, destination=unescape(s[a:b])))
+                    out.append(_link(s, offsets, 'html', a, b,
+                                     destination=_HTML_ENTITY.sub(_attribute_entity, s[a:b])))
         i = end
     return out
 
@@ -359,12 +405,14 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
             if e:
                 raw = e.group()
                 if raw[-1] not in '-_':
-                    out.append(_link(s, offsets, 'gfm-autolink', p, p + len(raw), destination='mailto:' + raw))
+                    start = _email_start(s, p, a)
+                    destination = s[start:p] + raw if start < p else 'mailto:' + raw
+                    out.append(_link(s, offsets, 'gfm-autolink', start, e.end(), destination=destination))
                 i = e.end()
             else:
                 i = m.end()
             continue
-        if p > 0 and not (s[p - 1].isspace() or s[p - 1] in '*_~('):
+        if p > 0 and not (_unicode_space(s[p - 1]) or s[p - 1] in '*_~('):
             i = m.end()
             continue
         domain = _GFM_DOMAIN.match(s, p if www else m.end(), b)
@@ -376,7 +424,7 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
             i = domain.end() if domain is not None else m.end()
             continue
         q = m.end()
-        while q < b and not s[q].isspace() and s[q] != '<':
+        while q < b and not _unicode_space(s[q]) and s[q] != '<':
             q += 1
         end = q
         # Trimming a close can expose punctuation, and vice versa. Each character
@@ -389,12 +437,14 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
             elif s[end - 1] == ')' and closes > opens:
                 end -= 1
                 closes -= 1
+            elif s[end - 1] == ';':
+                amp = s.rfind('&', p, end)
+                if amp >= p and re.fullmatch(r'&[A-Za-z0-9]+;', s[amp:end]):
+                    end = amp
+                else:
+                    break
             else:
                 break
-        if end > p and s[end - 1] == ';':
-            amp = s.rfind('&', p, end)
-            if amp >= p and re.fullmatch(r'&[A-Za-z0-9]+;', s[amp:end]):
-                end = amp
         if end >= domain.end():
             raw = s[p:end]
             out.append(_link(s, offsets, 'gfm-autolink', p, end,
@@ -424,7 +474,7 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
         starts.extend(range(cursor, b))
         ends.extend(range(cursor + 1, b + 1))
         decoded = ''.join(pieces)
-        protected = [link for link in out if not link.destination.startswith('mailto:')]
+        protected = [link for link in out if link.destination.lower().startswith(('http://', 'https://'))]
         added = []
         protected_index = 0
         decoded_cursor = 0
@@ -440,10 +490,13 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
             if email_match is None:
                 continue
             address = email_match.group()
-            left, right = starts[email_match.start()], ends[email_match.end() - 1]
-            if address[-1] in '-_' or s[left:right] == address:
+            start = _email_start(decoded, email_match.start(), 0)
+            left, right = starts[start], ends[email_match.end() - 1]
+            literal = decoded[start:email_match.end()]
+            if address[-1] in '-_' or s[left:right] == literal:
                 continue
-            link = _link(s, offsets, 'gfm-autolink', left, right, destination='mailto:' + address)
+            destination = literal if start < email_match.start() else 'mailto:' + address
+            link = _link(s, offsets, 'gfm-autolink', left, right, destination=destination)
             while protected_index < len(protected) and protected[protected_index].end <= link.start:
                 protected_index += 1
             if (protected_index < len(protected)
@@ -459,7 +512,7 @@ def _gfm(s: str, offsets: list[int], a: int, b: int) -> list[Link]:
                 while added_index < len(added) and added[added_index].end <= link.start:
                     added_index += 1
                 if (added_index < len(added) and added[added_index].start < link.end
-                        and link.destination.startswith('mailto:')):
+                        and link.destination.lower().startswith(('mailto:', 'xmpp:'))):
                     continue
                 retained.append(link)
             out = sorted(retained + added, key=lambda link: link.start)
