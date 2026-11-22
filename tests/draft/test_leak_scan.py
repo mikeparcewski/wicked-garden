@@ -162,3 +162,32 @@ def test_many_bare_verdicts_are_read_in_linear_time():
     t = time.monotonic()
     ls.scan("<p>" + "word " * 50000 + "self-check: PASS " * 5000 + "</p>")
     assert time.monotonic() - t < 3
+
+
+# --- review round 1 (codex) -----------------------------------------------------------------------
+
+def test_a_comment_opener_inside_an_unquoted_url_hides_nothing():
+    html = '<style>\np { background: url(data:,/*) }\np::before { content: "[S]" }\n</style><p>Hello</p>'
+    assert kinds(html) == {"source-marker"}
+    assert kinds("<style>p { background: url(x'y) } p::before { content: \"[S]\" }</style><p>Hello</p>") == {"source-marker"}
+
+
+def test_strings_reached_through_custom_properties_are_read():
+    assert kinds('<style>p::before { --content: "[S]"; content: var(--content) }</style><p>Hello</p>') == {"source-marker"}
+    assert kinds('<style>:root { --tool: "SearchEntity" } p::before { content: "I used " var(--tool) }</style><p>x</p>') == {"narration"}
+    assert kinds('<style>p { quotes: "[S" "]" }</style><p>x</p>') == {"source-marker"}
+    assert kinds('<style>@media print { p::before { content: "I used SearchEntity" } }</style><p>x</p>') == {"narration"}
+    # a reference cycle and a deep chain end; the expansion is bounded
+    assert ls.scan("<style>:root { --a: var(--b); --b: var(--a) } p { content: var(--a) }</style><p>x</p>")["ok"] is True
+    import time
+    chain = "".join(f"--v{i}: var(--v{i + 1}) var(--v{i + 1});" for i in range(3000))
+    t = time.monotonic()
+    ls.scan("<style>:root {" + chain + '--v3000: "a" } p { content: var(--v0) }</style><p>x</p>')
+    assert time.monotonic() - t < 3
+
+
+def test_a_drafting_qualifier_or_a_clause_break_does_not_own_the_verdict():
+    for html in ("<p>Final self-check: PASS</p>", "<p>Done, self-check: PASS</p>", "<p>The final self-check: PASS</p>",
+                 "<p>My self-check: PASS</p>"):
+        assert "process-word" in kinds(html), html
+    assert ls.scan("<p>Each pump's self-check: PASS is logged.</p>")["ok"] is True

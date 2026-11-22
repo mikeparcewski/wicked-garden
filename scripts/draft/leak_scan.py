@@ -14,13 +14,14 @@ and HTML comments (an export ships them). It rejects execution metadata, never s
 |---|---|---|
 | ``state-path`` | the run's inbox or state paths (``.wicked-crew``, ``attempt-<id>``, ``refine-<id>``, ``sources/brief-…``, a home directory) | everything |
 | ``run-id`` | the drafting run's own id (``--run-id``) | everything |
-| ``process-word`` | a drafting check's verdict or its running ("UNVERIFIED", "self-check: PASS", "keep_check.py: PASS", "I ran the self-check"); a subject's own check ("The device self-check: PASS means …") is prose | text, notes, attributes, comments, CSS ``content`` |
-| ``source-marker`` | a bare source marker such as ``[S]`` or ``[S2]`` | text, notes, attributes, comments, CSS ``content`` |
-| ``narration`` | first-person narration of the drafting ("I used SearchEntity…", "I ran keep_check.py…", "the brief says…") | text, notes, attributes, comments, CSS ``content`` |
+| ``process-word`` | a drafting check's verdict or its running ("UNVERIFIED", "self-check: PASS", "keep_check.py: PASS", "I ran the self-check"); a subject's own check ("The device self-check: PASS means …") is prose | text, notes, attributes, comments, CSS strings |
+| ``source-marker`` | a bare source marker such as ``[S]`` or ``[S2]`` | text, notes, attributes, comments, CSS strings |
+| ``narration`` | first-person narration of the drafting ("I used SearchEntity…", "I ran keep_check.py…", "the brief says…") | text, notes, attributes, comments, CSS strings |
 
 Text is read per block with its inline children joined in (``I used <em>SearchEntity</em>`` is caught), and
-script/style bodies are read for paths and run ids. A CSS ``content`` value is read by a CSS tokenizer: its
-strings are decoded (``"\\5b S\\5d "`` renders ``[S]``) and joined.
+script/style bodies are read for paths and run ids. CSS is read by a tokenizer: every string token is decoded
+(``"\\5b S\\5d "`` renders ``[S]``), ``var()`` references are replaced by their custom properties' strings, and
+each rule block's strings are joined (``content``, ``quotes`` and the rest all render strings).
 
 Exit: 0 = clean; 1 = a leak (fix the document, re-run); 2 = usage / unreadable input. Stdlib only.
 
@@ -66,12 +67,15 @@ _PROCESS_WORD = re.compile(
     r"|(?i:\b" + _TOOL_CHECKS + r")" + _VERDICT +
     r"|(?i:\b(?:I|we) (?:ran|re-ran|reran|have run|re-run) (?:the |a |my )?(?:draft )?" + _CHECKS + r")"
     r"|(?i:\bdraft self[- ]check\b)")
-# A bare "self-check" verdict is the drafting check's printed form ("draft self-check: PASS", "Self-check: PASS")
-# only when no subject owns it: at the start of a sentence, or after one of these words. "The device self-check:
-# PASS means the motor may start" names the subject's own check and is not flagged.
+# A bare "self-check" verdict is the drafting check's printed form ("Self-check: PASS", "Final self-check: PASS")
+# unless a named subject owns the check, written as a determiner and a noun ("The device self-check: PASS means
+# the motor may start", "each pump's self-check") or a possessive ("the pump's self-check"). A drafting
+# qualifier in the noun's place ("The final self-check") does not make it the subject's.
 _BARE_SELF_CHECK = re.compile(r"(?i:\bself[- ]check\b)(?!\.py)" + _VERDICT)
-_UNOWNED = frozenset({"draft", "the", "my", "our", "this", "a"})
-_LAST_WORD = re.compile(r"([^\W\d_][\w'’-]*)[^\w.!?]*$")
+_QUALIFIERS = r"(?:draft|drafting|final|last|latest|full|first|second|automated|required|initial|my|our|this)"
+_OWNED = re.compile(
+    r"(?i:(?:\b(?:the|a|an|its|their|each|every|your|his|her)\s+(?!" + _QUALIFIERS + r"\b)[^\W\d_][\w-]*(?:['’]s)?"
+    r"|\b(?!" + _QUALIFIERS + r"\b)[^\W\d_][\w-]*['’]s))\s*$")
 _SOURCE_MARKER = re.compile(r"\[(?:S\d{0,3}|src\d{0,3}|source\d{0,3})\]", re.IGNORECASE)
 _TOOLS = (r"(?:SearchEntity|FetchContent|ContextBundle|RetrieveEntity|TraverseGraph|the estate|estate tools?|MCP"
           r"|the (?:repo(?:sitory)? )?snapshot|the brief|the sources?|the (?:source )?packet|the self[- ]check"
@@ -175,55 +179,114 @@ def _css_skip(css: str, j: int) -> int:
     return j
 
 
-def _css_content_texts(css: str) -> list[str]:
-    """The text each ``content`` declaration renders: its string tokens decoded and joined (``"I used " "X"``,
-    ``"\\5b S\\5d "`` is ``[S] ``). Read by tokenizing, not by pattern: a ``;`` or an escaped quote inside a string
-    does not end the value, and comments between strings are skipped. The value ends at ``;``, ``{``, ``}`` or
-    ``!`` outside a string and outside parentheses."""
+def _css_url(css: str, i: int) -> int:
+    """Past the unquoted URL token whose body starts at ``css[i]`` (after ``url(``), CSS Syntax 3 §4.3.6: its
+    characters are data, so a ``/*`` or a quote inside it opens nothing. A bad URL is skipped to its ``)``."""
+    j = i
+    while j < len(css):
+        c = css[j]
+        if c == ")":
+            return j + 1
+        if c == "\\" and j + 1 < len(css) and css[j + 1] != "\n":
+            _, j = _css_escape(css, j)
+            continue
+        j += 1
+    return j
+
+
+_CSS_VAR_DEPTH = 8
+_CSS_EXPAND_MAX = 1_000_000  # parts + characters one stylesheet may expand to; past it the rest is not expanded
+
+
+def _css_texts(css: str) -> list[str]:
+    """The text a stylesheet (or a ``style`` attribute) can render, read by tokenizing (CSS Syntax 3), never by
+    pattern. Every string token is decoded (``"\\5b S\\5d "`` is ``[S] ``) whatever property holds it:
+    ``content``, ``quotes``, ``list-style-type`` and custom properties all render strings. A ``var(--x)`` is
+    replaced by the strings of ``--x`` (its last declaration; nested references bounded, cycles cut), so a
+    leak composed through custom properties is read whole. One unit per rule block: its declarations'
+    strings joined in order (``content: "I used " var(--tool)``). A ``;`` or an escaped quote inside a string,
+    a comment between strings, and ``/*`` or a quote inside an unquoted ``url(...)`` change nothing."""
     css = css.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n").replace("\x00", "\ufffd")
-    texts: list[str] = []
+    blocks: list[list[list]] = []        # every closed block: its declarations, each a list of parts
+    stack: list[list[list]] = [[[]]]     # open blocks; the root holds a style attribute's declarations
+    custom: dict[str, list] = {}         # --name -> the parts of its last declaration
+    prop, expect_name = "", True
     i = 0
+
+    def end_decl() -> None:
+        nonlocal prop, expect_name
+        if prop.startswith("--"):
+            custom[prop] = stack[-1][-1]
+        if stack[-1][-1]:
+            stack[-1].append([])
+        prop, expect_name = "", True
+
     while i < len(css):
         c = css[i]
         if css.startswith("/*", i):
-            i = _css_skip(css, i)
+            end = css.find("*/", i + 2)
+            i = len(css) if end < 0 else end + 2
         elif c in "\"'":
-            _, i = _css_string(css, i)
+            text, i = _css_string(css, i)
+            stack[-1][-1].append(text)
         elif c == "\\" or _CSS_IDENT_CHAR.match(c):
             name, j = _css_ident(css, i)
             if j == i:
                 i += 1
                 continue
             i = j
-            if name.lower() != "content":
+            if i < len(css) and css[i] == "(":
+                low = name.lower()
+                k = _css_skip(css, i + 1)
+                if low == "url" and not (k < len(css) and css[k] in "\"'"):
+                    i = _css_url(css, i + 1)
+                elif low == "var" and k < len(css) and css[k] == "-":
+                    ref, i = _css_ident(css, k)
+                    stack[-1][-1].append(("var", ref))
                 continue
-            j = _css_skip(css, i)
-            if j >= len(css) or css[j] != ":":
-                continue
-            parts, depth, j = [], 0, j + 1
-            while j < len(css):
-                j = _css_skip(css, j)
-                if j >= len(css):
-                    break
-                ch = css[j]
-                if ch in "\"'":
-                    text, j = _css_string(css, j)
-                    parts.append(text)
-                    continue
-                if ch == "(":
-                    depth += 1
-                elif ch == ")":
-                    depth = max(0, depth - 1)
-                elif depth == 0 and ch in ";{}!":
-                    break
-                elif ch == "\\":
-                    _, j = _css_escape(css, j)
-                    continue
-                j += 1
-            texts.append("".join(parts))
-            i = j
+            if expect_name:
+                k = _css_skip(css, i)
+                if k < len(css) and css[k] == ":":
+                    prop, expect_name, i = name, False, k + 1
+        elif c == ";":
+            end_decl()
+            i += 1
+        elif c == "{":
+            end_decl()
+            stack.append([[]])
+            i += 1
+        elif c == "}":
+            end_decl()
+            blocks.append(stack.pop() if len(stack) > 1 else stack[0])
+            if len(stack) == 0 or blocks[-1] is stack[0]:
+                stack[:] = [[[]]]
+            i += 1
         else:
             i += 1
+    end_decl()
+    blocks.extend(stack)
+
+    budget = [_CSS_EXPAND_MAX]  # one budget for the whole stylesheet: every part visited costs at least 1
+
+    def expand(parts: list, depth: int, seen: frozenset, out: list[str]) -> None:
+        for part in parts:
+            if budget[0] <= 0:
+                return
+            if isinstance(part, str):
+                out.append(part)
+                budget[0] -= len(part) + 1
+            else:
+                budget[0] -= 1
+                if depth < _CSS_VAR_DEPTH and part[1] not in seen and part[1] in custom:
+                    expand(custom[part[1]], depth + 1, seen | {part[1]}, out)
+
+    texts: list[str] = []
+    for block in blocks:
+        out: list[str] = []
+        for decl in block:
+            expand(decl, 0, frozenset(), out)
+        if out:
+            texts.append("".join(out))
     return texts
 
 
@@ -261,13 +324,13 @@ def _units(html: str) -> list[tuple[str, str, str]]:
             if value:
                 units.append((f"attr:{name}", locator, value))
                 if name == "style":
-                    for text in _css_content_texts(value):
+                    for text in _css_texts(value):
                         units.append(("css", locator, text))
         if node.tag in ("script", "style"):
             body = "".join(c.text for c in node.children if c.tag == "#text")
             units.append(("code", locator, body))
             if node.tag == "style":
-                for text in _css_content_texts(body):
+                for text in _css_texts(body):
                     units.append(("css", locator, text))
             continue
         if node.tag in _INLINE and node.parent is not None and node.parent.tag not in ("", None):
@@ -311,10 +374,9 @@ def scan(html: str, run_ids: list[str] | None = None) -> dict:
         for m in _PROCESS_WORD.finditer(text):
             hit("process-word", where, locator, text, m)
         for m in _BARE_SELF_CHECK.finditer(text):
-            # the clause it sits in (a bounded look-back: an owning word sits right before the check)
-            before = re.split(r"[.!?:;]\s", text[max(0, m.start() - 120):m.start()])[-1]
-            w = _LAST_WORD.search(before)
-            if w is None or w.group(1).casefold() in _UNOWNED:
+            # the clause it sits in (a bounded look-back: the owner sits right before the check)
+            before = re.split(r"[.!?:;,]\s", text[max(0, m.start() - 120):m.start()])[-1]
+            if not _OWNED.search(before):
                 hit("process-word", where, locator, text, m)
         for m in _SOURCE_MARKER.finditer(text):
             hit("source-marker", where, locator, text, m)

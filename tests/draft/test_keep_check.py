@@ -360,3 +360,15 @@ def test_a_malformed_allow_file_is_a_usage_error(tmp_path: Path, content: str):
     proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(mp), str(cand), "--allow-file", str(bad)],
                           capture_output=True, text=True)
     assert proc.returncode == 2 and json.loads(proc.stdout)["ok"] is False
+
+
+def test_a_deeply_nested_allow_file_is_a_usage_error(tmp_path: Path):
+    mp = tmp_path / "map.json"
+    mp.write_text(json.dumps(Lineage(tmp_path, deck(BASE)).map()), encoding="utf-8")
+    cand = tmp_path / "cand.html"
+    cand.write_text(deck(BASE), encoding="utf-8")
+    bad = tmp_path / "allow.json"
+    bad.write_text("[" * 200000 + "]" * 200000, encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(mp), str(cand), "--allow-file", str(bad)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 2 and json.loads(proc.stdout)["ok"] is False, proc.stdout + proc.stderr

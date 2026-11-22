@@ -486,7 +486,10 @@ def _allow_file_ids(paths: list[str]) -> list[str]:
     """The entry ids in each ``--allow-file``: a JSON list of strings, else a usage error (exit 2)."""
     ids: list[str] = []
     for p in paths:
-        data = json.loads(Path(p).read_text(encoding="utf-8"))
+        try:
+            data = json.loads(Path(p).read_text(encoding="utf-8"))
+        except RecursionError:
+            raise ValueError(f"--allow-file {p}: nested too deeply to be a list of entry ids") from None
         if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
             raise ValueError(f"--allow-file {p}: expected a JSON list of entry ids")
         ids += data
