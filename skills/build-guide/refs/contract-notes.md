@@ -14,6 +14,7 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 | `results.id`, `results.idJoin` | JUnit testcase attributes joined into an id (default `classname`,`name` joined by `::`); q is the enclosing testsuite's `name` | vitest: `["name"]`, so the ids match `vitest list` |
 | `results.how.merge`, `list.merge` | stderr read into stdout, in order | cargo: libtest's `Running <binary>` lines go to stderr, and the section qualifier reads them |
 | `probes.mutation2` | the same shape as `mutation`: a second failing test in another file | the `multi` probe |
+| `parser.count` | lines that say how many tests a run executed, with a named group `n` (libtest: `^running (?P<n>\d+) tests?$`), summed per `section` | the `complete` probe: each qualifier's total must equal what the list names under it. A text check without it never excludes a red base's failures (core#1101, core#1767) |
 
 ## Pinned semantics
 
@@ -90,7 +91,9 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 
 9. **Load-time validation** (the floor and the probe alike). A guide with an empty `run`, a
    `stage` other than `creator`/`verify`, or a check with a `list` and no `failedExit` does not
-   load, and detection is the whole floor. The schema says the same: `dependentRequired` makes
+   load, and detection is the whole floor. So does a `deselect.append` that holds `{q}` with a
+   per-id token holding `{q}` without `{id}` (or `{id:re}`), or `{id}` without `{q}`: a qualifier
+   is bound to its id only inside one token (`--skip={q}::{id}`). The schema says the same: `dependentRequired` makes
    `list` need `results` and `failedExit`, and `failedExit` has `minItems: 1`. `check.py` reports
    each in the floor's words.
 10. **Coverage is per directory.** A guide replaces detection only in the directories its checks
