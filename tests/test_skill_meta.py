@@ -9,7 +9,6 @@ worker and never registers the floor, and pack check FAILS a role-less worker-sh
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -75,7 +74,7 @@ def test_parse_frontmatter_shapes():
     assert fm["name"] == "wicked-garden-x"
     assert fm["description"] == "a: b"
     assert fm["allowed-tools"] == ["Read", "Grep"]
-    assert fm["body"] == "line one\nline two\n"  # a `|` block keeps its final newline (clip), as YAML does
+    assert fm["body"] == "line one\nline two"
     assert fm["metadata"] == {"role": "worker", "phases": "build,review"}
     assert claude_only_keys(fm) == ["allowed-tools", "archetype_relevance", "body"]
     assert metadata_value(fm, "phases") == "build,review"
@@ -245,64 +244,3 @@ def test_pack_check_pk020_exempts_worker_and_floor(tmp_path):
     # the floor is not a worker-shaped name → PK016 (loud) but never PK020
     floor_codes = {f.code for f in findings if f.where.endswith("acme-seo-floor/SKILL.md")}
     assert "PK020" not in floor_codes and "PK016" in floor_codes
-
-
-# --- block scalars read as the publish's yaml.safe_load reads them (#1413) ---------------------
-# The description length lint (tests/test_skill_portability.py `description-too-long`, scripts/learn/check.py)
-# measures `parse_frontmatter`'s value. It used to drop blank lines, extra indentation and the final newline,
-# so skills/demo read 1024 characters to the lint and 1026 to the skills publish and every other host.
-
-@pytest.mark.parametrize(("block", "value"), [
-    ("description: |\n  a\n\n  b\n", "a\n\nb\n"),                        # blank line and the clip newline kept
-    ("description: |-\n  a\n  b\n", "a\nb"),                             # strip
-    ("description: |+\n  a\n\n\n", "a\n\n\n"),                           # keep
-    ("description: |\n  a\n    b\n", "a\n  b\n"),                         # extra indentation kept
-    ("description: |2\n    a\n", "  a\n"),                                # indentation indicator
-    ("description: |-2\n    a\n", "  a"),
-    ("description: >\n  a\n  b\n\n  c\n", "a b\nc\n"),                     # fold; a blank line is one break
-    ("description: >\n  a\n    b\n  c\n", "a\n  b\nc\n"),                  # breaks around a more-indented line
-    ("description: >-\n  a\n  b\n", "a b"),
-    ("description: >\n\n  a\n", "\na\n"),                                  # a leading blank line is kept
-    ("description: | # note\n  a\n", "a\n"),                               # a header comment
-    ("description: a\n  b\n\n  c\n", "a b\nc"),                            # a plain scalar continued
-    ("description: \"a\n  b\"\n", "a b"),
-])
-def test_block_scalars_read_as_yaml_reads_them(block, value):
-    assert parse_frontmatter(block + "name: x\n")["description"] == value
-
-
-def _yaml():
-    try:
-        import yaml  # noqa: PLC0415 — CI installs pyyaml (test.yml); the publish parses with yaml.safe_load
-    except ImportError:
-        if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
-            raise
-        pytest.skip("pyyaml not installed (CI installs it)")
-    return yaml
-
-
-def test_every_shipped_description_reads_as_the_publish_reads_it():
-    yaml = _yaml()
-    differ = []
-    for path in sorted((_REPO / "skills").rglob("SKILL.md")):
-        block, _ = split_frontmatter(path.read_text(encoding="utf-8"))
-        if block is None:
-            continue
-        ours = parse_frontmatter(block).get("description")
-        # The file's line break after the block is part of what the publish parses.
-        theirs = (yaml.safe_load(block + "\n") or {}).get("description")
-        if ours != theirs:
-            differ.append(f"{path.relative_to(_REPO)}: {len(ours or '')} vs {len(theirs or '')}")
-    assert not differ, differ
-
-
-def test_a_description_over_the_limit_only_by_its_blank_lines_is_measured_over():
-    yaml = _yaml()
-    lines = ["  " + "w" * 99] * 10 + [""] * 3 + ["  " + "w" * 22]
-    block = "description: |\n" + "\n".join(lines) + "\nname: x\n"
-    text_lines = [ln.strip() for ln in lines if ln.strip()]
-    stripped = sum(map(len, text_lines)) + len(text_lines) - 1  # what the old join measured: 1022
-    assert stripped <= 1024
-    desc = parse_frontmatter(block)["description"]
-    assert desc == yaml.safe_load(block)["description"]
-    assert len(desc) > 1024

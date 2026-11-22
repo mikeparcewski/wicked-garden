@@ -74,80 +74,11 @@ def _unquote(value: str) -> str:
     return value
 
 
-#: A block scalar header: ``|`` or ``>``, then an optional indentation indicator and chomping
-#: indicator in either order (YAML 1.2 §8.1.1), then an optional comment.
-_BLOCK_HEADER_RE = re.compile(r"^([|>])(?:([1-9])([+-])?|([+-])([1-9])?)?(?:\s+#.*)?$")
-
-
-def _block_scalar(header: str, lines: list[str]) -> str:
-    """The value of a ``|`` / ``>`` block scalar as YAML 1.2 (§8.1) reads it, from its content lines.
-
-    The content indentation is the indicator's, else the first non-blank line's; it is stripped from
-    every line and any extra indentation is kept. Blank lines are kept. ``>`` folds a single line
-    break between two plain lines into a space, keeps N blank lines as N breaks, and keeps the breaks
-    around a more-indented line. Chomping: clip (default) ends with one newline, ``-`` with none,
-    ``+`` keeps every trailing one. Lines are already confined to the scalar by the caller."""
-    m = _BLOCK_HEADER_RE.match(header)
-    style = m.group(1)
-    digit = m.group(2) or m.group(5)
-    chomp = m.group(3) or m.group(4) or ""
-    if digit:
-        indent = int(digit)
-    else:
-        first = next((ln for ln in lines if ln.strip()), "")
-        indent = len(first) - len(first.lstrip(" "))
-    body = [ln[indent:] if ln.strip() else "" for ln in lines]
-    trailing = 0
-    while body and body[-1] == "":
-        body.pop()
-        trailing += 1
-    if style == "|":
-        text = "\n".join(body)
-    else:
-        text, prev, empties = "", None, 0
-        for ln in body:
-            if ln == "":
-                empties += 1
-                continue
-            if prev is None:
-                text = "\n" * empties + ln
-            elif prev[:1] in (" ", "\t") or ln[:1] in (" ", "\t"):
-                text += "\n" * (empties + 1) + ln
-            else:
-                text += ("\n" * empties if empties else " ") + ln
-            prev, empties = ln, 0
-    if not body:
-        return "\n" * trailing if chomp == "+" else ""
-    if chomp == "-":
-        return text
-    if chomp == "+":
-        return text + "\n" * (trailing + 1)
-    return text + "\n"
-
-
-def _fold_flow(lines: list[str]) -> str:
-    """A plain or quoted scalar continued on indented lines, folded as YAML folds flow lines: one line
-    break between text lines is a space, N blank lines are N breaks, and each line is trimmed. Escapes
-    inside a double-quoted value are not decoded (a length check then over-counts, never under-counts)."""
-    out, empties = "", 0
-    for i, ln in enumerate(lines):
-        t = ln.strip()
-        if not t:
-            empties += 1
-            continue
-        out = t if i == 0 else out + ("\n" * empties if empties else " ") + t
-        empties = 0
-    return out
-
-
 def parse_frontmatter(block: str | None) -> dict[str, Any]:
     """Parse the YAML subset skill frontmatter uses.
 
-    Top-level ``key: value`` → ``str`` (quotes stripped; first occurrence wins); a value continued on
-    indented lines is folded as YAML folds it; ``key: |`` / ``key: >`` block scalars → the text YAML
-    reads (:func:`_block_scalar`: blank lines, extra indentation and the final newline kept, as the
-    skills publish's ``yaml.safe_load`` keeps them, so a length check measures what ships);
-    ``key:`` followed by ``- item`` lines → ``list``;
+    Top-level ``key: value`` → ``str`` (quotes stripped; first occurrence wins); ``key: |`` /
+    ``key: >`` block scalars → the joined text; ``key:`` followed by ``- item`` lines → ``list``;
     ``metadata:`` followed by indented ``k: v`` lines → ``dict[str, str]`` under ``"metadata"``.
     Anything else indented is continuation of the key above it and is not a key of its own.
     """
@@ -183,13 +114,12 @@ def parse_frontmatter(block: str | None) -> dict[str, Any]:
                     if mm:
                         meta.setdefault(mm.group(1), _unquote(mm.group(2)))
             out.setdefault("metadata", meta)
-        elif _BLOCK_HEADER_RE.match(val):
-            out.setdefault(key, _block_scalar(val, sub))
+        elif val in ("|", ">", "|-", ">-"):
+            parts = [s.strip() for s in sub if s.strip()]
+            out.setdefault(key, (" " if val.startswith(">") else "\n").join(parts))
         elif val == "" and sub:
             items = [s.strip()[2:].strip() for s in sub if s.strip().startswith("- ")]
             out.setdefault(key, [_unquote(x) for x in items] if items else "\n".join(sub).strip())
-        elif any(s.strip() for s in sub):
-            out.setdefault(key, _unquote(_fold_flow([val, *sub])))
         else:
             out.setdefault(key, _unquote(val))
         i = j
