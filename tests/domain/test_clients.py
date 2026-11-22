@@ -132,12 +132,6 @@ def test_annotate_forces_symbol_and_replace(monkeypatch):
     assert argv[argv.index("--db") + 1] == "/tmp/estate.db"
 
 
-def test_annotate_refuses_a_bare_name(monkeypatch):
-    est, _ = _cli_estate(monkeypatch)
-    with pytest.raises(ValueError, match="non-SymbolId"):
-        est.annotate("Charge", "business_rule", "k", "v")
-
-
 def test_set_requirement_routes_to_semantics(monkeypatch):
     est, cap = _cli_estate(monkeypatch)
     est.set_requirement("sym synthetic billing::A::a1:", "REQ text", validated=True)
@@ -189,7 +183,7 @@ def test_read_clusters_threads_the_min_filter(monkeypatch):
 
 def test_resolve_fails_loud_on_non_list_shape(monkeypatch):
     # A dict/None where the CLI contract is a JSON array must RAISE, not fail-open
-    # to [] (which would look like "zero hits" and let a write silently no-op).
+    # to [] (which would look like "zero hits" and hide a broken resolve contract).
     est, _ = _cli_estate(monkeypatch, json_return={"unexpected": "shape"})
     with pytest.raises(RuntimeError, match="expected a JSON array of hit objects"):
         est.resolve("charge")
@@ -215,12 +209,6 @@ def test_read_annotations_uses_symbol_flag_not_positional(monkeypatch):
     # `--symbol` (single-object shape), NOT the positional name-search form.
     assert argv[argv.index("--symbol") + 1] == "sym synthetic b::A::a1:"
     assert "sym synthetic b::A::a1:" not in argv[:argv.index("--symbol")], "id must not also be a positional"
-
-
-def test_read_annotations_refuses_a_bare_name(monkeypatch):
-    est, _ = _cli_estate(monkeypatch)
-    with pytest.raises(ValueError, match="non-SymbolId"):
-        est.read_annotations("Charge")
 
 
 def test_read_annotations_rejects_unexpected_array_shape(monkeypatch):
@@ -318,7 +306,7 @@ _ADR002_IDS = [
     "ts-python local src/main.py#binding",
     "ts-cobol . . . app/cbl/CBTRN02C/CBTRN02C#1500-VALIDATE-TRAN().",
     # Descriptor names are rendered verbatim and may carry punctuation and spaces:
-    # only the structural frame is checked, not the descriptor contents.
+    # the client passes every id through unchanged.
     "ts-ruby . . . lib/account/Account#save!().",
     "ts-ruby . . . lib/account/Account#[]().",
     "ts-typescript . . . src/account/Account##balance.",
@@ -333,14 +321,11 @@ _ADR002_IDS = [
     "scip-python pip pkg 1.0 metadata:",
     "scip-python pip pkg 1.0 macro!",
     "scip-python pip pkg 1.0 namespace/Type#method(overload).[T](arg)",
-    # Global ids whose second token looks like another form's marker: the four
-    # frames are alternatives, so a non-matching File/Local/Synthetic read must
-    # fall through to the Global frame rather than reject the id.
+    # Global ids whose second token looks like another form's marker also pass through.
     "file . . . src/main/run().",
     "scip-x local pkg 1.0 a/b().",
     "scip-x synthetic pkg 1.0 a/b().",
-    # Local ids whose own id part ends in a ``#`` sigil: the last ``#`` is not
-    # the separator, so the split must try every ``#``.
+    # Local ids may have more than one ``#`` in their id part.
     "ts-ruby local lib/account.rb#save#",
     "ts-ruby local lib/a#b.rb#run",
     # Synthetic/Local SCHEMES may contain spaces (node_scheme or an unset rule
@@ -368,81 +353,318 @@ def test_adr002_symbol_ids_are_accepted(monkeypatch, sid):
     assert cap.calls[2][cap.calls[2].index("--symbol") + 1] == sid
 
 
-_INVALID_SYMBOL_IDS = [
-    "AUTHFRDS",
-    "2100-CALC-COPAY",
-    "",
-    "this is just a name",
-    "ts-cobol . . . AUTHFRDS",
-    "ts local #",
-    "ts local file.py#",
-    "x synthetic :",
-    "file . :",
-    # A Global tail ending in ) or ] without the matching open bracket is not a
-    # rendered parameter / type-parameter list.
-    "scip-python pip pkg 1.0 name)",
-    "scip-python pip pkg 1.0 name]",
-    # A Global tail that is only a sigil, with no name before it, is not a frame.
-    "ts-cobol . . . :",
-    "scip-python pip pkg 1.0 .",
-    # Leading/trailing whitespace or a newline/CR misses the stored symbol.
-    "ts-python local src/main.py#binding\n",
-    "  file . README.md:",
-]
-
-
-@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
-def test_invalid_symbol_ids_are_refused_before_any_cli_call(monkeypatch, sid):
+def test_write_batch_sends_exact_ndjson_and_one_command(monkeypatch):
     est, cap = _cli_estate(monkeypatch)
-    with pytest.raises(ValueError, match="silent no-op"):
-        est.annotate(sid, "business_rule", "k", "v")
-    with pytest.raises(ValueError, match="silent no-op"):
-        est.set_requirement(sid, "REQ", validated=True)
-    with pytest.raises(ValueError, match="silent no-op"):
-        est.read_annotations(sid)
+    rows = [
+        {"op": "annotate", "symbol": "opaque", "type": "business_rule", "key": "r1",
+         "value": "amount > 0", "replace": True, "confidence": 0.9,
+         "provenance": "code", "author": "seat"},
+        {"op": "annotate", "symbol": "opaque", "type": "risk", "key": "r2",
+         "value": "unknown", "replace": False},
+        {"op": "semantics", "symbol": "opaque", "requirement": "amount > 0",
+         "validated": True, "validated_by": "extract-loop"},
+    ]
+    paths = []
+    reply = {"rows": 3, "annotations": 2, "replaced": 0, "semantics": 1}
+
+    def invoke(argv):
+        import subprocess
+        cap.calls.append(argv)
+        path = Path(argv[2])
+        paths.append(path)
+        assert [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()] == rows
+        return subprocess.CompletedProcess(argv, 0, json.dumps(reply), "")
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    assert est.write_batch(rows) == reply
+    assert cap.calls == [["wicked-estate", "write-batch", str(paths[0]),
+                          "--json", "--db", "/tmp/estate.db"]]
+    assert not paths[0].exists()
+
+
+@pytest.mark.parametrize("stdout", [json.dumps({"rows": 0}), json.dumps({"rows": 2}), "{}", "[]",
+                                    "null", "", '{"rows": 1', "Error: something else"])
+def test_write_batch_reply_that_is_not_its_count_has_an_unknown_outcome(monkeypatch, stdout):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke",
+                        lambda argv: subprocess.CompletedProcess(argv, 0, stdout, ""))
+    est = _clients.CliEstateClient(["wicked-estate"], "estate.db")
+    # write-batch ran and exited 0: without its count, the page may have committed.
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="did not report 1 written row"):
+        est.write_batch([{"op": "semantics", "symbol": "opaque"}])
+
+
+def test_write_batch_rejects_a_non_json_usage_banner(monkeypatch):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke", lambda argv: subprocess.CompletedProcess(
+        argv, 0, "wicked-estate 0.35.8 \u2014 usage:\n  wicked-estate --version\n", ""))
+    est = _clients.CliEstateClient(["wicked-estate"], "estate.db")
+    with pytest.raises(RuntimeError, match="has no write-batch") as raised:
+        est.write_batch([{"op": "semantics", "symbol": "opaque"}])
+    assert not isinstance(raised.value, _clients.BatchOutcomeUnknown)
+
+
+def test_write_batch_surfaces_estate_refusal_naming_the_row(monkeypatch):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke", lambda argv: subprocess.CompletedProcess(
+        argv, 1, "", "Error: write-batch refused: row 2: unknown symbol x; nothing was written"))
+    est = _clients.CliEstateClient(["wicked-estate"], "estate.db")
+    with pytest.raises(RuntimeError, match="row 2: unknown symbol x"):
+        est.write_batch([{"op": "semantics", "symbol": "x"}])
+
+
+def test_write_batch_with_no_rows_does_not_call_estate(monkeypatch):
+    est, cap = _cli_estate(monkeypatch)
+    assert est.write_batch([]) == {"rows": 0, "annotations": 0, "replaced": 0, "semantics": 0}
     assert cap.calls == []
 
 
-@pytest.mark.parametrize("sid", _ADR002_IDS)
-def test_looks_like_symbol_id_accepts_frame(sid):
-    # Direct, mock-free guard: the structural frame alone decides, so a Global
-    # tail is admitted on its last-character sigil regardless of inner spaces or
-    # punctuation in the verbatim descriptor name.
-    assert _clients._looks_like_symbol_id(sid) is True
+def test_page_writes_queues_rows_and_checks_expectations_after_commit(monkeypatch):
+    est, cap = _cli_estate(monkeypatch)
+    batches, checked = [], []
+    monkeypatch.setattr(est, "write_batch", lambda rows: batches.append(list(rows)), raising=False)
+    page = _clients.PageWrites(est)
+    page.annotate("opaque", "rule", "k", "v", confidence=0.0, provenance="code", author="seat")
+    page.annotate("opaque", "risk", "k2", "v2", replace=False, provenance="", author="")
+    page.set_requirement("opaque", "req", False, validated_by="")
+    assert page.expect("opaque", "k", "v") is True
+    assert page.expect("opaque", "k2") is True
+    assert not page.written and batches == [] and cap.calls == []
+    assert page._db == est._db
+
+    def check(*args):
+        assert page.written and len(batches) == 1
+        checked.append(args)
+        return True
+
+    page.flush(check)
+    assert checked == [("opaque", "k", "v"), ("opaque", "k2", None)]
+    assert batches == [[
+        {"op": "annotate", "symbol": "opaque", "type": "rule", "key": "k", "value": "v",
+         "replace": True, "confidence": 0.0, "provenance": "code", "author": "seat"},
+        {"op": "annotate", "symbol": "opaque", "type": "risk", "key": "k2", "value": "v2",
+         "replace": False},
+        {"op": "semantics", "symbol": "opaque", "requirement": "req", "validated": False,
+         "validated_by": "extract-loop"},
+    ]]
 
 
-@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
-def test_looks_like_symbol_id_rejects_non_frame(sid):
-    assert _clients._looks_like_symbol_id(sid) is False
+@pytest.mark.parametrize("operation", ["annotate", "set_requirement", "read_annotations"])
+def test_cli_passes_ids_through_and_surfaces_estate_refusal(monkeypatch, operation):
+    import subprocess
+    calls = []
+
+    def invoke(argv):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 1, "", "unknown node: Charge")
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    est = _clients.CliEstateClient(["wicked-estate"], "estate.db")
+    args = {"annotate": ("Charge", "rule", "k", "v"),
+            "set_requirement": ("Charge", "req", True), "read_annotations": ("Charge",)}
+    with pytest.raises(RuntimeError, match="exited 1: unknown node: Charge"):
+        getattr(est, operation)(*args[operation])
+    assert len(calls) == 1 and "Charge" in calls[0]
 
 
-@pytest.mark.parametrize("sigil", ["/", "#", ".", ":", "!"])
-def test_global_tail_admitted_only_on_a_descriptor_sigil(sigil):
-    # A Global tail with a name is a frame match iff its LAST character is a
-    # descriptor suffix sigil; the same tail without one (and a whitespace-only
-    # tail) is not.
-    base = "scip-python pip pkg 1.0 name"
-    assert _clients._looks_like_symbol_id(base + sigil) is True
-    assert _clients._looks_like_symbol_id(base) is False
-    assert _clients._looks_like_symbol_id("scip-python pip pkg 1.0  ") is False
+# --- estate write-batch: the recorded contract ------------------------------------------------
+# garden CI installs no wicked-estate, so a real estate's write-batch answers are recorded in
+# fixtures/estate_write_batch_contract.json and replayed here. With wicked-estate installed, the
+# live test re-runs the recording against it (WICKED_RECORD_ESTATE_CONTRACT=1 re-records it).
+
+_CONTRACT_PATH = Path(__file__).parent / "fixtures" / "estate_write_batch_contract.json"
+_CONTRACT = json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
 
 
-@pytest.mark.parametrize("sigil", [")", "]"])
-def test_global_tail_bracket_sigil_needs_matching_open(sigil):
-    # P2-2: a tail ending in ) or ] without the matching open bracket is not a
-    # rendered parameter / type-parameter list, so it is refused.
-    base = "scip-python pip pkg 1.0 name"
-    assert _clients._looks_like_symbol_id(base + sigil) is False
+def _queued(estate, calls):
+    page = _clients.PageWrites(estate)
+    for op, kwargs in calls:
+        getattr(page, op)(**kwargs)
+    return page
 
 
-@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
-def test_invalid_symbol_ids_record_no_mock_write(sid):
-    from domain._mocks import EstateClient
+def _replay(monkeypatch, recorded):
+    import subprocess
+    calls = []
 
-    est = EstateClient()
-    with pytest.raises(ValueError, match="silent no-op"):
-        est.annotate(sid, "business_rule", "k", "v")
-    with pytest.raises(ValueError, match="silent no-op"):
-        est.set_requirement(sid, "REQ", validated=True)
-    assert est.annotation_writes == []
-    assert est.requirement_writes == []
+    def invoke(argv):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, recorded["exit"], recorded.get("stdout", ""),
+                                           recorded.get("stderr", ""))
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    return calls
+
+
+def test_a_page_queues_exactly_the_rows_estate_accepted():
+    assert _queued(None, _CONTRACT["page"]).rows == _CONTRACT["page_rows"]
+
+
+def test_the_recorded_commit_writes_the_whole_page_in_one_call(monkeypatch, tmp_path):
+    calls = _replay(monkeypatch, _CONTRACT["committed"])
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["page"])
+    page.expect(_CONTRACT["page"][0][1]["symbol_id"], _CONTRACT["page"][0][1]["key"])
+    checked = []
+    page.flush(lambda *args: checked.append(args) or True)
+    assert page.written and len(checked) == 1
+    assert [argv[1] for argv in calls] == ["write-batch"]
+
+
+def test_the_recorded_refusal_fails_the_page_with_nothing_written(monkeypatch, tmp_path):
+    _replay(monkeypatch, _CONTRACT["refused"])
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["refused_page"])
+    page.expect(_CONTRACT["refused_page"][0][1]["symbol_id"], "never-read")
+    with pytest.raises(RuntimeError, match=r"exited 1: .*row 2: .*not a node.*nothing was written"):
+        page.flush(lambda *args: pytest.fail("no read-back after a refused batch"))
+    assert not page.written
+    assert _CONTRACT["refused_left_annotations"] == []  # the good row 1 did not land either
+
+
+def test_an_estate_without_write_batch_fails_on_its_recorded_usage_banner(monkeypatch, tmp_path):
+    banner = _CONTRACT["without_write_batch"]
+    _replay(monkeypatch, {"exit": banner["exit"],
+                          "stdout": banner["stdout_first_line"] + "\n  wicked-estate --version\n"})
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["page"])
+    with pytest.raises(RuntimeError, match="has no write-batch"):
+        page.flush(lambda *args: pytest.fail("no read-back without a commit"))
+    assert not page.written and not page.uncertain
+
+
+def _live_estate():
+    import os
+    import subprocess
+    exe = (os.environ["WICKED_ESTATE_BIN"].strip() if "WICKED_ESTATE_BIN" in os.environ
+           else shutil.which("wicked-estate"))
+    if not exe:
+        return None
+    try:  # a stale or missing override skips the live test; it never breaks collection
+        usage = subprocess.run([exe, "--help"], capture_output=True, text=True, encoding="utf-8",
+                               timeout=30)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+    return exe if "write-batch" in usage.stdout + usage.stderr else None
+
+
+_LIVE_ESTATE = _live_estate()
+
+
+@pytest.mark.skipif(_LIVE_ESTATE is None,
+                    reason="no wicked-estate with write-batch installed (garden CI has none)")
+def test_live_estate_answers_the_recorded_contract(tmp_path):
+    import os
+    import subprocess
+    exe = _LIVE_ESTATE
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for name, text in _CONTRACT["repo_files"].items():
+        (repo / name).write_text(text, encoding="utf-8")
+    db = str(tmp_path / "estate.db")
+    subprocess.run([exe, "index", str(repo), "--db", db], check=True, capture_output=True)
+
+    def run(*args):
+        p = subprocess.run([exe, *args], capture_output=True, text=True, encoding="utf-8")
+        return {"exit": p.returncode, "stdout": p.stdout, "stderr": p.stderr}
+
+    def batch(calls):
+        path = tmp_path / "page.ndjson"
+        path.write_text("".join(json.dumps(r) + "\n" for r in _queued(None, calls).rows),
+                        encoding="utf-8")
+        return run("write-batch", str(path), "--json", "--db", db)
+
+    first = _CONTRACT["page"][0][1]["symbol_id"]
+    refused = batch(_CONTRACT["refused_page"])
+    left = json.loads(run("annotations", "--symbol", first, "--json", "--db", db)["stdout"])
+    committed = batch(_CONTRACT["page"])
+    banner = run("no-such-command", "--json", "--db", db)
+    observed = dict(_CONTRACT, estate=run("--version")["stdout"].strip(),
+                    page_rows=_queued(None, _CONTRACT["page"]).rows, committed=committed,
+                    refused=refused, refused_left_annotations=left["annotations"],
+                    without_write_batch={"exit": banner["exit"],
+                                         "stdout_first_line": banner["stdout"].splitlines()[0]})
+    if os.environ.get("WICKED_RECORD_ESTATE_CONTRACT") == "1":
+        _CONTRACT_PATH.write_text(json.dumps(observed, indent=2) + "\n", encoding="utf-8")
+    version = lambda line: line.replace(observed["estate"], _CONTRACT["estate"])  # noqa: E731
+    observed["without_write_batch"]["stdout_first_line"] = version(
+        observed["without_write_batch"]["stdout_first_line"])
+    assert {k: v for k, v in observed.items() if k != "estate"} == \
+        {k: v for k, v in _CONTRACT.items() if k != "estate"}
+
+    # The same page again through garden's own client: one call replaces the page's own
+    # replace=True rows, and every annotation reads back.
+    est = _clients.CliEstateClient([exe], db)
+    page = _queued(est, _CONTRACT["page"])
+    again = page.estate.write_batch(page.rows)
+    assert again["rows"] == len(page.rows) and again["replaced"] >= 1
+    keys = {(a["key"], a["value"]) for a in est.read_annotations(first)}
+    assert (_CONTRACT["page"][0][1]["key"], _CONTRACT["page"][0][1]["value"]) in keys
+
+
+# --- review r1 (codex): a batch whose outcome is unknown is never reported as unwritten -----------
+
+def test_a_write_batch_that_times_out_has_an_unknown_outcome(monkeypatch):
+    import subprocess
+
+    def run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, 120)
+
+    monkeypatch.setattr(_clients.subprocess, "run", run)
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="exceeded"):
+        page.flush(lambda *args: pytest.fail("no read-back without a reply"))
+    assert page.uncertain and not page.written
+
+
+def test_a_write_batch_reply_with_a_wrong_count_has_an_unknown_outcome(monkeypatch):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke", lambda argv: subprocess.CompletedProcess(
+        argv, 0, json.dumps({"rows": 1}), ""))
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    page.annotate("opaque", "rule", "k2", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="did not report 2 written row"):
+        page.flush(lambda *args: True)
+    assert page.uncertain and not page.written
+
+
+def test_a_refused_batch_is_known_unwritten(monkeypatch, tmp_path):
+    _replay(monkeypatch, _CONTRACT["refused"])
+    page = _queued(_clients.CliEstateClient(["wicked-estate"], str(tmp_path / "e.db")),
+                   _CONTRACT["refused_page"])
+    with pytest.raises(RuntimeError) as raised:
+        page.flush(lambda *args: True)
+    assert not isinstance(raised.value, _clients.BatchOutcomeUnknown)
+    assert not page.uncertain and not page.written
+
+
+@pytest.mark.parametrize("returncode", [-9, -15])
+def test_a_write_batch_killed_by_a_signal_has_an_unknown_outcome(monkeypatch, returncode):
+    import subprocess
+    monkeypatch.setattr(_clients, "_invoke",
+                        lambda argv: subprocess.CompletedProcess(argv, returncode, "", ""))
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="killed by signal"):
+        page.flush(lambda *args: True)
+    assert page.uncertain and not page.written
+
+
+def test_a_write_batch_with_undecodable_output_has_an_unknown_outcome(monkeypatch):
+    def run(argv, **kwargs):
+        raise UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte")
+
+    monkeypatch.setattr(_clients.subprocess, "run", run)
+    page = _clients.PageWrites(_clients.CliEstateClient(["wicked-estate"], "estate.db"))
+    page.annotate("opaque", "rule", "k", "v")
+    with pytest.raises(_clients.BatchOutcomeUnknown, match="undecodable"):
+        page.flush(lambda *args: True)
+    assert page.uncertain
+
+
+@pytest.mark.parametrize("override", ["wicked-estate-not-installed", "/nonexistent/wicked-estate"])
+def test_a_missing_estate_override_skips_the_live_test(monkeypatch, override):
+    monkeypatch.setenv("WICKED_ESTATE_BIN", override)
+    assert _live_estate() is None

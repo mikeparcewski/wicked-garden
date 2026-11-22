@@ -112,6 +112,7 @@ class _Estate:
     """The store's write surface, with estate's replace-by-key semantics."""
     def __init__(self):
         self.writes = {}
+        self.anns = {}
     def read_clusters(self):
         return []
     def list_nodes(self):
@@ -122,11 +123,22 @@ class _Estate:
         return f"def {sid}(): ..."
     def annotate(self, symbol_id, **kw):
         self.writes.setdefault(symbol_id, {})["ann"] = kw
+        anns = self.anns.setdefault(symbol_id, [])
+        if kw.get("replace", True):
+            anns[:] = [a for a in anns if (a["type"], a["key"]) != (kw["type"], kw["key"])]
+        anns.append(kw)
     def set_requirement(self, symbol_id, requirement, validated, validated_by="extract-loop"):
         self.writes.setdefault(symbol_id, {})["req"] = (requirement, validated, validated_by)
+    def write_batch(self, rows):
+        for row in rows:
+            fields = {k: v for k, v in row.items() if k not in {"op", "symbol"}}
+            if row["op"] == "annotate":
+                self.annotate(row["symbol"], **fields)
+            else:
+                self.set_requirement(row["symbol"], **fields)
+        return {"rows": len(rows)}
     def read_annotations(self, symbol_id):
-        ann = self.writes.get(symbol_id, {}).get("ann")
-        return [{"key": ann["key"]}] if ann else []
+        return list(self.anns.get(symbol_id, []))
 
 
 class _Core:
@@ -513,9 +525,8 @@ _CORE = (_bin("WICKED_CORE_BIN", "wicked-core") if "WICKED_CORE_BIN" in os.envir
          else (os.environ.get("WICKED_CORE_EXE") or "").strip() or shutil.which("wicked-core"))
 
 
-@pytest.mark.skipif(_ESTATE is None or _CORE is None,
-                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
-def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
+def _real_page(tmp_path, monkeypatch):
+    """A page framed and extracted on the real binaries, ready for extract-apply."""
     repo = Path(_git_repo(tmp_path, tracked=()))
     (repo / "math.js").write_text(
         "export function sum(xs) { let t = 0; for (const x of xs) t += x; return t; }\n"
@@ -532,13 +543,75 @@ def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
     monkeypatch.setenv("WICKED_RUN_AGENT", "claude")
     assert extract_loop.main(["--worklist", rules_file.WORKLIST_REL, "--rules-out",
                               rules_file.RULES_REL, "--dry-run"]) == 0
+    return db, repo, wt
+
+
+def _estate_commands(monkeypatch):
+    """The estate subcommands the host runs from here on."""
+    seen, real = [], _clients._invoke
+    # The host resolves the binary to its real path; _ESTATE may be a bare name or a symlink.
+    estate = os.path.realpath(shutil.which(_ESTATE) or _ESTATE)
+
+    def invoke(argv):
+        if os.path.realpath(argv[0]) == estate:
+            seen.append(argv[1])
+        return real(argv)
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    return seen
+
+
+def _annotation_rows(db):
+    import sqlite3
+    con = sqlite3.connect(db)
+    try:
+        return con.execute("SELECT count(*) FROM annotations").fetchone()[0]
+    finally:
+        con.close()
+
+
+@pytest.mark.skipif(_ESTATE is None or _CORE is None,
+                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
+def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
+    db, repo, wt = _real_page(tmp_path, monkeypatch)
+    estate_commands = _estate_commands(monkeypatch)
     assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 0
+    # The whole page is one estate transaction: no write runs as a process of its own.
+    assert estate_commands.count("write-batch") == 1
+    assert not {"annotate", "semantics"} & set(estate_commands)
     cov = json.loads((wt / "coverage-report.json").read_text())
     assert cov["unaccounted"] == 0 and cov["resolved"] >= 2
     out = tmp_path / "rg.json"
     subprocess.run([_CORE, "domain-graph", "--db", db, "--out", str(out)], check=True,
                    capture_output=True)
     assert json.loads(out.read_text())["metadata"]["coverage"]["real_pct"] == 100
+
+
+@pytest.mark.skipif(_ESTATE is None or _CORE is None,
+                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
+def test_real_binaries_one_refused_row_refuses_the_whole_page(tmp_path, monkeypatch, capsys):
+    db, repo, wt = _real_page(tmp_path, monkeypatch)
+    before = _annotation_rows(db)
+    real_flush = _clients.PageWrites.flush
+
+    def flush_with_a_gone_node(self, read_back):
+        # Queued after the page's good rows: a node that is not in the graph (estate refuses it).
+        self.annotate("ts-javascript . . . math/gone().", "business_rule", "k", "v")
+        return real_flush(self, read_back)
+
+    monkeypatch.setattr(_clients.PageWrites, "flush", flush_with_a_gone_node)
+    assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 1
+    err = capsys.readouterr().err
+    assert "[extract-apply] FAILED: " in err and "after writing" not in err
+    assert "not a node in this graph" in err and "nothing was written" in err
+    assert _annotation_rows(db) == before  # the page's good rows did not land either
+    assert not (wt / "coverage-report.json").exists()
+
+    # The same page applies cleanly once the bad row is gone.
+    monkeypatch.setattr(_clients.PageWrites, "flush", real_flush)
+    assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 0
+    assert _annotation_rows(db) > before
+    assert json.loads((wt / "coverage-report.json").read_text())["unaccounted"] == 0
 
 
 def test_the_host_uses_the_engines_core_cli(monkeypatch):
@@ -1108,19 +1181,20 @@ def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------
 
-def test_a_write_that_fails_halfway_through_a_rule_says_so(tmp_path, monkeypatch, capsys):
+def test_a_batch_failure_is_reported_without_partial_writes(tmp_path, monkeypatch, capsys):
     db, repo, wt, estate, core = _apply_env(tmp_path)
     _write_rules(wt, "", [_rule("s::core")])
 
-    def semantics_times_out(*a, **k):
+    def batch_times_out(*a, **k):
         raise RuntimeError("wicked-estate exceeded 120s")
-    estate.set_requirement = semantics_times_out  # the annotation lands, the requirement does not
+    estate.write_batch = batch_times_out
     monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
     monkeypatch.setattr(_clients, "host_core_client", lambda: core)
     monkeypatch.chdir(wt)
     assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1
     err = capsys.readouterr().err
-    assert "FAILED after writing" in err and "s::core may be partly written" in err
+    assert "FAILED: wicked-estate exceeded 120s" in err
+    assert "partly written" not in err and estate.writes == {}
 
 
 def test_prepare_reads_a_store_whose_path_has_uri_characters(tmp_path):
@@ -1775,3 +1849,111 @@ def test_check_rules_checks_local_evidence_without_git_or_symbol_store(tmp_path,
         raise AssertionError("the seat must not ask git or the host store")
     monkeypatch.setattr(rules_file, "tracked_files", no_git)
     assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 0
+
+
+def test_apply_batches_all_rules_and_domain_picks_once(tmp_path, monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _fixture, _write
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    _write(wt, [{**_rule(sid), "domain": "payments", "domain_confidence": 0.8}
+                for sid in ("s::core", "s::a")], business_domains=_catalog())
+    batches = []
+
+    def batch(rows):
+        batches.append(list(rows))
+        for row in rows:
+            sid = row["symbol"]
+            if row["op"] == "annotate":
+                ann = {k: v for k, v in row.items() if k not in ("op", "symbol")}
+                estate.writes.setdefault(sid, {})["ann"] = ann
+                estate.anns.setdefault(sid, {})[(row["type"], row["key"])] = ann
+            else:
+                estate.writes.setdefault(sid, {})["req"] = (
+                    row["requirement"], row["validated"], row["validated_by"])
+        return {"rows": len(rows), "annotations": 4, "replaced": 0, "semantics": 2}
+
+    monkeypatch.setattr(estate, "write_batch", batch, raising=False)
+    monkeypatch.setattr(estate, "annotate", lambda *a, **k: pytest.fail("per-write annotate"))
+    monkeypatch.setattr(estate, "set_requirement", lambda *a, **k: pytest.fail("per-write semantics"))
+    report = _apply(wt, db, repo, estate, core)
+    assert len(batches) == 1 and len(batches[0]) == 6
+    assert [r["op"] for r in batches[0]].count("semantics") == 2
+    assert sum(r.get("type") == "business_domain" for r in batches[0]) == 2
+    assert report["applied"] == {"resolved": 2, "risk": 0, "kept": 0}
+    assert report["business_domains"]["picked"] == 2
+    assert report["coverage"]["resolved"] == 2
+
+
+def test_apply_read_back_miss_after_batch_is_applied_then_failed(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    batches, answered = [], []
+    monkeypatch.setattr(estate, "write_batch", lambda rows: batches.append(list(rows)), raising=False)
+    monkeypatch.setattr(estate, "read_annotations", lambda sid: [])
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 rule.*write not durable"):
+        _apply(wt, db, repo, estate, core)
+    assert len(batches) == 1 and answered == [["s::core"]]
+
+
+def test_apply_with_an_unknown_batch_outcome_never_says_nothing_was_written(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    answered = []
+
+    def lost_reply(rows):
+        raise _clients.BatchOutcomeUnknown("wicked-estate exceeded 120s")
+
+    monkeypatch.setattr(estate, "write_batch", lost_reply, raising=False)
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(RuntimeError, match="may be in the store") as raised:
+        _apply(wt, db, repo, estate, core)
+    assert "nothing was written" not in str(raised.value) and answered == []
+    assert not (wt / "coverage-report.json").exists()
+
+
+def test_assignment_page_read_back_miss_after_the_batch_is_applied_then_failed(tmp_path,
+                                                                               monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    monkeypatch.setattr(estate, "read_annotations", lambda sid: [])
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 business domain.*write not durable"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_assignment_page_report_refused_after_the_batch_is_applied_then_failed(tmp_path,
+                                                                               monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    real = rules_file.write_json_file
+
+    def refuse_the_report(base, rel, doc):
+        if rel == apply_rules.REPORT_REL:
+            raise rules_file.RulesFileRefused("a link was planted at the report")
+        return real(base, rel, doc)
+
+    monkeypatch.setattr(rules_file, "write_json_file", refuse_the_report)
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 business domain.*planted"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_apply_batch_failure_records_no_answered_units(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    answered = []
+
+    def refuse(rows):
+        raise rules_file.RulesFileRefused("batch refused row 2")
+
+    monkeypatch.setattr(estate, "write_batch", refuse, raising=False)
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(RuntimeError, match="nothing was written to the store, then: batch refused row 2"):
+        _apply(wt, db, repo, estate, core)
+    assert answered == [] and estate.writes == {}
