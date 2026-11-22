@@ -660,6 +660,41 @@ def test_a_long_run_of_container_markers_is_linear():
         assert time.monotonic() - t < 3
 
 
+# Issue #1427: these four regressions were run against the pattern-based floor first.
+def test_1427_code_span_before_angle_does_not_hide_a_later_link():
+    stray = "https://unlogged.invalid/x"
+    apparent = f"https://example.org/`[t]({stray})"
+    p = packet(report=f"[C1] [C2] [C3]\n\n`<{apparent}>")
+    p["sources"][2]["url"] = apparent
+    hits = run_check(p)[1]["findings"]
+    assert any(f["rule"] == "url-not-in-log" and stray in f["message"] for f in hits), hits
+
+
+def test_1427_multiline_and_escaped_reference_labels_are_checked():
+    for label in ("multi\nline", r"escaped\]label"):
+        p = packet(report=f"[C1] [C2] [C3]\n\n[t][{label}]\n\n[{label}]: https&#58;//unlogged.invalid/x")
+        out = run_check(p)[1]
+        assert "url-form" in rules(out), (label, out["findings"])
+
+
+def test_1427_cr_only_reference_definition_is_checked():
+    p = packet(report="[C1] [C2] [C3]\r\r[t][ref]\r\r[ref]: https&#58;//unlogged.invalid/x")
+    out = run_check(p)[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+def test_1427_email_autolink_is_not_a_web_citation():
+    p = packet(report="[C1] [C2] [C3] <someone@example.org>")
+    out = run_check(p)[1]
+    assert "url-form" in rules(out), out["findings"]
+
+
+@pytest.mark.parametrize("address", ["someone&#64;example.org", "someone&commat;example.org"])
+def test_an_email_created_by_a_character_reference_is_refused(address):
+    out = run_check(packet(report=f"[C1] [C2] [C3] {address}"))[1]
+    assert "url-form" in rules(out)
+
+
 # --- the skill text -----------------------------------------------------------------------------
 
 def _skill() -> str:

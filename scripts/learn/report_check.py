@@ -34,8 +34,11 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
 - claims: a bad or duplicate ``C<n>`` id, empty text, no source (``claim-unsourced``), a source id the
   log does not hold (``claim-unknown-source``);
 - the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
-  cites; a URL (in the report or in a claim) not written as ``<url>`` or ``[title](url)``, or carrying an
-  escape or character reference, or any other link form (``url-form``); a URL that is not exactly a web
+  cites; a URL (in the report or in a claim) outside the literal ``<url>``, ``[title](url)`` or
+  ``[title](<url>)`` forms, or a reference whose definition is not ``[ref]: <url>`` without a title.
+  CommonMark links/images, GFM autolinks and HTML attributes are parsed before enforcing these rules;
+  titles, escapes/character references, non-web destinations, HTML/email links, bare and ``www.``
+  URLs are refused (``url-form``), including plain URLs in code; a URL that is not exactly a web
   source in the log, its fragment aside (``url-not-in-log``);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
@@ -49,7 +52,6 @@ Standard library only.
 from __future__ import annotations
 
 import argparse
-import bisect
 import json
 import re
 import sys
@@ -57,6 +59,11 @@ import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
+
+try:
+    from scripts.learn._md_links import _read, normalise
+except ModuleNotFoundError:  # Direct invocation from scripts/learn.
+    from _md_links import _read, normalise
 
 # The six lenses (refs/report-<lens>.md) and their documents rule (DES-CATALOG-002 rev 8 §3, ruling 5):
 # crew's catalog holds Start for a required input; this is the same rule, checked again by the seat.
@@ -82,26 +89,10 @@ SOURCE_ID_RE = re.compile(r"^S[1-9]\d{0,5}$")
 CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
 # Any citation group, ids of any length: an id the claims cannot hold is reported, never skipped.
 CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
-# A URL is written in one of two delimited forms, read exactly: ``<url>`` (also ``[title](<url>)``), up to
-# the ``>``; or a markdown destination ``[title](url)``, up to the ``)``, with no parenthesis, space or
-# angle bracket inside. Anything else (a bare URL, a link with a title) is refused as ``url-form``: no
-# punctuation is ever trimmed, so what is checked is exactly what a reader opens.
+# Parsed destinations are compared literally; a separate sweep refuses plain URLs,
+# including URLs in code. URL starts inside another destination are part of it.
 URL_START_RE = re.compile(r"https?://", re.IGNORECASE)
-URL_MAX_CHARS = 64 * 1024  # a signed or token URL can be long; past this it is refused, not truncated
-# What a renderer would decode or link that the floor does not read: a backslash escape or a character
-# reference inside a URL, a link destination or autolink that does not start with http(s)://, a
-# reference definition not in angle form, a www. autolink, raw HTML links. Each is refused as url-form.
-URL_ESCAPE_RE = re.compile(r"\\|&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);")
-LINKISH_RES = (
-    (re.compile(r"\]\((?!\s*<?https?://)", re.IGNORECASE), "a link destination that is not http(s)://"),
-    (re.compile(r"<(?!https?://)[A-Za-z][A-Za-z0-9+.-]*:", re.IGNORECASE), "an autolink that is not http(s)://"),
-    # Inside a blockquote or a list item too (CommonMark containers).
-    (re.compile(r"^[ \t]*(?:(?:>|[*+-]|\d{1,9}[.)])[ \t]*)*\[[^\]\n]+\]:(?![ \t]*<https?://[^>\s]*>[ \t]*$)",
-                re.IGNORECASE | re.MULTILINE),
-     "a reference definition not written as [ref]: <url>, with no title"),
-    (re.compile(r"(?<![/A-Za-z0-9.@-])www\.", re.IGNORECASE), "a www. address"),
-    (re.compile(r"<(?:a|img|iframe|link|area|form)\b[^>]*>", re.IGNORECASE), "a raw HTML link"),
-)
+URL_MAX_CHARS = 64 * 1024
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
 TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml",
@@ -158,46 +149,57 @@ def norm_url(url: str) -> str | None:
 
 
 def urls_in(text: str) -> list[tuple[str | None, str]]:
-    """Every URL in the text as ``(url, snippet)``; ``url`` is ``None`` when it is not written in one of
-    the two delimited forms, or the text links somewhere the floor does not read (``LINKISH_RES``). Each
-    URL is read once, forward, at most ``URL_MAX_CHARS`` characters; a URL start inside a URL already
-    read (a query parameter) is part of it."""
-    text = text or ""
+    """Compare rendered destinations, and refuse every remaining plain URL start."""
+    text = normalise(text or "")
+    links, definitions = _read(text)
+    # Definitions are checked even when unused, as in the original floor. Their
+    # spans also prevent the plain sweep from re-reading a destination.
+    links += definitions
     out: list[tuple[str | None, str]] = []
-    spans: list[tuple[int, int]] = []  # the URLs read, in order: matches inside them are part of them
-    covered = 0
-    for m in URL_START_RE.finditer(text):
-        i = m.start()
-        if i < covered:
-            continue
-        window = text[i:i + URL_MAX_CHARS + 1]
-        url = None
-        if i >= 1 and text[i - 1] == "<":
-            j = window.find(">")
-            in_link = text[max(0, i - 3):i - 1] == "]("
-            if (j > 0 and not any(c.isspace() or c == "<" for c in window[:j])
-                    and (not in_link or window[j + 1:j + 2] == ")")):
-                url = window[:j]
-        elif i >= 2 and text[i - 2:i] == "](":
-            j = window.find(")")
-            if j > 0 and not any(c.isspace() or c in "(<>" for c in window[:j]):
-                url = window[:j]
-        if url is None:
-            out.append((None, window[:80]))
-            continue
-        covered = i + len(url)
-        spans.append((i, covered))
-        if URL_ESCAPE_RE.search(url):
-            out.append((None, url[:80] + " (an escape or character reference: write the URL as the reader opens it)"))
+    spans = sorted({(link.start, link.end) for link in links})
+    # Merge overlapping spans for a linear sweep (references share definition spans).
+    merged: list[tuple[int, int]] = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
         else:
-            out.append((url, url))
-    starts = [a for a, _ in spans]
-    for rx, what in LINKISH_RES:
-        for m in rx.finditer(text):
-            k = bisect.bisect_right(starts, m.start()) - 1
-            if k >= 0 and spans[k][0] <= m.start() < spans[k][1]:
-                continue
-            out.append((None, f"{text[m.start():m.start() + 60]} ({what})"))
+            merged.append((a, b))
+    seen = set()
+    for link in links:
+        key = (link.kind, link.start, link.end, link.title, link.angle)
+        if key in seen:
+            continue
+        seen.add(key)
+        reason = None
+        if link.kind == "html":
+            reason = "a raw HTML link"
+        elif link.kind == "email-autolink" or link.destination.lower().startswith("mailto:"):
+            reason = "an email autolink"
+        elif link.kind == "gfm-autolink":
+            reason = "a www. address" if link.raw.lower().startswith("www.") else "a bare URL"
+        elif not link.destination.lower().startswith(("http://", "https://")):
+            reason = "a link destination that is not http(s)://"
+        elif link.raw != link.destination:
+            reason = "an escape or character reference: write the URL as the reader opens it"
+        elif link.title:
+            reason = "a link with a title"
+        elif link.kind == "reference" and not link.angle:
+            reason = "a reference definition not written as [ref]: <url>, with no title"
+        elif link.kind == "inline" and not link.angle and any(c in "()" for c in link.raw):
+            reason = "a URL with parentheses: write the destination in angle brackets"
+        elif len(link.raw) > URL_MAX_CHARS:
+            reason = "a URL past the length limit"
+        if reason:
+            out.append((None, f"{link.raw[:80]} ({reason})"))
+        else:
+            out.append((link.destination, link.destination))
+    cursor = 0
+    for m in URL_START_RE.finditer(text):
+        while cursor < len(merged) and merged[cursor][1] <= m.start():
+            cursor += 1
+        if cursor < len(merged) and merged[cursor][0] <= m.start() < merged[cursor][1]:
+            continue
+        out.append((None, text[m.start():m.start() + 80]))
     return out
 
 

@@ -21,6 +21,14 @@ fails the run, with one exception: a `quote-not-found-in-pdf-text` where you rea
 is there (the text extraction lost it). Say so for that source id. With no launcher or no Python, walk
 refs/report-claims.md's manual alternative and say you did.
 
+The floor reads CommonMark links and images, reference definitions, GFM autolinks, and HTML URL
+attributes before comparing destinations. Accepted citations use literal `<url>`, `[title](url)` or
+`[title](<url>)`, or reference links with a `[ref]: <url>` definition without a title. A bare destination
+containing parentheses must use angle brackets. Titles, decoded escapes or character references,
+non-http(s) destinations, HTML links, email addresses, `www.` addresses and bare URLs produce
+`url-form`. Plain URLs in code are also refused. Every accepted destination must match the source
+log exactly apart from scheme/hostname case and the fragment.
+
 ## 2. Re-check every claim at its source
 
 | Source kind | How you re-check it |
