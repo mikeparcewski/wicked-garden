@@ -152,7 +152,8 @@ per-prompt router — convening 20 CLIs on every prompt would be absurd cost.
 ## What the archetype catalog declares (session mode)
 
 `.claude-plugin/archetypes.json` defines the work-shape archetypes. Read it
-once at the start of this skill. Summary table:
+once at the start of this skill; `wicked-garden path .claude-plugin/archetypes.json`
+prints where it is on any host. Summary table:
 
 | Archetype | Phases                                        | Use when                                          |
 |-----------|-----------------------------------------------|---------------------------------------------------|

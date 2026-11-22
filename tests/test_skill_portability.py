@@ -561,6 +561,70 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
                     add("cwd-script", lineno, f"bare `{m.group(2)}` command line is cwd-relative; write `wicked-garden run {m.group(2)}`")
         if line.strip():
             prev_nonblank = line
+    if is_md:
+        out.extend(scan_plugin_data_paths(rel_file, text, fm_end))
+    return out
+
+
+_LIST_ITEM_START = re.compile(r"^\s*(?:[-*+]|\d{1,9}[.)])\s")
+_FENCE_MARK = re.compile(r"^\s*(`{3,}|~{3,})")
+_READER_SCRIPT = re.compile(r"(?<![\w./-])(?:scripts|hooks)/(?:[\w.-]+/)*([\w-]+)\.(?:py|mjs|js|cjs|sh)(?![\w./-])")
+
+
+def scan_plugin_data_paths(rel_file: str, text: str, fm_end: int) -> list[Violation]:
+    """`plugin-data-path` (garden, #1413): each backticked `.claude-plugin/<file>` named in body prose must be
+    resolved in its own paragraph, either by `wicked-garden path .claude-plugin/<file>` naming that very file,
+    or by a fenced reader attached to the paragraph that runs `wicked-garden run …` (archetype's modernize
+    ref reads the stack registry that way). The hosts that copy only the skill directories (OpenCode, Pi,
+    Antigravity) have no `.claude-plugin/` beside the skill; the launcher resolves the plugin root on every
+    host. A paragraph ends at a blank line outside a fence, or where a new list item starts; a fence opened
+    in it belongs to it through its closing fence, blank lines included."""
+    out: list[Violation] = []
+    prose: list[tuple[int, str]] = []
+    fenced: list[str] = []
+
+    def close() -> None:
+        joined = "\n".join([t for _, t in prose] + fenced)
+        fence_text = "\n".join(fenced)
+        # a reader resolves the file it is named for (`stack-registry.json` <- `stack_registry.py`): the
+        # script's basename is matched as a path token, so an argument (`--archetypes`) or a longer script
+        # name (`archetypes_v11.py`) does not stand in for it
+        readers = ({b.replace("-", "_") for b in _READER_SCRIPT.findall(fence_text)}
+                   if GRX["plugin_data_reader"].search(fence_text) else set())
+        for lineno, t in prose:
+            for m in GRX["plugin_data_path"].finditer(t):
+                rel = m.group(0).strip("`")
+                if Path(rel).stem.replace("-", "_") in readers:
+                    continue
+                if re.search(r"wicked-garden path\s+([\"']?)" + re.escape(rel) + r"\1(?![\w./-])", joined):
+                    continue
+                out.append(Violation("plugin-data-path", rel_file, lineno,
+                                     f"{m.group(0)} is a plugin-root path that hosts copying only the skill "
+                                     f"directories do not have; say `wicked-garden path {rel}` resolves it"))
+        prose.clear()
+        fenced.clear()
+
+    fence: str | None = None
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        if lineno <= fm_end:
+            continue
+        mark = _FENCE_MARK.match(line)
+        if fence is not None:
+            fenced.append(line)
+            if mark and mark.group(1)[0] == fence[0] and len(mark.group(1)) >= len(fence) and not line.strip()[len(mark.group(1)):].strip():
+                fence = None
+            continue
+        if mark:
+            fence = mark.group(1)
+            fenced.append(line)
+            continue
+        if not line.strip():
+            close()
+            continue
+        if _LIST_ITEM_START.match(line) and (prose or fenced):
+            close()
+        prose.append((lineno, line))
+    close()
     return out
 
 

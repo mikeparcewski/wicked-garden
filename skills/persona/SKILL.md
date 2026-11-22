@@ -60,7 +60,8 @@ table above and STOP.
 
 ## Built-in Personas
 
-Names come from `.claude-plugin/specialist.json`; their rich profiles live in
+Names come from `.claude-plugin/specialist.json`
+(`wicked-garden path .claude-plugin/specialist.json` prints where it is on any host); their rich profiles live in
 `scripts/persona/registry.py::_BUILTIN_RICH`. The built-ins are **illustrative
 exemplars**, not the product. A blinded, independently-graded lift eval
 (`tests/persona/EVAL_RESULTS.md`, run 2026-06-12) found the built-in personas
