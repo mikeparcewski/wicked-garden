@@ -191,3 +191,47 @@ def test_a_drafting_qualifier_or_a_clause_break_does_not_own_the_verdict():
                  "<p>My self-check: PASS</p>"):
         assert "process-word" in kinds(html), html
     assert ls.scan("<p>Each pump's self-check: PASS is logged.</p>")["ok"] is True
+
+
+# --- review round 2 (codex) -----------------------------------------------------------------------
+
+def test_a_comment_inside_a_bad_unquoted_url_is_url_data():
+    assert kinds('<style>\np { background: url(/*x*/"bad) }\np::before { content: "[S]" }\n</style><p>Hello</p>') == {"source-marker"}
+    # on one line: an unescaped newline would otherwise have ended the stray "string"
+    assert kinds('<style>p { background: url(/*x*/"bad) } p::before { content: "[S]" }</style><p>Hello</p>') == {"source-marker"}
+
+
+def test_var_reads_every_declaration_of_the_property_document_wide():
+    # a later, unrelated (or losing) declaration does not hide the one that applies
+    assert kinds('<style>:root { --part: "S" } p::before { content: "[" var(--part) "]" } .unused { --part: "x" }</style>'
+                 "<p>Hello</p>") == {"source-marker"}
+    # across <style> elements and from a style attribute
+    assert kinds('<style>:root { --part: "S" }</style><style>p::before { content: "[" var(--part) "]" }</style><p>x</p>') == {"source-marker"}
+    assert kinds("<div style='--part: \"S\"'><p>x</p></div><style>p::before { content: \"[\" var(--part) \"]\" }</style>") == {"source-marker"}
+    # the fallback is an alternative, never glued to the value
+    assert kinds('<style>:root { --part: "S" } p::before { content: "[" var(--part, "unused") "]" }</style><p>x</p>') == {"source-marker"}
+    assert kinds('<style>:root { --p: "S" } p::before { content: "[" var( /*c*/ --p /*d*/ ) "]" }</style><p>x</p>') == {"source-marker"}
+
+
+def test_each_declaration_is_read_on_its_own():
+    assert kinds('<style>p::before { content: "Self-check: PASS"; font-family: "Arial"; }</style><p>Hello</p>') == {"process-word"}
+
+
+def test_a_large_stylesheet_never_stops_the_literal_reading():
+    assert kinds('<style>p { font-family: "' + "a" * 1_000_000 + '" } p::before { content: "[S]" }</style><p>x</p>') == {"source-marker"}
+
+
+def test_a_composition_too_wide_to_read_does_not_pass():
+    css = ":root {" + "".join(f'--a: "{i}";' for i in range(40)) + "} p::before { content: var(--a) var(--a) }"
+    r = ls.scan(f"<style>{css}</style><p>x</p>")
+    assert r["ok"] is False and set(r["by_kind"]) == {"css-unread"}
+    # ordinary design tokens read fine
+    assert ls.scan('<style>:root { --accent: "*"; --gap: 4px } p::before { content: var(--accent) " " }'
+                   ' h1 { font-family: "Inter", sans-serif; margin: var(--gap) }</style><p>x</p>')["ok"] is True
+
+
+def test_the_subject_must_own_the_check_and_the_sentence_go_on():
+    assert "process-word" in kinds("<p>The completed self-check: PASS</p>")
+    assert "process-word" in kinds("<p>The device self-check: PASS</p>")
+    assert "process-word" in kinds("<p>Final self-check: PASS means done</p>")
+    assert ls.scan("<p>The control unit self-check: PASS means the motor may start.</p>")["ok"] is True
