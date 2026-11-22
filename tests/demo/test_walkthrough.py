@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -2179,6 +2180,61 @@ export default {
     assert out.returncode == 0, out.stderr
     assert json.loads((root / "result.json").read_text())["cause"] == "fixture_unavailable"
     assert json.loads((root / "data" / "progress-at-ready.json").read_text()) == {"state": "starting_app"}
+
+
+def _origin_story(sl: Path) -> None:
+    """A storyline whose ready() hook writes the origin the recorder hands it, then stops the take."""
+    _write_story(sl, """import fs from "node:fs";
+import path from "node:path";
+export default {
+  title: "Port",
+  fixture: {
+    start: ["node", "app.mjs"],
+    ready: async (origin) => {
+      fs.writeFileSync(path.join(process.env.WICKED_EVIDENCE_ROOT, "data", "origin.txt"), origin);
+      throw new Error("stop here: the test only wants the origin");
+    },
+  },
+  segments: [{ key: "01-first", title: "First", checks: [{ id: "g", kind: "guard" }], async run(ctx) { await ctx.check("g"); } }],
+};
+""")
+
+
+@needs_node
+def test_record_serves_the_fixture_on_the_port_the_engine_reserved(tmp_path):
+    """core#1297: the engine's jail opens one loopback port, handed over as WICKED_WALKTHROUGH_PORT;
+    the fixture starts there, not on a port of the recorder's choosing."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _origin_story(sl)
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = _wt_env(root, tree, repo, WICKED_WALKTHROUGH_PORT=str(port))
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=90)
+    assert out.returncode == 0, out.stderr
+    assert (root / "data" / "origin.txt").read_text() == f"http://127.0.0.1:{port}"
+
+
+@needs_node
+@pytest.mark.parametrize("bad", ["0", "65536", "80a", "-1", " 8080"])
+def test_record_refuses_an_engine_port_that_is_not_a_port(tmp_path, bad):
+    """core#1297: a WICKED_WALKTHROUGH_PORT that is not a TCP port is refused by name, and no fixture
+    starts on a guessed one (the jail would refuse it anyway)."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _origin_story(sl)
+    env = _wt_env(root, tree, repo, WICKED_WALKTHROUGH_PORT=bad)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=90)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "fixture_unavailable", result
+    assert "WICKED_WALKTHROUGH_PORT" in result["reason"], result
+    assert not (root / "data" / "origin.txt").exists()
 
 
 @needs_recorder
