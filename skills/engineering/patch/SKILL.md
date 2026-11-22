@@ -185,6 +185,16 @@ inside a run (the write CLI is denied there; the `wicked-garden-search` ladder a
 `--db .wicked/patch-symbols.db` to the patch sub-actions. Symbol ids keep the
 patch-native `file::Name` scheme (e.g. `src/app.py::Order`).
 
+**On a container seat** (`WICKED_ESTATE_BROKER` is set), or when the store is not a readable
+file, the graph is not on the seat: graph reads are relayed, and no relayed read returns the
+whole graph the patch db needs. `estate_db.py` then prints one line and exits 3. Do the change
+by hand: list the sites with the relayed read below, read each file, and edit it. Do not ask
+for the graph to be mounted or run `wicked-estate index` inside a run.
+
+```bash
+wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"BlastRadius","arguments":{"symbol":"<name>"}}'
+```
+
 ## Safety Features
 
 - **Dry-run by default**: Shows patches without applying

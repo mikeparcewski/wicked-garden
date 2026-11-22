@@ -53,6 +53,14 @@ Mapping (estate -> patch):
   + metadata(key,value): indexed_at (translation time — safety.py freshness check),
     source='wicked-estate', estate_version, estate_root.
 
+No graph on this seat (wicked-garden#1526): a container seat on wicked-crew's floor has no
+mounted graph since wicked-core#1782 (`WICKED_ESTATE_BROKER` marks it); its graph reads are
+relayed through `scripts/_estate_client.py`. No relayed tool returns the whole graph
+(TraverseGraph stops at 1000 nodes and omits end lines), and a partial graph would let a
+rename or remove miss sites without saying so. So with the broker marker set, or no readable
+store, `main` prints one line handing the relayed BlastRadius call and exits 3: list the sites
+with it and edit them by hand. It never asks for the graph to be mounted.
+
 Stdlib-only. Deterministic. Rebuilds the patch DB from scratch each run.
 """
 
@@ -71,6 +79,14 @@ from typing import Dict, Optional
 # wicked-estate MCP default used by scripts/_estate_client.py.
 ESTATE_DB_ENV = "WICKED_ESTATE_DB"
 ESTATE_DB_CANDIDATES = (".codegraph/estate.db", ".wicked-estate/graph.db")
+# Set on a container seat, whose graph reads are relayed (scripts/_estate_client.py BROKER_ENV).
+BROKER_ENV = "WICKED_ESTATE_BROKER"
+# Exit code for "no graph on this seat: edit by hand" (1 stays a real error: a bad store).
+EXIT_NO_GRAPH = 3
+RELAY_CALL = (
+    "wicked-garden run scripts/_estate_client.py --readonly call"
+    " '{\"tool\":\"BlastRadius\",\"arguments\":{\"symbol\":\"<name>\"}}'"
+)
 
 # The pinned read contract: table -> columns this adapter selects.
 _REQUIRED_SCHEMA = {
@@ -168,6 +184,27 @@ def resolve_estate_db(explicit: Optional[str] = None) -> Path:
         if candidate.exists():
             return candidate
     return Path(ESTATE_DB_CANDIDATES[0])
+
+
+def no_graph_note(estate_db: Path) -> Optional[str]:
+    """One line when this seat cannot translate the graph (broker marker set, or the store is
+    not a readable file), else None. The line hands the relayed read and says edit by hand."""
+    build = ""
+    if os.environ.get(BROKER_ENV, "").strip():
+        why = f"this is a container seat ({BROKER_ENV} is set), so the code graph is not on it"
+    else:
+        try:
+            readable = estate_db.is_file() and os.access(estate_db, os.R_OK)
+        except OSError:
+            readable = False
+        if readable:
+            return None
+        why = f"the code graph {estate_db} is not a readable file here"
+        build = f" (outside a run, `wicked-estate index <repo> --db {estate_db}` builds it)"
+    return (
+        f"estate_db: {why}, and the patch db needs the whole graph, which the relayed reads"
+        f" do not return; find the sites with `{RELAY_CALL}`, then edit them by hand{build}."
+    )
 
 
 def build_patch_db(estate_db: Path, out_db: Path) -> Dict[str, int]:
@@ -330,10 +367,15 @@ def main() -> int:
     )
     p.add_argument("--out", default=".wicked/patch-symbols.db")
     a = p.parse_args()
+    estate = resolve_estate_db(a.estate_db)
+    note = no_graph_note(estate)
+    if note:
+        print(note, file=sys.stderr)
+        return EXIT_NO_GRAPH
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
-        counts = build_patch_db(resolve_estate_db(a.estate_db), out)
+        counts = build_patch_db(estate, out)
     except (FileNotFoundError, EstateSchemaError) as e:
         print(str(e), file=sys.stderr)
         return 1

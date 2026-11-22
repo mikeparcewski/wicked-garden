@@ -275,6 +275,10 @@
             }
           }
         },
+        "product_only": {
+          "type": "boolean",
+          "description": "v1.1.0, optional (schema bundle 1.3.2). The build left tests, data, manifests and documents out (an extracted rule counts whatever its file). Set by the build, never by a read's coverage relabel; absent means a build from before this field (no claim). A row carried from an earlier build because its unit left the index is flagged `unindexed` on the read's rows and keeps that build's verdict."
+        },
         "coverage": {
           "type": "object",
           "description": "v1.1.0, optional (this shape since schema bundle 1.3.0). The share of behaviour-bearing nodes in product code that are REAL requirements (resolved to a stated, sourced business rule) and the configured minimum the build was held to: '23% real requirements \u00b7 4397 placeholders \u00b7 minimum 80%'. Risk-flagged placeholders are shown in the graph as unconfirmed but never count toward the minimum (operator decision 2026-11-01, wicked-core#1233); tests, data, manifests and documents are not behaviour-bearing (not_product).",

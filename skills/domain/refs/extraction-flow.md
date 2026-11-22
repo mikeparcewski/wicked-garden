@@ -86,7 +86,7 @@ The extractor must read the behavior/type/structural kind-sets from
 | `coverage.behavior_kinds` | domain actions/verbs | `["module","function","method"]` |
 | `coverage.type_kinds` | domain entities/nouns | `["class","interface","struct","trait","enum","record"]` |
 | `coverage.structural_kinds` | field-level nouns | `["field","variable"]` |
-| `coverage.estate_behavior_kinds` | mainframe/IaC only | `[]` for a pure modern repo; `["db2_table","cics_program","step"]` on a mainframe estate |
+| `coverage.estate_behavior_kinds` | mainframe/IaC only | `[]` for a pure modern repo; `["db2_table","step"]` on a mainframe estate (a CICS LINK is a `calls` edge, not a kind) |
 
 `emit_domain_model.py` accepts a `config` dict and defaults to these — the same
 document contract serves a COBOL estate and a Rust monorepo. (These mirror
