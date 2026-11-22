@@ -14,12 +14,13 @@ and HTML comments (an export ships them). It rejects execution metadata, never s
 |---|---|---|
 | ``state-path`` | the run's inbox or state paths (``.wicked-crew``, ``attempt-<id>``, ``refine-<id>``, ``sources/brief-…``, a home directory) | everything |
 | ``run-id`` | the drafting run's own id (``--run-id``) | everything |
-| ``process-word`` | a drafting check's verdict or its running ("UNVERIFIED", "self-check: PASS", "keep_check.py: PASS", "I ran the self-check") | text, notes, attributes, comments, CSS ``content`` |
+| ``process-word`` | a drafting check's verdict or its running ("UNVERIFIED", "self-check: PASS", "keep_check.py: PASS", "I ran the self-check"); a subject's own check ("The device self-check: PASS means …") is prose | text, notes, attributes, comments, CSS ``content`` |
 | ``source-marker`` | a bare source marker such as ``[S]`` or ``[S2]`` | text, notes, attributes, comments, CSS ``content`` |
 | ``narration`` | first-person narration of the drafting ("I used SearchEntity…", "I ran keep_check.py…", "the brief says…") | text, notes, attributes, comments, CSS ``content`` |
 
 Text is read per block with its inline children joined in (``I used <em>SearchEntity</em>`` is caught), and
-script/style bodies are read for paths and run ids.
+script/style bodies are read for paths and run ids. A CSS ``content`` value is read by a CSS tokenizer: its
+strings are decoded (``"\\5b S\\5d "`` renders ``[S]``) and joined.
 
 Exit: 0 = clean; 1 = a leak (fix the document, re-run); 2 = usage / unreadable input. Stdlib only.
 
@@ -56,12 +57,21 @@ _STATE_PATH = re.compile(
 # The self-check's own verdict words. "self-check" alone is subject vocabulary ("the device runs a self-check");
 # only the drafting check's verdict or its running is execution metadata.
 _CHECKS = r"(?:self[- _]check|keep_check|contrast_check|claims_scan|notes_check|leak_scan|page_count)(?:\.py)?"
+# The drafting tools by their script names: a verdict after one is always the drafting check's.
+_TOOL_CHECKS = r"(?:(?:self_check|keep_check|contrast_check|claims_scan|notes_check|leak_scan|page_count)(?:\.py)?|self[- ]check\.py)"
+_VERDICT = r"\W{0,3}(?:(?i:verdict)\W{0,3})?(?:PASS|FAIL|UNVERIFIED)\b"
 _PROCESS_WORD = re.compile(
     r"\bUNVERIFIED\b"  # the verdict word, in capitals only ("unverified claims" is prose)
     # the check named in any case, its verdict in the capitals the checks print ("the self-check passed" is prose)
-    r"|(?i:\b" + _CHECKS + r")\W{0,3}(?:(?i:verdict)\W{0,3})?(?:PASS|FAIL|UNVERIFIED)\b"
+    r"|(?i:\b" + _TOOL_CHECKS + r")" + _VERDICT +
     r"|(?i:\b(?:I|we) (?:ran|re-ran|reran|have run|re-run) (?:the |a |my )?(?:draft )?" + _CHECKS + r")"
     r"|(?i:\bdraft self[- ]check\b)")
+# A bare "self-check" verdict is the drafting check's printed form ("draft self-check: PASS", "Self-check: PASS")
+# only when no subject owns it: at the start of a sentence, or after one of these words. "The device self-check:
+# PASS means the motor may start" names the subject's own check and is not flagged.
+_BARE_SELF_CHECK = re.compile(r"(?i:\bself[- ]check\b)(?!\.py)" + _VERDICT)
+_UNOWNED = frozenset({"draft", "the", "my", "our", "this", "a"})
+_LAST_WORD = re.compile(r"([^\W\d_][\w'’-]*)[^\w.!?]*$")
 _SOURCE_MARKER = re.compile(r"\[(?:S\d{0,3}|src\d{0,3}|source\d{0,3})\]", re.IGNORECASE)
 _TOOLS = (r"(?:SearchEntity|FetchContent|ContextBundle|RetrieveEntity|TraverseGraph|the estate|estate tools?|MCP"
           r"|the (?:repo(?:sitory)? )?snapshot|the brief|the sources?|the (?:source )?packet|the self[- ]check"
@@ -95,13 +105,126 @@ def _in_notes(node: Node) -> bool:
 # Text inside these joins the block it sits in (``I used <em>SearchEntity</em>`` is one sentence).
 _INLINE = frozenset(("a abbr b bdi bdo button cite code data del dfn em i ins kbd label mark meter option output progress q "
                      "ruby rt rp s samp select small span strong sub sup textarea time u var wbr br font").split())
-_CSS_CONTENT = re.compile(r"""content\s*:\s*([^;}]*)""", re.IGNORECASE)
-_CSS_STRING = re.compile(r""""([^"]*)"|'([^']*)'""")
+_HEX = frozenset("0123456789abcdefABCDEF")
+_CSS_IDENT_CHAR = re.compile(r"[\w-]|[^\x00-\x7f]")
 
 
-def _css_content(value: str) -> str:
-    """The text a CSS ``content`` value renders: its quoted strings, adjacent ones joined (``"I used " "X"``)."""
-    return "".join(m.group(1) if m.group(1) is not None else m.group(2) for m in _CSS_STRING.finditer(value))
+def _css_escape(css: str, i: int) -> tuple[str, int]:
+    """The code point of the escape whose backslash is at ``css[i]`` (CSS Syntax 3 §4.3.7), and the index after it."""
+    j = i + 1
+    if j >= len(css):
+        return "\ufffd", j
+    if css[j] in _HEX:
+        k = j
+        while k < len(css) and k - j < 6 and css[k] in _HEX:
+            k += 1
+        cp = int(css[j:k], 16)
+        if k < len(css) and css[k] in " \t\n":
+            k += 1  # one whitespace after a hex escape belongs to it
+        return ("\ufffd" if cp == 0 or 0xD800 <= cp <= 0xDFFF or cp > 0x10FFFF else chr(cp)), k
+    return css[j], j + 1
+
+
+def _css_string(css: str, i: int) -> tuple[str, int]:
+    """The decoded value of the string token opening at ``css[i]`` (CSS Syntax 3 §4.3.5), and the index after it.
+    An escaped newline continues the string; an unescaped one ends it (a bad string: what was read is kept)."""
+    quote, out, j = css[i], [], i + 1
+    while j < len(css):
+        c = css[j]
+        if c == quote:
+            return "".join(out), j + 1
+        if c == "\n":
+            return "".join(out), j
+        if c == "\\":
+            if j + 1 < len(css) and css[j + 1] == "\n":
+                j += 2
+                continue
+            ch, j = _css_escape(css, j)
+            out.append(ch)
+            continue
+        out.append(c)
+        j += 1
+    return "".join(out), j
+
+
+def _css_ident(css: str, i: int) -> tuple[str, int]:
+    """The decoded ident-like run starting at ``css[i]`` (escapes decoded, so ``cont\\65nt`` is ``content``)."""
+    out, j = [], i
+    while j < len(css):
+        if css[j] == "\\" and j + 1 < len(css) and css[j + 1] != "\n":
+            ch, j = _css_escape(css, j)
+            out.append(ch)
+        elif _CSS_IDENT_CHAR.match(css[j]):
+            out.append(css[j])
+            j += 1
+        else:
+            break
+    return "".join(out), j
+
+
+def _css_skip(css: str, j: int) -> int:
+    """Past whitespace and comments."""
+    while j < len(css):
+        if css[j] in " \t\n":
+            j += 1
+        elif css.startswith("/*", j):
+            end = css.find("*/", j + 2)
+            j = len(css) if end < 0 else end + 2
+        else:
+            break
+    return j
+
+
+def _css_content_texts(css: str) -> list[str]:
+    """The text each ``content`` declaration renders: its string tokens decoded and joined (``"I used " "X"``,
+    ``"\\5b S\\5d "`` is ``[S] ``). Read by tokenizing, not by pattern: a ``;`` or an escaped quote inside a string
+    does not end the value, and comments between strings are skipped. The value ends at ``;``, ``{``, ``}`` or
+    ``!`` outside a string and outside parentheses."""
+    css = css.replace("\r\n", "\n").replace("\r", "\n").replace("\f", "\n").replace("\x00", "\ufffd")
+    texts: list[str] = []
+    i = 0
+    while i < len(css):
+        c = css[i]
+        if css.startswith("/*", i):
+            i = _css_skip(css, i)
+        elif c in "\"'":
+            _, i = _css_string(css, i)
+        elif c == "\\" or _CSS_IDENT_CHAR.match(c):
+            name, j = _css_ident(css, i)
+            if j == i:
+                i += 1
+                continue
+            i = j
+            if name.lower() != "content":
+                continue
+            j = _css_skip(css, i)
+            if j >= len(css) or css[j] != ":":
+                continue
+            parts, depth, j = [], 0, j + 1
+            while j < len(css):
+                j = _css_skip(css, j)
+                if j >= len(css):
+                    break
+                ch = css[j]
+                if ch in "\"'":
+                    text, j = _css_string(css, j)
+                    parts.append(text)
+                    continue
+                if ch == "(":
+                    depth += 1
+                elif ch == ")":
+                    depth = max(0, depth - 1)
+                elif depth == 0 and ch in ";{}!":
+                    break
+                elif ch == "\\":
+                    _, j = _css_escape(css, j)
+                    continue
+                j += 1
+            texts.append("".join(parts))
+            i = j
+        else:
+            i += 1
+    return texts
 
 
 def _units(html: str) -> list[tuple[str, str, str]]:
@@ -138,14 +261,14 @@ def _units(html: str) -> list[tuple[str, str, str]]:
             if value:
                 units.append((f"attr:{name}", locator, value))
                 if name == "style":
-                    for m in _CSS_CONTENT.finditer(value):
-                        units.append(("css", locator, _css_content(m.group(1))))
+                    for text in _css_content_texts(value):
+                        units.append(("css", locator, text))
         if node.tag in ("script", "style"):
             body = "".join(c.text for c in node.children if c.tag == "#text")
             units.append(("code", locator, body))
             if node.tag == "style":
-                for m in _CSS_CONTENT.finditer(body):
-                    units.append(("css", locator, _css_content(m.group(1))))
+                for text in _css_content_texts(body):
+                    units.append(("css", locator, text))
             continue
         if node.tag in _INLINE and node.parent is not None and node.parent.tag not in ("", None):
             continue  # its words are read with the block it sits in
@@ -187,6 +310,12 @@ def scan(html: str, run_ids: list[str] | None = None) -> dict:
             continue
         for m in _PROCESS_WORD.finditer(text):
             hit("process-word", where, locator, text, m)
+        for m in _BARE_SELF_CHECK.finditer(text):
+            # the clause it sits in (a bounded look-back: an owning word sits right before the check)
+            before = re.split(r"[.!?:;]\s", text[max(0, m.start() - 120):m.start()])[-1]
+            w = _LAST_WORD.search(before)
+            if w is None or w.group(1).casefold() in _UNOWNED:
+                hit("process-word", where, locator, text, m)
         for m in _SOURCE_MARKER.finditer(text):
             hit("source-marker", where, locator, text, m)
         for m in _NARRATION.finditer(text):

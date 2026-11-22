@@ -324,3 +324,39 @@ def test_unreadable_input_is_an_error_never_a_pass(tmp_path: Path):
     proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(tmp_path / "none.json"), str(tmp_path / "x.html")],
                           capture_output=True, text=True)
     assert proc.returncode == 2
+
+
+# --- #1429: an id outside the anchor set travels in --allow-file --------------------------------
+
+def _spaced_deck(title: str) -> str:
+    return doc(f'<section data-slide-id="s1" data-wid="sec s1"><h2 data-wid="s1 “h”">{title}</h2></section>')
+
+
+def test_allow_file_releases_an_id_with_characters_outside_the_anchor_set(tmp_path: Path):
+    lin = Lineage(tmp_path, _spaced_deck("Intro")).add("hand", _spaced_deck("Mine"))
+    m = lin.map()
+    (entry,) = [e for e in kc.entry_ids(m) if e["kind"] == "text"]
+    assert entry["id"].startswith("text:s1 “h”#")  # a space and quotes: crew's argv path omits it
+    mp = tmp_path / "map.json"
+    mp.write_text(json.dumps(m), encoding="utf-8")
+    cand = tmp_path / "cand.html"
+    cand.write_text(_spaced_deck("Theirs"), encoding="utf-8")
+    base = [sys.executable, str(SCRIPT), "check", "--map", str(mp), str(cand), "--json"]
+    assert subprocess.run(base, capture_output=True, text=True).returncode == 1
+    ids = tmp_path / "allow.json"
+    ids.write_text(json.dumps([entry["id"]]), encoding="utf-8")
+    proc = subprocess.run(base + ["--allow-file", str(ids)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+@pytest.mark.parametrize("content", ['{"ids": []}', "[1, 2]", "not json"])
+def test_a_malformed_allow_file_is_a_usage_error(tmp_path: Path, content: str):
+    mp = tmp_path / "map.json"
+    mp.write_text(json.dumps(Lineage(tmp_path, deck(BASE)).map()), encoding="utf-8")
+    cand = tmp_path / "cand.html"
+    cand.write_text(deck(BASE), encoding="utf-8")
+    bad = tmp_path / "allow.json"
+    bad.write_text(content, encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(mp), str(cand), "--allow-file", str(bad)],
+                          capture_output=True, text=True)
+    assert proc.returncode == 2 and json.loads(proc.stdout)["ok"] is False

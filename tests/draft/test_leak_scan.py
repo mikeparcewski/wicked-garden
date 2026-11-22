@@ -116,3 +116,49 @@ def test_self_check_fails_without_notes_and_on_a_leak(tmp_path: Path):
     html.write_text("<html><body><p>Hello [S]</p></body></html>", encoding="utf-8")
     leaked = sc.run(str(html), check_pages=False, notes=str(tmp_path / "notes.json"))
     assert leaked["verdict"] == "FAIL" and leaked["failed"] == ["leaks"]
+
+
+# --- #1429: CSS content is tokenized, and a subject's own self-check verdict is prose -------------
+
+def test_css_content_escapes_are_decoded():
+    assert kinds(r'<style>p::before { content: "\5b S\5d "; }</style><p>Hello</p>') == {"source-marker"}
+    assert kinds(r'<style>p::before { content: "I us\65 d SearchEntity"; }</style><p>Hello</p>') == {"narration"}
+    assert kinds(r'<p style="content: &quot;\5b S\5d&quot;">Hello</p>') == {"source-marker"}
+    assert kinds(r'<style>p::before { cont\65nt: "[S]"; }</style><p>Hello</p>') == {"source-marker"}
+
+
+def test_css_content_strings_are_read_as_tokens():
+    # a `;` inside a string does not end the value; comments between strings are skipped
+    assert kinds('<style>p::before { content: "Note; I used " /* x */ "SearchEntity"; }</style><p>Hello</p>') == {"narration"}
+    # an escaped quote stays inside the string
+    assert kinds(r'<style>p::before { content: "\"q\" [S]"; }</style><p>Hello</p>') == {"source-marker"}
+    # an escaped line break continues the string
+    assert kinds('<style>p::before { content: "I used \\\nSearchEntity"; }</style><p>Hello</p>') == {"narration"}
+    # a selector named content, and a value that is not a string, are not text
+    assert ls.scan('<style>.content:hover { color: red } p::before { content: counter(x) "." }</style><p>Hello</p>')["ok"] is True
+
+
+def test_css_reading_is_bounded():
+    import time
+    t = time.monotonic()
+    ls.scan("<style>" + "\\" * 200000 + "content:" * 20000 + '"' * 20000 + "</style><p>x</p>")
+    assert time.monotonic() - t < 3
+
+
+def test_a_subjects_own_self_check_verdict_is_prose():
+    assert ls.scan("<p>The device self-check: PASS means the motor may start.</p>")["ok"] is True
+    assert ls.scan("<p>When the pump's self-check: FAIL appears, call service.</p>")["ok"] is True
+
+
+def test_the_drafting_self_check_verdict_still_fails():
+    for html in ("<p>Self-check: PASS</p>", "<p>Draft self-check: PASS</p>", "<p>Status: self-check: PASS</p>",
+                 "<p>The self-check: FAIL</p>", "<p>Done. Self-check: UNVERIFIED</p>", "<p>self_check.py: PASS</p>",
+                 "<p>The device self-check.py: PASS</p>", "<p>keep_check: PASS</p>"):
+        assert "process-word" in kinds(html), html
+
+
+def test_many_bare_verdicts_are_read_in_linear_time():
+    import time
+    t = time.monotonic()
+    ls.scan("<p>" + "word " * 50000 + "self-check: PASS " * 5000 + "</p>")
+    assert time.monotonic() - t < 3

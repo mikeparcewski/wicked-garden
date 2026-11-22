@@ -35,7 +35,10 @@ Exit: 0 = map written / every edit kept; 1 = an edit was not kept; 2 = usage / u
 
 CLI:
     keep_check.py map --lineage <lineage.json> [--touch <wid> …] [--json]
-    keep_check.py check --map <map.json> <candidate.html> [--allow <id> …] [--json]
+    keep_check.py check --map <map.json> <candidate.html> [--allow <id> …] [--allow-file <ids.json>] [--json]
+
+``--allow-file`` reads a JSON list of entry ids, added to the ``--allow`` ones. Use it for an id that does
+not travel safely as one argument (an anchor with a space, a quote or a non-ASCII character).
 """
 
 from __future__ import annotations
@@ -479,6 +482,17 @@ def safe_console() -> None:
                 pass
 
 
+def _allow_file_ids(paths: list[str]) -> list[str]:
+    """The entry ids in each ``--allow-file``: a JSON list of strings, else a usage error (exit 2)."""
+    ids: list[str] = []
+    for p in paths:
+        data = json.loads(Path(p).read_text(encoding="utf-8"))
+        if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
+            raise ValueError(f"--allow-file {p}: expected a JSON list of entry ids")
+        ids += data
+    return ids
+
+
 def main(argv: list[str] | None = None) -> int:
     safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
@@ -491,6 +505,7 @@ def main(argv: list[str] | None = None) -> int:
     cp.add_argument("--map", required=True)
     cp.add_argument("html")
     cp.add_argument("--allow", action="append", default=[])
+    cp.add_argument("--allow-file", action="append", default=[], help="a JSON list of entry ids, added to --allow")
     cp.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     try:
@@ -502,7 +517,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         raw = json.loads(Path(args.map).read_text(encoding="utf-8"))
         m = validate_map(raw.get("map", raw) if isinstance(raw, dict) else None)
-        report = check(m, _load(args.html), args.allow)
+        report = check(m, _load(args.html), args.allow + _allow_file_ids(args.allow_file))
     except (OSError, ValueError) as exc:
         print(json.dumps({"check": "keep", "ok": False, "error": str(exc)}))
         return 2
