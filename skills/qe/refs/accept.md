@@ -567,4 +567,5 @@ the one resolver the gate shares:
    would change the tree under review.
 2. otherwise, an install the target repo resolves (`npm i --no-save wicked-ledger`).
 
-The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`.
+The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`
+(`wicked-garden path .claude-plugin/plugin.json` prints where it is on any host).

@@ -147,6 +147,14 @@
             "pattern": "\\S",
             "description": "Plain words, shown in Settings → Editors."
           },
+          "description": {
+            "description": "Cosmetic one-line string: whitespace is collapsed and crew displays at most 160 characters. Malformed values only warn (PK089), so this field is advisory in the schema.",
+            "examples": ["Find banned terms and replace them in one saved version."]
+          },
+          "visuals": {
+            "description": "Cosmetic object with icon, color (#rrggbb), preview (an image file or {light, dark}) and live (boolean). Image names match ^[A-Za-z0-9][A-Za-z0-9._/-]{0,120}$ with no '..' segment: .svg/.png/.webp files inside the pack, no symlink on the way, matching image content; icon <= 16 KiB and each preview <= 200 KiB. Malformed fields only warn (PK089) and valid siblings remain usable, so this field is advisory in the schema.",
+            "examples": [{"icon": "editors/acme-terms/icon.svg", "color": "#224a5e", "preview": {"light": "cards/light.png", "dark": "cards/dark.webp"}, "live": true}]
+          },
           "version": {
             "type": "string",
             "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",

@@ -14,6 +14,7 @@ import json
 import math
 import os
 import re
+import stat
 from pathlib import Path
 
 MANIFEST_NAME = "wicked-pack.json"
@@ -49,6 +50,19 @@ INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
 ICON_CAP = 32 * 1024
 SAMPLES_CAP = 256 * 1024
+# Editor card images (crew editors/visuals.ts), separate from run-plugin assets above.
+EDITOR_ICON_CAP = 16 * 1024
+EDITOR_PREVIEW_CAP = 200 * 1024
+EDITOR_DESCRIPTION_CHARS = 160
+_EDITOR_IMAGE_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,120}")
+_EDITOR_COLOR_RE = re.compile(r"#[0-9a-fA-F]{6}")
+# JavaScript's \s, shared by declaredDescription and the SVG signature check in crew.
+_JS_SPACE = "\u0009\u000a\u000b\u000c\u000d\u0020\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+_JS_SPACE_RE = re.compile("[" + _JS_SPACE + "]+")
+_SVG_HEAD_RE = re.compile(
+    r"^(?:<\?xml[^>]*>[" + _JS_SPACE + r"]*)?(?:<!--[\s\S]*?-->[" + _JS_SPACE + r"]*)*<svg[" + _JS_SPACE + r">]",
+    re.IGNORECASE,
+)
 # A manifest is a few KB; the engine's host run refuses a bigger one before it is read.
 MANIFEST_CAP = 1024 * 1024
 # Directories a run's worktree search never enters.
@@ -111,6 +125,109 @@ def topic_matches(pattern: str, topic: str) -> bool:
 
 class PackError(Exception):
     """A pack that cannot be read as an editor pack, with the reason."""
+
+
+def _editor_image(pack: Path, name: object, cap: int) -> bytes:
+    """Crew's declared filename, no-link capped read, and looksLike signature check.
+
+    Return the checked bytes so staging never reopens a path after validating it. A bad cosmetic
+    raises PackError locally; editor_card_fields turns it into an advisory problem, never a refusal.
+    """
+    # Check the declared leaf before Path normalizes dot components: crew's extname("image.svg/.")
+    # is empty, even though Path would collapse that name to image.svg. Trailing slashes are ignored.
+    if (not isinstance(name, str) or not _EDITOR_IMAGE_RE.fullmatch(name) or ".." in name.split("/")
+            or Path(name.rstrip("/").rsplit("/", 1)[-1]).suffix.lower() not in (".svg", ".png", ".webp")):
+        raise PackError("must name a pack-relative .svg, .png or .webp image (1-121 filename characters, no '..')")
+    root = pack.resolve()
+    at = root
+    parts = Path(name).parts
+    for i, part in enumerate(parts):
+        at = at / part
+        meta = at.lstat()
+        if stat.S_ISLNK(meta.st_mode):
+            raise PackError(f"{name}: a symlink is not followed")
+        if i < len(parts) - 1 and not stat.S_ISDIR(meta.st_mode):
+            raise PackError(f"{name}: {part} is not a directory")
+    if not stat.S_ISREG(meta.st_mode):
+        raise PackError(f"{name}: not a real file")
+    if meta.st_size > cap:
+        raise PackError(f"{name}: over its {cap}-byte cap")
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
+    with os.fdopen(os.open(at, flags), "rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if (not stat.S_ISREG(opened.st_mode) or opened.st_dev != meta.st_dev or opened.st_ino != meta.st_ino
+                or opened.st_size > cap):
+            raise PackError(f"{name}: over its {cap}-byte cap, or changed while it was read")
+        body = stream.read(cap + 1)
+    if len(body) > cap:
+        raise PackError(f"{name}: over its {cap}-byte cap, or changed while it was read")
+    ext = at.suffix.lower()
+    if ext == ".png":
+        matches = body.startswith(b"\x89PNG\r\n\x1a\n")
+    elif ext == ".webp":
+        matches = body[:4] == b"RIFF" and body[8:12] == b"WEBP"
+    else:
+        head = body[:512].decode("utf-8", "replace").removeprefix("\ufeff").lstrip(_JS_SPACE)
+        matches = bool(_SVG_HEAD_RE.match(head))
+    if not matches:
+        raise PackError(f"{name}: not a {ext[1:]} image")
+    return body
+
+
+def editor_card_fields(pack: Path, editor: dict) -> tuple[list[tuple[str, bytes]], list[str]]:
+    """Accepted image bytes and advisory problems for an editor's cosmetic fields.
+
+    Mirrors crew's declaredDescription / declaredVisuals / imageDataUrl, field by field. Nothing
+    mutates the manifest: crew collapses/truncates the displayed description and drops bad visuals.
+    Check emits PK089 for the problems; install stages only these same accepted image bytes.
+    """
+    images: dict[str, bytes] = {}
+    problems: list[str] = []
+    if "description" in editor:
+        raw = editor["description"]
+        line = _JS_SPACE_RE.sub(" ", raw).strip(" ") if isinstance(raw, str) else ""
+        if not isinstance(raw, str) or not line:
+            problems.append("description must be a nonempty string after whitespace is collapsed")
+        elif len(line.encode("utf-16-le", "surrogatepass")) // 2 > EDITOR_DESCRIPTION_CHARS:
+            problems.append(f"description is over {EDITOR_DESCRIPTION_CHARS} characters after whitespace is collapsed; crew truncates it")
+    if "visuals" not in editor:
+        return [], problems
+    visuals = editor["visuals"]
+    if not isinstance(visuals, dict):
+        return [], problems + ["visuals must be an object with icon, color, preview or live"]
+
+    def image(field: str, name: object, cap: int) -> None:
+        try:
+            body = _editor_image(pack, name, cap)
+        except (PackError, OSError) as exc:
+            problems.append(f"visuals.{field}: {exc}")
+        else:
+            images[name] = body
+
+    # crew drops an unknown key silently; the author is told here, so a typo ("colour") is not lost unnoticed.
+    for key in sorted(k for k in visuals if k not in ("icon", "color", "preview", "live")):
+        problems.append(f"visuals has an unknown field {key!r} (fields: icon, color, preview, live)")
+    if "icon" in visuals:
+        image("icon", visuals["icon"], EDITOR_ICON_CAP)
+    if "color" in visuals and (not isinstance(visuals["color"], str) or not _EDITOR_COLOR_RE.fullmatch(visuals["color"])):
+        problems.append("visuals.color must be #rrggbb")
+    if "live" in visuals and not isinstance(visuals["live"], bool):
+        problems.append("visuals.live must be boolean")
+    if "preview" in visuals:
+        preview = visuals["preview"]
+        if isinstance(preview, str):
+            image("preview", preview, EDITOR_PREVIEW_CAP)
+        elif isinstance(preview, dict):
+            for key in sorted(k for k in preview if k not in ("light", "dark")):
+                problems.append(f"visuals.preview has an unknown field {key!r} (fields: light, dark)")
+            if "light" not in preview and "dark" not in preview:
+                problems.append("visuals.preview must name a light and/or a dark image")
+            for theme in ("light", "dark"):
+                if theme in preview:
+                    image("preview." + theme, preview[theme], EDITOR_PREVIEW_CAP)
+        else:
+            problems.append("visuals.preview must name an image or be an object with light and/or dark images")
+    return list(images.items()), problems
 
 
 def _no_constant(name: str):

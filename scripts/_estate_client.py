@@ -1400,12 +1400,39 @@ def _worktree_main(git_file: Path) -> Optional[Path]:
     return common.parent
 
 
+# Where the engine puts a run's worktree under its repository (wicked-core `repo.rs`
+# `worktrees_root` / `legacy_worktrees_root`): ``<repo>/wicked-worktrees/<run id>``, or
+# ``<repo>/.wicked/worktrees/<run id>`` for a run created before crew#276.
+_RUN_WORKTREE_PARENTS = (("wicked-worktrees",), (".wicked", "worktrees"))
+
+
+def _run_worktree_repo(d: Path) -> Optional[Path]:
+    """The repository a run worktree at ``d`` belongs to, by the engine's layout; else None.
+
+    garden#1519: the layout, not the ``.git`` entry, says whose checkout this is. A seat on the
+    k8s floor works in a replica of the worktree whose ``.git`` is the replica's own directory
+    (no ``gitdir:`` pointer), so the worktree dir, named by the run id, would pass for the repo.
+    """
+    for parts in _RUN_WORKTREE_PARENTS:
+        up = d.parent
+        for name in reversed(parts):
+            if up.name != name:
+                break
+            up = up.parent
+        else:
+            if up != up.parent and up.name:
+                return up
+    return None
+
+
 def checkout_root() -> Optional[Path]:
     """The git checkout the cwd is in, resolved through linked worktrees.
 
     Walks up to the nearest ``.git``. A linked worktree's ``.git`` is a file
     (``gitdir: <main>/.git/worktrees/<name>``): its project is the MAIN checkout,
-    so a run worktree shares the repo's memories. None outside any checkout.
+    so a run worktree shares the repo's memories. A run worktree at the engine's
+    ``<repo>/wicked-worktrees/<run id>`` resolves to ``<repo>`` whatever its ``.git``
+    is (a floor replica's is a plain directory). None outside any checkout.
     """
     try:
         here = Path.cwd().resolve()
@@ -1414,9 +1441,9 @@ def checkout_root() -> Optional[Path]:
     for d in (here, *here.parents):
         git = d / ".git"
         if git.is_dir():
-            return d
+            return _run_worktree_repo(d) or d
         if git.is_file():
-            return _worktree_main(git) or d
+            return _worktree_main(git) or _run_worktree_repo(d) or d
     return None
 
 
@@ -1425,7 +1452,8 @@ def project_scope() -> str:
 
     ``WICKED_ESTATE_MEMORY_SCOPE`` (the configured project) wins; else
     ``project:<checkout name>`` from :func:`checkout_root` (stable across
-    subdirectories and worktrees); else ``project:<cwd-basename>``. Two
+    subdirectories and worktrees); else ``project:<WICKED_RUN_PROJECT>`` when
+    non-blank, falling back to ``project:<cwd-basename>``. Two
     unrelated checkouts with the same name share a scope unless one is
     configured. Recall sees this scope plus its ancestors (root-scoped
     memories included); every project is the explicit ``scope_prefix: ""``.
@@ -1435,7 +1463,9 @@ def project_scope() -> str:
         return pinned
     root = checkout_root()
     try:
-        name = (root.name if root else Path.cwd().name) or "unknown"
+        name = (
+            root.name if root else os.environ.get(RUN_PROJECT_ENV, "").strip() or Path.cwd().name
+        ) or "unknown"
     except OSError:
         name = "unknown"
     return f"project:{name}"

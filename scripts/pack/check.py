@@ -61,6 +61,7 @@ Rule codes
   PK086  plugin observe malformed (invalid §C2 topic pattern, duplicate topic, missing or oversized why)
   PK087  plugin panels malformed (slot, id, title, instances, order, defaultOpen, summary)
   PK088  plugin visuals or samples malformed (color, missing or oversized .svg icon or .ndjson samples)
+  PK089  editor description or visuals malformed (cosmetic; the pack still passes) [warn]
 
 stdlib-only. Imports the manifest loader from scripts/_pack_registry.py
 (same package layout in the repo, the npm tarball, and the installed
@@ -84,7 +85,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from _skill_meta import skill_role, split_frontmatter  # noqa: E402
-from editor._pack import ICON_CAP, SAMPLES_CAP, valid_core_event, valid_topic_pattern  # noqa: E402
+from editor._pack import ICON_CAP, SAMPLES_CAP, editor_card_fields, valid_core_event, valid_topic_pattern  # noqa: E402
 from editor._surfaces import check_declaration  # noqa: E402
 from _pack_registry import (  # noqa: E402
     MANIFEST_NAME,
@@ -129,7 +130,7 @@ EDITOR_PERMISSIONS = (
     "artifact.theme",
 )
 _EDITOR_FIELDS = {"id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "panels",
-                  "permissions", "limits", "surfaces"}
+                  "permissions", "limits", "surfaces", "description", "visuals"}
 _EDITOR_REQUIRED = ("id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "permissions")
 _PLUGIN_FIELDS = {"id", "title", "version", "protocol", "inline", "entry", "sha256", "description",
                   "observe", "panels", "visuals", "samples", "limits"}
@@ -459,7 +460,7 @@ def _valid_plugin_title(val: object) -> bool:
     )
 
 
-def _check_editors(manifest: dict, pack_root: Path, seen_ids: set, err) -> None:
+def _check_editors(manifest: dict, pack_root: Path, seen_ids: set, err, warn) -> None:
     editors = manifest.get("editors")
     if editors is None:
         return
@@ -474,6 +475,9 @@ def _check_editors(manifest: dict, pack_root: Path, seen_ids: set, err) -> None:
         eid = ed.get("id")
         if isinstance(eid, str):
             where = f"{MANIFEST_NAME} editor {eid!r}"
+        _, cosmetic_problems = editor_card_fields(pack_root, ed)
+        for problem in cosmetic_problems:
+            warn("PK089", where, problem)
         for key in sorted(set(ed) - _EDITOR_FIELDS):
             err("PK060", where, f"unknown field {key!r} (spec 2 editor fields: {', '.join(sorted(_EDITOR_FIELDS))})")
         for key in _EDITOR_REQUIRED:
@@ -789,7 +793,7 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
 
     # ---- manifest spec 2: editors + plugins (no skills needed, one id namespace) ----
     seen_ext_ids: set = set()
-    _check_editors(manifest, pack_root, seen_ext_ids, err)
+    _check_editors(manifest, pack_root, seen_ext_ids, err, warn)
     _check_plugins(manifest, pack_root, seen_ext_ids, err)
 
     vendor = str(manifest.get("vendor", ""))

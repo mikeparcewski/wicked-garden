@@ -21,6 +21,47 @@ fails the run, with one exception: a `quote-not-found-in-pdf-text` where you rea
 is there (the text extraction lost it). Say so for that source id. With no launcher or no Python, walk
 refs/report-claims.md's manual alternative and say you did.
 
+The floor reads CommonMark links and images, reference definitions and GFM autolinks before
+comparing destinations. Accepted citations use literal `<url>`, `[title](url)` or
+`[title](<url>)`, or reference links with a `[ref]: <url>` definition without a title. A bare destination
+containing parentheses must use angle brackets. Titles, whitespace or control characters (raw or
+decoded), non-http(s) destinations, email addresses, `www.` addresses and bare URLs produce
+`url-form`. A backslash or an `&...;` reference anywhere inside an accepted destination, including
+its fragment, is refused: write the percent-encoded form that the reader opens.
+
+Independent lexical sweeps refuse plain `http://`, `https://` and `ftp://` URLs anywhere in the text,
+code spans and code blocks included. Outside code spans and code blocks they also refuse email
+addresses (`name@domain.tld`, which includes a package pin such as `pkg@1.2.3`), encoded `@`
+characters and raw HTML. Code renders as text, so `` `Vec<String>` ``, `` `<?xml ...?>` `` and
+`` `npm i lodash@4.17.21` `` pass; in code only the link-bearing tags `a`, `img`, `iframe`, `link`,
+`area` and `form` are refused (`a raw HTML link`). An indented line that continues a paragraph is
+paragraph text, not code. Any character reference that decodes
+to `@` (`&commat;`, `&#64;`, `&#x40;`, including leading zeros and either hex case) produces
+`url-form` with reason `an encoded @`. The email and encoded-`@` sweeps exempt only parsed,
+accepted HTTP(S) destination spans. Raw HTML means every `<!` or `<?` construct and every ASCII-named tag, even when the
+floor cannot read its attributes. The sole exceptions are attribute-less `br`, `sup`, `sub`, `b`,
+`i`, `em`, `strong`, `kbd`, `code`, `s`, `u`, `mark`, `small`, `details`, `summary`, `p`, `span` and
+`div` tags, in exactly the forms `<x>`, `</x>`, `<x/>` and `<x />` (ASCII case-insensitive).
+Scheme autolinks such as `<https://example.org/page>` are still parsed as links.
+
+A fail-closed lexical backstop also checks the whole normalised text, including code, independently
+of the parser's block boundaries. Every `](` must lead to an accepted inline link/image destination,
+or produces `url-form` with reason `link syntax the floor did not read`. A `]:` is a candidate
+reference definition when the last unescaped `[` within 1000 characters, with no unescaped `]`
+after it, starts its line after only spaces,
+tabs, quote markers or list markers followed by whitespace, or when a line ending separates that
+`[` from the `]:`. It must lead to an accepted definition, or produces `a reference definition the
+floor did not read`. Thus `see [C1]: the result` in prose is allowed, and a label with an escaped
+bracket (`[a\[b]: /x`) is still a candidate. Both checks skip spaces/tabs,
+at most one line ending, more spaces/tabs and an optional `<` before checking the destination start.
+Every `<` followed by a URI scheme must also start an accepted angle destination (including inline
+links and definitions), or produces `an autolink the floor did not read`. Each sweep is linear.
+
+Code spans containing `www.unlogged.invalid` remain text, but even a code span containing
+`[x](/evil)` is refused by the syntax backstop. Every accepted destination must match the source log exactly
+apart from scheme/hostname case and the fragment; the fragment still undergoes the spelling and
+character checks above.
+
 ## 2. Re-check every claim at its source
 
 | Source kind | How you re-check it |

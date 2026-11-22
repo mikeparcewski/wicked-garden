@@ -12,7 +12,9 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/.git/dist; ``--dir`` names it.
 2. **Stage** into ``<root>/<name>/next/`` (root: ``--install-root``, ``$WICKED_EDITOR_INSTALL_ROOT``,
    else ``~/.wicked/editors``, a program-owned place): ``wicked-pack.json``, every editor's entry
-   file at its manifest path, and the README. Nothing else of the tree is copied (an editor is ONE
+   file and its accepted declared card images at their manifest paths, and the README. Malformed
+   cosmetic images are skipped, as in pack check (PK089); they never refuse an install. Nothing else
+   of the tree is copied (an editor is ONE
    self-contained file; a pack with skills or blocks is refused by the daemon until their approval
    step exists).
 3. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``.
@@ -27,10 +29,13 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch on in studio Settings
 → Developer → Editor plugins. Both write the same places, all program-owned. ``--dry-run`` writes
 nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices": [{"id", "label",
-"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": []}``. An editor that
+"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": [],
+"asks"?: [{"editor", "permission", "why"}]}``. An editor that
 declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
 "This plugin can start and talk to MCP servers", with the exact per-build token the install writes
 (``editor:<id>@<version>#<sha256>/mcp.session``). The install consent is that grant; no rule allows it.
+``asks`` lists the other declared permissions, the ones a person allows later in Plugins; a permission the
+install itself grants (``INSTALL_GRANTED``) is a write row above and never an ask.
 
 **The approval is bound to the plan.** Each choice id carries a digest of the planned
 ``wicked-pack.json`` bytes, the same bytes the plan's lines were read from (``daemon_<d>``,
@@ -63,7 +68,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _pack import (  # noqa: E402
-    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, entry_path, find_editor_packs,
+    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editor_card_fields, entry_path, find_editor_packs,
     pack_entries_of, plugin_extra_paths, read_manifest,
 )
 
@@ -74,6 +79,9 @@ TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGES
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
+PLAN_ASKS_CAP = 64
+PLAN_ID_CHARS = 200
+PLAN_WHY_CHARS = 300
 
 
 class Failure(Exception):
@@ -176,6 +184,13 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
         copied.append(e["entry"])
+        images, _ = editor_card_fields(pack, e)
+        for rel_str, body in images:
+            extra_dest = next_dir / Path(*rel_str.split("/"))
+            extra_dest.parent.mkdir(parents=True, exist_ok=True)
+            extra_dest.write_bytes(body)
+            if rel_str not in copied:
+                copied.append(rel_str)
     for p in plugins:
         source = entry_path(pack, p, kind="plugin")
         dest = (next_dir / Path(*p["entry"].split("/"))).resolve()
@@ -254,6 +269,27 @@ def install_grants(manifest: dict) -> list[dict]:
     return rows
 
 
+def permission_asks(entries: list[dict]) -> list[dict]:
+    """Bounded, informational permission rows in manifest order; these grant nothing. A permission the install
+    consent itself grants (``INSTALL_GRANTED``, e.g. ``mcp.session``) is left out: it has no Plugins switch, and
+    the plan already shows it as an ``EDITOR-GRANTS`` write row (``install_grants``)."""
+    rows = []
+    for entry in entries:
+        permissions = entry.get("permissions") if isinstance(entry, dict) else None
+        for permission in permissions if isinstance(permissions, list) else []:
+            if not isinstance(permission, dict) or not isinstance(permission.get("id"), str):
+                continue
+            if permission["id"] in INSTALL_GRANTED:
+                continue
+            why = permission.get("why", permission.get("reason", ""))
+            rows.append({"editor": str(entry.get("id", ""))[:PLAN_ID_CHARS],
+                         "permission": permission["id"][:PLAN_ID_CHARS],
+                         "why": why[:PLAN_WHY_CHARS] if isinstance(why, str) else ""})
+            if len(rows) == PLAN_ASKS_CAP:
+                return rows
+    return rows
+
+
 def plan_digest(raw: bytes) -> str:
     """The manifest bytes' sha256 as base64url, cut to fit a choice id: what the plan showed (permissions,
     version, entry hashes)."""
@@ -283,7 +319,7 @@ def do_plan(args) -> dict:
     origin = crew_origin(args.crew_url)
     key_root = Path(os.path.abspath(root / key))
     editors, plugins = pack_entries_of(manifest)
-    writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack (program-owned)",
+    writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack, including accepted declared card images (program-owned)",
                "operator_owned": False}]
     if (key_root / "current").exists():
         writes.append({"path": str(key_root / "previous"), "what": "the copy installed now, kept for a roll-back",
@@ -298,6 +334,9 @@ def do_plan(args) -> dict:
         {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
         {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
         "skipped": []}
+    asks = permission_asks(editors + plugins)
+    if asks:
+        plan["asks"] = asks
     if plugins:
         plan["plugins"] = [
             {

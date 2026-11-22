@@ -34,8 +34,24 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
 - claims: a bad or duplicate ``C<n>`` id, empty text, no source (``claim-unsourced``), a source id the
   log does not hold (``claim-unknown-source``);
 - the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
-  cites; a URL (in the report or in a claim) not written as ``<url>`` or ``[title](url)``, or carrying an
-  escape or character reference, or any other link form (``url-form``); a URL that is not exactly a web
+  cites; a URL (in the report or in a claim) outside the literal ``<url>``, ``[title](url)`` or
+  ``[title](<url>)`` forms, or a reference whose definition is not ``[ref]: <url>`` without a title.
+  CommonMark links/images and GFM autolinks are parsed before enforcing these rules;
+  titles, whitespace/controls, backslashes or ``&...;`` references anywhere in a destination
+  (including its fragment), non-web destinations, email links, bare and ``www.`` URLs are refused
+  (``url-form``). Independent lexical sweeps refuse plain ``http(s)://`` and ``ftp://`` URLs (in
+  code too), and, outside code spans and code blocks, email addresses, an encoded ``@``
+  (``&commat;``, decimal or hexadecimal references, including leading zeros), and raw HTML except
+  the exact attribute-less formatting tags documented in refs/report-check.md; in code only the
+  link-bearing tags (``a``, ``img``, ``iframe``, ``link``, ``area``, ``form``) are refused.
+  Email and encoded-``@`` sweeps exempt accepted HTTP(S) destination spans. A fail-closed lexical
+  backstop checks all normalised text, including code: every ``](``, candidate reference definition
+  ``]:`` and ``<scheme:`` must lead to an accepted destination. Reference candidates start at a
+  line's container prefix or have a multiline label, with the last unescaped ``[`` within 1000 characters;
+  prose such as ``see [C1]: the result`` is not a candidate. Destination starts allow spaces/tabs,
+  at most one line ending and an optional ``<``. Thus even non-rendered link syntax is refused
+  when the floor did not accept its destination.
+  A URL that is not exactly a web
   source in the log, its fragment aside (``url-not-in-log``);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
@@ -57,6 +73,11 @@ import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
+
+try:
+    from scripts.learn._md_links import _read, normalise
+except ModuleNotFoundError:  # Direct invocation from scripts/learn.
+    from _md_links import _read, normalise
 
 # The six lenses (refs/report-<lens>.md) and their documents rule (DES-CATALOG-002 rev 8 §3, ruling 5):
 # crew's catalog holds Start for a required input; this is the same rule, checked again by the seat.
@@ -82,26 +103,34 @@ SOURCE_ID_RE = re.compile(r"^S[1-9]\d{0,5}$")
 CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
 # Any citation group, ids of any length: an id the claims cannot hold is reported, never skipped.
 CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
-# A URL is written in one of two delimited forms, read exactly: ``<url>`` (also ``[title](<url>)``), up to
-# the ``>``; or a markdown destination ``[title](url)``, up to the ``)``, with no parenthesis, space or
-# angle bracket inside. Anything else (a bare URL, a link with a title) is refused as ``url-form``: no
-# punctuation is ever trimmed, so what is checked is exactly what a reader opens.
-URL_START_RE = re.compile(r"https?://", re.IGNORECASE)
-URL_MAX_CHARS = 64 * 1024  # a signed or token URL can be long; past this it is refused, not truncated
-# What a renderer would decode or link that the floor does not read: a backslash escape or a character
-# reference inside a URL, a link destination or autolink that does not start with http(s)://, a
-# reference definition not in angle form, a www. autolink, raw HTML links. Each is refused as url-form.
-URL_ESCAPE_RE = re.compile(r"\\|&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);")
-LINKISH_RES = (
-    (re.compile(r"\]\((?!\s*<?https?://)", re.IGNORECASE), "a link destination that is not http(s)://"),
-    (re.compile(r"<(?!https?://)[A-Za-z][A-Za-z0-9+.-]*:", re.IGNORECASE), "an autolink that is not http(s)://"),
-    # Inside a blockquote or a list item too (CommonMark containers).
-    (re.compile(r"^[ \t]*(?:(?:>|[*+-]|\d{1,9}[.)])[ \t]*)*\[[^\]\n]+\]:(?![ \t]*<https?://[^>\s]*>[ \t]*$)",
-                re.IGNORECASE | re.MULTILINE),
-     "a reference definition not written as [ref]: <url>, with no title"),
-    (re.compile(r"(?<![/A-Za-z0-9.@-])www\.", re.IGNORECASE), "a www. address"),
-    (re.compile(r"<(?:a|img|iframe|link|area|form)\b[^>]*>", re.IGNORECASE), "a raw HTML link"),
+# Parsed destinations are compared literally; a separate sweep refuses plain URLs,
+# including URLs in code. URL starts inside another destination are part of it.
+URL_START_RE = re.compile(r"(?:https?|ftp)://", re.IGNORECASE | re.ASCII)  # some renderers link ftp://
+# Unicode White_Space plus C0/C1 controls, deliberately stricter than the
+# CommonMark grammar. Check before urlsplit, which silently removes controls.
+URL_BAD_CHAR_RE = re.compile(
+    r"[\x00-\x20\x7f-\x9f\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]"
 )
+URL_ESCAPE_RE = re.compile(r"\\|&[^&;\x00-\x20]*;")
+# Detect tag prefixes without interpreting attributes or HTML token boundaries.
+# Refusing incomplete tags too is intentional: browser repair is outside the floor.
+RAW_HTML_RE = re.compile(r"<!|<\?|</?[A-Za-z][A-Za-z0-9-]*(?=[\x09-\x0d />])")
+# Inside a code span or block raw HTML is text; these link-bearing tags are refused there too, as before #1427.
+CODE_HTML_LINK_RE = re.compile(r"<(?:a|img|iframe|link|area|form)(?![A-Za-z0-9-])", re.IGNORECASE | re.ASCII)
+SAFE_HTML_NAMES = "br|sup|sub|b|i|em|strong|kbd|code|s|u|mark|small|details|summary|p|span|div"
+SAFE_HTML_RE = re.compile(
+    r"<(?:" + SAFE_HTML_NAMES + r")(?:>| ?/>)|</(?:" + SAFE_HTML_NAMES + r")>",
+    re.IGNORECASE | re.ASCII,
+)
+EMAIL_LOCAL = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-")
+EMAIL_DOMAIN_RE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+")
+ENCODED_AT_RE = re.compile(r"&(?:commat|#0*64|#[xX]0*40);")
+DESTINATION_START_RE = re.compile(r"[ \t]*(?:\n[ \t]*)?<?")
+SCHEME_AUTOLINK_RE = re.compile(r"<[A-Za-z][A-Za-z0-9+.-]{1,31}:")
+# Match each line's eligible definition prefix once. Alternatives begin with
+# distinct characters, and marker whitespace cannot cross a line boundary.
+REFERENCE_PREFIX_RE = re.compile(r"(?:[ \t>]|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)*")
+URL_MAX_CHARS = 64 * 1024
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
 TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml",
@@ -143,8 +172,10 @@ def _iso(v: object) -> datetime | None:
 def norm_url(url: str) -> str | None:
     """The scheme and hostname lowercased and the fragment dropped; everything else (user information,
     port, path, params, query) is kept exactly as written."""
+    if URL_BAD_CHAR_RE.search(url):
+        return None
     try:
-        p = urlsplit(url.strip())
+        p = urlsplit(url)
         p.port  # noqa: B018  (raises ValueError on a malformed authority)
     except ValueError:
         return None
@@ -153,51 +184,178 @@ def norm_url(url: str) -> str | None:
     userinfo, _, hostport = p.netloc.rpartition("@")
     host, colon, port = hostport.rpartition(":") if not hostport.endswith("]") and ":" in hostport else (hostport, "", "")
     netloc = (userinfo + "@" if _ else "") + host.lower() + colon + port
-    rest = url.strip()[len(p.scheme) + 3 + len(p.netloc):].split("#", 1)[0]
+    rest = url[len(p.scheme) + 3 + len(p.netloc):].split("#", 1)[0]
     return f"{p.scheme.lower()}://{netloc}{rest}"
 
 
-def urls_in(text: str) -> list[tuple[str | None, str]]:
-    """Every URL in the text as ``(url, snippet)``; ``url`` is ``None`` when it is not written in one of
-    the two delimited forms, or the text links somewhere the floor does not read (``LINKISH_RES``). Each
-    URL is read once, forward, at most ``URL_MAX_CHARS`` characters; a URL start inside a URL already
-    read (a query parameter) is part of it."""
-    text = text or ""
-    out: list[tuple[str | None, str]] = []
-    spans: list[tuple[int, int]] = []  # the URLs read, in order: matches inside them are part of them
-    covered = 0
-    for m in URL_START_RE.finditer(text):
-        i = m.start()
-        if i < covered:
+def _link_syntax_backstop(text: str, starts: dict[str, set[int]]) -> list[tuple[None, str]]:
+    """Refuse unread syntax in the whole text, independent of block parsing.
+
+    The sweeps are linear: destination whitespace contains no syntax starts;
+    definition prefixes are read once per line and the last '[' is tracked.
+    """
+    out: list[tuple[None, str]] = []
+
+    def refuse(pos: int, reason: str) -> None:
+        out.append((None, text[pos:pos + 80] + f" ({reason})"))
+
+    for m in re.finditer(r"\]\(", text):
+        destination = DESTINATION_START_RE.match(text, m.end()).end()
+        if destination not in starts["inline"]:
+            refuse(m.start(), "link syntax the floor did not read")
+
+    line_start = 0
+    prefix_end = REFERENCE_PREFIX_RE.match(text).end()
+    last_open = -1
+    starts_line = False
+    for m in re.finditer(r"\n|\[|\]:?", text):
+        if m[0] == "\n":
+            line_start = m.end()
+            prefix_end = REFERENCE_PREFIX_RE.match(text, line_start).end()
             continue
-        window = text[i:i + URL_MAX_CHARS + 1]
-        url = None
-        if i >= 1 and text[i - 1] == "<":
-            j = window.find(">")
-            in_link = text[max(0, i - 3):i - 1] == "]("
-            if (j > 0 and not any(c.isspace() or c == "<" for c in window[:j])
-                    and (not in_link or window[j + 1:j + 2] == ")")):
-                url = window[:j]
-        elif i >= 2 and text[i - 2:i] == "](":
-            j = window.find(")")
-            if j > 0 and not any(c.isspace() or c in "(<>" for c in window[:j]):
-                url = window[:j]
-        if url is None:
-            out.append((None, window[:80]))
+        # An escaped bracket is label text (`[a\[b]: x`, `[a\]b]: x`). Each backslash run precedes
+        # one bracket, so counting it keeps the sweep linear.
+        slashes = 0
+        while m.start() - slashes > 0 and text[m.start() - slashes - 1] == "\\":
+            slashes += 1
+        if m[0] == "]":
+            if not slashes % 2:
+                last_open = -1  # an unescaped ']' closes the bracket; a label holds none
             continue
-        covered = i + len(url)
-        spans.append((i, covered))
-        if URL_ESCAPE_RE.search(url):
-            out.append((None, url[:80] + " (an escape or character reference: write the URL as the reader opens it)"))
-        else:
-            out.append((url, url))
-    starts = [a for a, _ in spans]
-    for rx, what in LINKISH_RES:
-        for m in rx.finditer(text):
-            k = bisect.bisect_right(starts, m.start()) - 1
-            if k >= 0 and spans[k][0] <= m.start() < spans[k][1]:
+        if m[0] == "[":
+            if slashes % 2:
                 continue
-            out.append((None, f"{text[m.start():m.start() + 60]} ({what})"))
+            last_open = m.start()
+            starts_line = last_open == prefix_end
+        elif (last_open >= 0 and m.start() - last_open <= 1000
+              and (starts_line or last_open < line_start)):
+            destination = DESTINATION_START_RE.match(text, m.end()).end()
+            if destination not in starts["reference"]:
+                refuse(last_open, "a reference definition the floor did not read")
+
+    for m in SCHEME_AUTOLINK_RE.finditer(text):
+        # Angle inline destinations and definitions also have <scheme: syntax.
+        if m.start() + 1 not in starts["angle"]:
+            refuse(m.start(), "an autolink the floor did not read")
+    return out
+
+
+def urls_in(text: str) -> list[tuple[str | None, str]]:
+    """Compare rendered destinations and fail closed on unread lexical link syntax.
+
+    Whole-text sweeps include code, encoded '@', and candidate definitions;
+    only accepted HTTP(S) spans exempt email/encoded-'@' spellings.
+    """
+    text = normalise(text or "")
+    code: list[tuple[int, int]] = []
+    links, definitions = _read(text, code)
+    code_spans: list[tuple[int, int]] = []
+    for a, b in sorted(code):
+        if code_spans and a <= code_spans[-1][1]:
+            code_spans[-1] = (code_spans[-1][0], max(b, code_spans[-1][1]))
+        else:
+            code_spans.append((a, b))
+    code_starts = [a for a, _ in code_spans]
+
+    def in_code(pos: int) -> bool:
+        k = bisect.bisect_right(code_starts, pos) - 1
+        return k >= 0 and pos < code_spans[k][1]
+    # Definitions are checked even when unused, as in the original floor. Their
+    # spans also prevent the plain sweep from re-reading a destination.
+    links += definitions
+    out: list[tuple[str | None, str]] = []
+    spans = sorted({(link.start, link.end) for link in links})
+    # Merge overlapping spans for a linear sweep (references share definition spans).
+    merged: list[tuple[int, int]] = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(b, merged[-1][1]))
+        else:
+            merged.append((a, b))
+    seen = set()
+    accepted: set[tuple[int, int]] = set()
+    starts: dict[str, set[int]] = {kind: set() for kind in ("inline", "reference", "angle")}
+    for link in links:
+        key = (link.kind, link.start, link.end, link.title, link.angle)
+        if key in seen:
+            continue
+        seen.add(key)
+        reason = None
+        if link.kind == "html":
+            reason = "a raw HTML link"
+        elif URL_BAD_CHAR_RE.search(link.raw) or URL_BAD_CHAR_RE.search(link.destination):
+            reason = "whitespace or a control character in a destination"
+        elif link.kind == "email-autolink" or link.destination.lower().startswith("mailto:"):
+            reason = "an email autolink"
+        elif link.kind == "gfm-autolink":
+            reason = "a www. address" if link.raw.lower().startswith("www.") else "a bare URL"
+        elif not link.destination.lower().startswith(("http://", "https://")):
+            reason = "a link destination that is not http(s)://"
+        elif link.raw != link.destination or URL_ESCAPE_RE.search(link.raw):
+            reason = "an escape or character reference: write the URL as the reader opens it"
+        elif link.title:
+            reason = "a link with a title"
+        elif link.kind == "reference" and not link.angle:
+            reason = "a reference definition not written as [ref]: <url>, with no title"
+        elif link.kind == "inline" and not link.angle and any(c in "()" for c in link.raw):
+            reason = "a URL with parentheses: write the destination in angle brackets"
+        elif len(link.raw) > URL_MAX_CHARS:
+            reason = "a URL past the length limit"
+        if reason:
+            out.append((None, f"{link.raw[:80]} ({reason})"))
+        else:
+            accepted.add((link.start, link.end))
+            if link.kind in starts:
+                starts[link.kind].add(link.start)
+            if link.angle:
+                starts["angle"].add(link.start)
+            out.append((link.destination, link.destination))
+    # The raw-HTML, encoded-@ and email sweeps skip code spans and code blocks, which render as text
+    # (`Vec<String>`, `<?xml`, `lodash@4.17.21`); a link-bearing tag is refused in code too. Outside code
+    # they never depend on an attribute-name list or Markdown's HTML token boundaries.
+    for m in RAW_HTML_RE.finditer(text):
+        if in_code(m.start()):
+            if CODE_HTML_LINK_RE.match(text, m.start()):
+                out.append((None, text[m.start():m.start() + 80] + " (a raw HTML link)"))
+            continue
+        if not SAFE_HTML_RE.match(text, m.start()):
+            out.append((None, text[m.start():m.start() + 80] + " (raw HTML the floor does not read)"))
+    accepted_spans = sorted(accepted)
+    cursor = 0
+    for m in ENCODED_AT_RE.finditer(text):
+        while cursor < len(accepted_spans) and accepted_spans[cursor][1] <= m.start():
+            cursor += 1
+        if (cursor < len(accepted_spans)
+                and accepted_spans[cursor][0] <= m.start() < accepted_spans[cursor][1]):
+            continue
+        if not in_code(m.start()):
+            out.append((None, m[0][:80] + " (an encoded @)"))
+    out.extend(_link_syntax_backstop(text, starts))
+    cursor = 0
+    # Searching the full email regex at every character is quadratic on long
+    # local-part runs without '@'. Anchor each match at its actual '@' instead.
+    for m in re.finditer("@", text):
+        at = m.start()
+        while cursor < len(accepted_spans) and accepted_spans[cursor][1] <= at:
+            cursor += 1
+        if (cursor < len(accepted_spans)
+                and accepted_spans[cursor][0] <= at < accepted_spans[cursor][1]):
+            continue
+        if at == 0 or text[at - 1] not in EMAIL_LOCAL or in_code(at):
+            continue
+        domain = EMAIL_DOMAIN_RE.match(text, at + 1)
+        if domain is not None:
+            start = at - 1
+            while start > 0 and text[start - 1] in EMAIL_LOCAL:
+                start -= 1
+            out.append((None, text[start:min(domain.end(), start + 80)] + " (an email address)"))
+    cursor = 0
+    for m in URL_START_RE.finditer(text):
+        while cursor < len(merged) and merged[cursor][1] <= m.start():
+            cursor += 1
+        if cursor < len(merged) and merged[cursor][0] <= m.start() < merged[cursor][1]:
+            continue
+        out.append((None, text[m.start():m.start() + 80]))
     return out
 
 

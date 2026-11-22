@@ -20,6 +20,7 @@ import { loadChromium } from "./_playwright.mjs";
 import { armGuard, armPolicy, underPath } from "./readonly.mjs";
 import { CAPTURE, FPS } from "./postprocess.mjs";
 import { NEUTRAL_PALETTE } from "./palette.mjs";
+import { placeLabel } from "./label-place.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -157,9 +158,11 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 #hl{position:absolute;border-radius:12px;border:3px solid var(--brand);box-shadow:0 0 0 7px var(--brand-soft),0 10px 30px -10px var(--brand-glow);opacity:0;
  transition:opacity .35s,left .45s,top .45s,width .45s,height .45s;pointer-events:none;z-index:20}
 #hl.on{opacity:1}
-#hl span{position:absolute;left:-3px;bottom:calc(100% + 9px);white-space:nowrap;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;padding:6px 11px;border-radius:8px;
+#hl span,#hlm{position:absolute;left:-3px;bottom:calc(100% + 9px);white-space:nowrap;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;padding:6px 11px;border-radius:8px;
  box-shadow:0 6px 18px -6px rgba(0,0,0,.35)}
+#hlm{visibility:hidden;pointer-events:none}
 #hl.below span{bottom:auto;top:calc(100% + 9px)}
+#hl.right span{bottom:auto;left:calc(100% + 9px);top:50%;transform:translateY(-50%)}
 #cur{position:absolute;left:0;top:0;width:26px;height:26px;z-index:40;pointer-events:none;transition:transform .7s cubic-bezier(.25,.8,.25,1),opacity .3s;opacity:0}
 #cur.on{opacity:1}#cur svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
 .rip{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2.5px solid var(--brand);background:var(--brand-soft);z-index:39;
@@ -190,6 +193,7 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 <div id="band"><div id="cap"></div><div id="brand"><div class="lk">${lk}</div><div id="prog"></div><div id="chap"></div></div></div>
 <div id="speed"><svg viewBox="0 0 24 24" style="fill:var(--bg)"><path d="M4 5v14l8-7zM12 5v14l8-7z"/></svg><span class="x"></span><span class="lbl"></span><span class="t"></span></div>
 <div id="hl"><span></span></div>
+<span id="hlm" aria-hidden="true"></span>
 <div id="cur"><svg viewBox="0 0 26 26" width="26" height="26"><path d="M5 3l15.5 9.2-6.9 1.5 3.9 7.3-3 1.6-3.9-7.4-5.1 4.6z" fill="#0b0b0c" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
 <div id="card"><div class="in"></div></div>
 <script>
@@ -206,11 +210,12 @@ window.__stage={
       const t0=performance.now();clearInterval(window.__spd);window.__spd=setInterval(()=>{const sec=Math.round((performance.now()-t0)/1000);
       s.querySelector('.t').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')+' real time'},250)}
     else{s.classList.remove('on');clearInterval(window.__spd)}},
-  highlight(b,label,below){const h=$('#hl');if(!b){h.classList.remove('on');return}const p=8;const fresh=!h.classList.contains('on');
+  measureLabel(label){const s=$('#hlm');s.textContent=label||'';const r=s.getBoundingClientRect();return {width:r.width,height:r.height}},
+  highlight(b,label,side){const h=$('#hl');if(!b){h.classList.remove('on');return}const p=8;const fresh=!h.classList.contains('on');
     if(fresh)h.style.transition='opacity .35s';
     Object.assign(h.style,{left:(b.x-p)+'px',top:(b.y-p)+'px',width:(b.width+2*p)+'px',height:(b.height+2*p)+'px'});
     if(fresh){void h.offsetWidth;setTimeout(()=>{h.style.transition=''},400)}
-    const s=h.querySelector('span');s.textContent=label||'';s.style.display=label?'':'none';h.classList.toggle('below',!!below);h.classList.add('on')},
+    const s=h.querySelector('span');s.textContent=label||'';s.style.display=label?'':'none';h.classList.toggle('below',side==='below');h.classList.toggle('right',side==='right');h.classList.add('on')},
   cursor(x,y,show){const c=$('#cur');c.style.transform='translate('+(x-5)+'px,'+(y-3)+'px)';c.classList.toggle('on',show!==false)},
   ripple(x,y){const r=document.createElement('div');r.className='rip';r.style.left=x+'px';r.style.top=y+'px';document.body.appendChild(r);setTimeout(()=>r.remove(),700)},
   pulse(){const e=$('#pulse');e.dataset.on=e.dataset.on==='1'?'0':'1';e.style.background=e.dataset.on==='1'?'${pulseB}':'${pulseA}'},
@@ -693,12 +698,35 @@ export class Stage {
     if (reveal) await this.reveal(locator, { deadline });
     const raw = await this.box(locator, { deadline });
     // Clip to the visible app viewport (inside the window frame) so a tall section never spills over the stage.
-    const top = FRAME.y + FRAME.bar + 12, bottom = FRAME.y + FRAME.h - 12, left = FRAME.x + 12, right = FRAME.x + FRAME.w - 12;
-    const x = Math.max(raw.x, left), y = Math.max(raw.y, top);
+    const top = FRAME.y + FRAME.bar + 12, bottom = FRAME.y + FRAME.h - 12, frameLeft = FRAME.x + 12, right = FRAME.x + FRAME.w - 12;
+    const x = Math.max(raw.x, frameLeft), y = Math.max(raw.y, top);
     const b = { x, y, width: Math.max(40, Math.min(raw.x + raw.width, right) - x), height: Math.max(30, Math.min(raw.y + raw.height, bottom) - y) };
-    if (b.y - top < 44) below = true; // no room for the label above
-    if (below && bottom - (b.y + b.height) < 44) below = false;
-    await this.stage((s, a) => s.highlight(a.b, a.label, a.below), { b, label, below });
+    const size = await this.stage((s, text) => s.measureLabel(text), label);
+    // Compare frame-local and main-frame target rects, including nested frames (wicked-garden#1514).
+    const app = await locator.first().evaluate((target) => {
+      const targetRect = target.getBoundingClientRect(), texts = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let node; (node = walker.nextNode());) {
+        if (!node.textContent.trim() || target.contains(node)) continue;
+        const parent = node.parentElement;
+        if (!parent.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) {
+          const x = Math.max(0, r.left), y = Math.max(0, r.top);
+          const width = Math.min(window.innerWidth, r.right) - x, height = Math.min(window.innerHeight, r.bottom) - y;
+          if (width > 0 && height > 0) texts.push({ x, y, width, height });
+        }
+      }
+      return { target: { x: targetRect.x, y: targetRect.y }, texts, width: window.innerWidth, height: window.innerHeight };
+    }, undefined, { timeout: left(deadline, 30_000) });
+    const offset = { x: raw.x - app.target.x, y: raw.y - app.target.y };
+    const frame = { top: Math.max(top, offset.y), bottom: Math.min(bottom, offset.y + app.height),
+      left: Math.max(frameLeft, offset.x), right: Math.min(right, offset.x + app.width) };
+    const texts = app.texts.map((r) => ({ ...r, x: r.x + offset.x, y: r.y + offset.y }));
+    const side = placeLabel({ box: b, pad: 8,
+      label: size, texts, frame }, below ? "below" : "above");
+    await this.stage((s, a) => s.highlight(a.b, a.label, a.side), { b, label, side });
     if (hold) await sleep(hold);
     return b;
   }
