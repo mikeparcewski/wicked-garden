@@ -30,6 +30,19 @@ _TYPE_SEVEN_EXCLUDED = re.compile(r"<(?:script|pre|style|textarea)(?=[ \t\n/>]|$
 _STRUCTURAL_PREFIX = re.compile(r"[ \t>*+0-9().-]*")
 
 
+class _Containers(list[tuple[str, int]]):
+    """Append-only container path with a constant-time lists-only suffix check."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.last_quote = -1
+
+    def append(self, container: tuple[str, int]) -> None:
+        if container[0] == "quote":
+            self.last_quote = len(self)
+        super().append(container)
+
+
 def _structural_tabs(line: str, offset: int) -> tuple[str, list[int] | None]:
     """Expand structural tabs with a source map, retaining partial-tab spaces.
 
@@ -72,11 +85,11 @@ def _up_to(line: str, pos: int, width: int) -> int:
     return pos
 
 
-def _prefix(line: str, previous: list[tuple[str, int]], paragraph: bool,
+def _prefix(line: str, previous: _Containers, paragraph: bool,
             open_containers: bool = True):
     """Continue containers, then open explicit quotes and list items."""
     pos = 0
-    containers = []
+    containers = _Containers()
     for kind, indent in previous:
         end, width = _indent(line, pos)
         if kind == "quote":
@@ -108,6 +121,7 @@ def _prefix(line: str, previous: list[tuple[str, int]], paragraph: bool,
                 pos += 1
             containers.append(("quote", 0))
             added = True
+            paragraph = False
             continue
         if suffix_start <= end <= third_last:
             break
@@ -129,6 +143,7 @@ def _prefix(line: str, previous: list[tuple[str, int]], paragraph: bool,
         pos = _up_to(line, marker.end(), pad)
         containers.append((list_kind, width + marker.end() - end + pad))
         added = True
+        paragraph = False
     return pos, containers, continued, added
 
 
@@ -186,7 +201,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
     result: list[tuple[str, str, list[int]]] = []
     pieces: list[str] = []
     offsets: list[int] = []
-    containers: list[tuple[str, int]] = []
+    containers = _Containers()
     fence: tuple[str, int] | None = None
     html_end: str | None = None
     offset = 0
@@ -218,8 +233,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
         # Blank lines need no list indentation. Block quotes still require their
         # markers when their child is a fence or raw HTML rather than a paragraph.
         if (blank and not continued and not added
-                and all(kind.startswith("list:")
-                        for kind, _ in containers[len(next_containers):])):
+                and containers.last_quote < len(next_containers)):
             next_containers = containers
             continued = True
         closed_leaf = False
@@ -261,9 +275,15 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
             offset += len(original)
             continue
 
+        if added:
+            # The outer paragraph ends before the new container's first leaf
+            # is classified, including indented code and noninterrupting HTML.
+            flush()
+            indented = False
+
         if blank:
             flush()
-            containers = next_containers if continued or added else []
+            containers = next_containers if continued or added else _Containers()
             offset += len(original)
             continue
 
@@ -314,9 +334,7 @@ def blocks(text: str) -> list[tuple[str, str, list[int]]]:
             containers = next_containers
             offset += len(original)
             continue
-        if added:
-            flush()
-        elif not continued and pieces:
+        if not continued and pieces:
             # Missing container markers are legal only as lazy paragraph continuation.
             next_containers = containers
         elif indented:

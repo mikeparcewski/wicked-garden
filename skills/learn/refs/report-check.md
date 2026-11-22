@@ -29,16 +29,29 @@ decoded), non-http(s) destinations, email addresses, `www.` addresses and bare U
 `url-form`. A backslash or an `&...;` reference anywhere inside an accepted destination, including
 its fragment, is refused: write the percent-encoded form that the reader opens.
 
-Independent lexical sweeps refuse plain URLs, email addresses and raw HTML anywhere in the text,
-including code spans and code blocks. An `@` inside a parsed, accepted HTTP(S) destination is part
-of that URL. Raw HTML means every `<!` or `<?` construct and every ASCII-named tag, even when the
+Independent lexical sweeps refuse plain URLs, email addresses, encoded `@` characters and raw HTML
+anywhere in the text, including code spans and code blocks. Any character reference that decodes
+to `@` (`&commat;`, `&#64;`, `&#x40;`, including leading zeros and either hex case) produces
+`url-form` with reason `an encoded @`. The email and encoded-`@` sweeps exempt only parsed,
+accepted HTTP(S) destination spans. Raw HTML means every `<!` or `<?` construct and every ASCII-named tag, even when the
 floor cannot read its attributes. The sole exceptions are attribute-less `br`, `sup`, `sub`, `b`,
 `i`, `em`, `strong`, `kbd`, `code`, `s`, `u`, `mark`, `small`, `details`, `summary`, `p`, `span` and
 `div` tags, in exactly the forms `<x>`, `</x>`, `<x/>` and `<x />` (ASCII case-insensitive).
 Scheme autolinks such as `<https://example.org/page>` are still parsed as links.
 
-Other non-rendered Markdown remains text: code spans containing `www.unlogged.invalid` or
-`[x](/evil)` do not create links. Every accepted destination must match the source log exactly
+A fail-closed lexical backstop also checks the whole normalised text, including code, independently
+of the parser's block boundaries. Every `](` must lead to an accepted inline link/image destination,
+or produces `url-form` with reason `link syntax the floor did not read`. A `]:` is a candidate
+reference definition when the last `[` within 1000 characters starts its line after only spaces,
+tabs, quote markers or list markers followed by whitespace, or when a line ending separates that
+`[` from the `]:`. It must lead to an accepted definition, or produces `a reference definition the
+floor did not read`. Thus `see [C1]: the result` in prose is allowed. Both checks skip spaces/tabs,
+at most one line ending, more spaces/tabs and an optional `<` before checking the destination start.
+Every `<` followed by a URI scheme must also start an accepted angle destination (including inline
+links and definitions), or produces `an autolink the floor did not read`. Each sweep is linear.
+
+Code spans containing `www.unlogged.invalid` remain text, but even a code span containing
+`[x](/evil)` is refused by the syntax backstop. Every accepted destination must match the source log exactly
 apart from scheme/hostname case and the fragment; the fragment still undergoes the spelling and
 character checks above.
 

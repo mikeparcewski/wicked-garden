@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -591,3 +592,45 @@ def test_review_17_protocol_email_preserves_scheme_and_span(source):
 @pytest.mark.parametrize("source", ["www.example.org/a)&copy;", "www.example.org/a!&copy;"])
 def test_review_18_entity_removal_resumes_autolink_trimming(source):
     assert destinations(source) == ["http://www.example.org/a"]
+
+
+def test_round2_deep_lists_followed_by_blank_lines_are_linear():
+    # Keep the quadratic baseline bounded too; the child measures parsing alone.
+    program = """
+import sys
+import time
+sys.path.insert(0, sys.argv[1])
+import _md_links as md
+source = ("- " * 100_000) + "x\\n" + ("\\n" * 100_000)
+started = time.monotonic()
+assert md.rendered_links(source) == []
+elapsed = time.monotonic() - started
+assert elapsed < 3, f"nested lists and blank lines took {elapsed:.3f}s"
+"""
+    subprocess.run([sys.executable, "-c", program, str(SCRIPT.parent)],
+                   check=True, capture_output=True, text=True, timeout=4)
+
+
+def test_round2_new_quote_indented_code_flushes_outer_paragraph():
+    source = "[C1] [C2] [C3]\n>     `\n> [x](/evil)\n> `\n"
+    assert destinations(source) == ["/evil"]
+
+
+def test_round2_new_quote_resets_ordered_list_interruption_context():
+    source = "[C1] [C2] [C3]\n> 2. [r]: /evil\n\n[t][r]\n"
+    assert destinations(source) == ["/evil"]
+
+
+@pytest.mark.parametrize("prefix", ["- ", "+ ", "* ", "1. ", "1) "])
+def test_round2_new_list_item_resets_ordered_list_interruption_context(prefix):
+    source = "paragraph\n" + prefix + "2. [r]: /evil\n\n[t][r]\n"
+    assert destinations(source) == ["/evil"]
+
+
+@pytest.mark.parametrize("source", [
+    "> - ```\n\n[shown](/shown)\n",
+    "- > ```\n\n[shown](/shown)\n",
+    "> - ```\n>\n>   [hidden](/hidden)\n>   ```\n\n[shown](/shown)\n",
+])
+def test_round2_blank_list_continuation_respects_quote_boundaries(source):
+    assert destinations(source) == ["/shown"]

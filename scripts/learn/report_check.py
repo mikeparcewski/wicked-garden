@@ -39,9 +39,16 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
   CommonMark links/images and GFM autolinks are parsed before enforcing these rules;
   titles, whitespace/controls, backslashes or ``&...;`` references anywhere in a destination
   (including its fragment), non-web destinations, email links, bare and ``www.`` URLs are refused
-  (``url-form``). Independent lexical sweeps refuse plain URLs, email addresses and raw HTML even
+  (``url-form``). Independent lexical sweeps refuse plain URLs, email addresses, an encoded ``@``
+  (``&commat;``, decimal or hexadecimal references, including leading zeros), and raw HTML even
   in code, except the exact attribute-less formatting tags documented in refs/report-check.md.
-  Other non-rendered Markdown, such as a code span containing ``[x](/evil)``, is not a link.
+  Email and encoded-``@`` sweeps exempt accepted HTTP(S) destination spans. A fail-closed lexical
+  backstop checks all normalised text, including code: every ``](``, candidate reference definition
+  ``]:`` and ``<scheme:`` must lead to an accepted destination. Reference candidates start at a
+  line's container prefix or have a multiline label, with the last ``[`` within 1000 characters;
+  prose such as ``see [C1]: the result`` is not a candidate. Destination starts allow spaces/tabs,
+  at most one line ending and an optional ``<``. Thus even non-rendered link syntax is refused
+  when the floor did not accept its destination.
   A URL that is not exactly a web
   source in the log, its fragment aside (``url-not-in-log``);
 - the stop rule: a lens that requires documents producing claims with none staged
@@ -112,6 +119,12 @@ SAFE_HTML_RE = re.compile(
 )
 EMAIL_LOCAL = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._+-")
 EMAIL_DOMAIN_RE = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+")
+ENCODED_AT_RE = re.compile(r"&(?:commat|#0*64|#[xX]0*40);")
+DESTINATION_START_RE = re.compile(r"[ \t]*(?:\n[ \t]*)?<?")
+SCHEME_AUTOLINK_RE = re.compile(r"<[A-Za-z][A-Za-z0-9+.-]{1,31}:")
+# Match each line's eligible definition prefix once. Alternatives begin with
+# distinct characters, and marker whitespace cannot cross a line boundary.
+REFERENCE_PREFIX_RE = re.compile(r"(?:[ \t>]|(?:[-+*]|[0-9]{1,9}[.)])[ \t]+)*")
 URL_MAX_CHARS = 64 * 1024
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
@@ -170,8 +183,52 @@ def norm_url(url: str) -> str | None:
     return f"{p.scheme.lower()}://{netloc}{rest}"
 
 
+def _link_syntax_backstop(text: str, starts: dict[str, set[int]]) -> list[tuple[None, str]]:
+    """Refuse unread syntax in the whole text, independent of block parsing.
+
+    The sweeps are linear: destination whitespace contains no syntax starts;
+    definition prefixes are read once per line and the last '[' is tracked.
+    """
+    out: list[tuple[None, str]] = []
+
+    def refuse(pos: int, reason: str) -> None:
+        out.append((None, text[pos:pos + 80] + f" ({reason})"))
+
+    for m in re.finditer(r"\]\(", text):
+        destination = DESTINATION_START_RE.match(text, m.end()).end()
+        if destination not in starts["inline"]:
+            refuse(m.start(), "link syntax the floor did not read")
+
+    line_start = 0
+    prefix_end = REFERENCE_PREFIX_RE.match(text).end()
+    last_open = -1
+    starts_line = False
+    for m in re.finditer(r"\n|\[|\]:", text):
+        if m[0] == "\n":
+            line_start = m.end()
+            prefix_end = REFERENCE_PREFIX_RE.match(text, line_start).end()
+        elif m[0] == "[":
+            last_open = m.start()
+            starts_line = last_open == prefix_end
+        elif (last_open >= 0 and m.start() - last_open <= 1000
+              and (starts_line or last_open < line_start)):
+            destination = DESTINATION_START_RE.match(text, m.end()).end()
+            if destination not in starts["reference"]:
+                refuse(last_open, "a reference definition the floor did not read")
+
+    for m in SCHEME_AUTOLINK_RE.finditer(text):
+        # Angle inline destinations and definitions also have <scheme: syntax.
+        if m.start() + 1 not in starts["angle"]:
+            refuse(m.start(), "an autolink the floor did not read")
+    return out
+
+
 def urls_in(text: str) -> list[tuple[str | None, str]]:
-    """Compare rendered destinations, with independent HTML/plain URL/email refusals."""
+    """Compare rendered destinations and fail closed on unread lexical link syntax.
+
+    Whole-text sweeps include code, encoded '@', and candidate definitions;
+    only accepted HTTP(S) spans exempt email/encoded-'@' spellings.
+    """
     text = normalise(text or "")
     links, definitions = _read(text)
     # Definitions are checked even when unused, as in the original floor. Their
@@ -188,6 +245,7 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
             merged.append((a, b))
     seen = set()
     accepted: set[tuple[int, int]] = set()
+    starts: dict[str, set[int]] = {kind: set() for kind in ("inline", "reference", "angle")}
     for link in links:
         key = (link.kind, link.start, link.end, link.title, link.angle)
         if key in seen:
@@ -218,6 +276,10 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
             out.append((None, f"{link.raw[:80]} ({reason})"))
         else:
             accepted.add((link.start, link.end))
+            if link.kind in starts:
+                starts[link.kind].add(link.start)
+            if link.angle:
+                starts["angle"].add(link.start)
             out.append((link.destination, link.destination))
     # These sweeps deliberately include code and opaque HTML tokens. Never
     # depend on an attribute-name list or Markdown's HTML token boundaries.
@@ -225,6 +287,15 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         if not SAFE_HTML_RE.match(text, m.start()):
             out.append((None, text[m.start():m.start() + 80] + " (raw HTML the floor does not read)"))
     accepted_spans = sorted(accepted)
+    cursor = 0
+    for m in ENCODED_AT_RE.finditer(text):
+        while cursor < len(accepted_spans) and accepted_spans[cursor][1] <= m.start():
+            cursor += 1
+        if (cursor < len(accepted_spans)
+                and accepted_spans[cursor][0] <= m.start() < accepted_spans[cursor][1]):
+            continue
+        out.append((None, m[0][:80] + " (an encoded @)"))
+    out.extend(_link_syntax_backstop(text, starts))
     cursor = 0
     # Searching the full email regex at every character is quadratic on long
     # local-part runs without '@'. Anchor each match at its actual '@' instead.
