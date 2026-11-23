@@ -272,7 +272,8 @@ def test_an_installer_without_the_verb_is_skipped(rig):
     code, out = rig.run("--from-run", "--crew-url", closed_origin(), STUB_INSTALLER_MODE="noverb")
 
     assert code == 0, out
-    assert out["clis"].startswith("skipped: wicked-installer lacks the mcp verb")
+    assert out["clis"].startswith("skipped: the installed wicked-installer is too old")
+    assert "npm install -g wicked-installer@latest" in out["clis"]
 
 
 def test_registry_refusal_exits_1_with_the_daemons_message(rig):
@@ -551,3 +552,113 @@ def test_why_skips_npm_metadata_and_keeps_a_scripts_own_reason():
     # stderr holds only boilerplate: stdout's last line, never an empty reason.
     assert why("npm error\nnpm error A complete log of this run can be found in: /tmp/x.log\n", "boom\n") == "boom"
     assert why("boom\nlast words\n") == "last words" and why("", "") == ""
+
+
+# ── garden#1540: no wicked-installer on PATH (the documented `npx -y wicked-installer` install leaves none) ──────
+# The install-plan step exited 1 ("cannot plan the CLI configs: skipped: wicked-installer is not on PATH"), so the
+# consent card never opened. The plan now lists every CLI as skipped with the remedy, and the install skips them the
+# same way (it never downloads the installer: that would write CLI configs the card did not list).
+
+STUB_NPX = textwrap.dedent('''\
+    #!PYTHON
+    import json, os, sys
+    with open(os.environ["STUB_LOG"], "a") as fh:
+        fh.write(json.dumps({"tool": "npx", "argv": sys.argv[1:]}) + "\\n")
+    sys.exit(1)
+    ''')
+
+
+def _no_installer(rig) -> dict:
+    """The rig's env with a PATH that holds npm, npx and node, but no wicked-installer (the host's own PATH may
+    carry a global one, so it is dropped entirely)."""
+    bare = rig.tmp / "bare-bin"
+    bare.mkdir()
+    _stub(bare / "npm", STUB_NPM)
+    _stub(bare / "npx", STUB_NPX)
+    (bare / "node").symlink_to(shutil.which("node"))
+    return {"PATH": str(bare)}
+
+
+def _plan(rig, *args: str, **env: str) -> tuple[subprocess.CompletedProcess, dict | None]:
+    done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json", *args],
+                          capture_output=True, text=True, timeout=120, env={**rig.env, **env}, cwd=rig.tree)
+    lines = done.stdout.strip().splitlines()
+    return done, json.loads(lines[0]) if len(lines) == 1 else None
+
+
+def test_the_dry_run_with_no_installer_on_path_plans_and_names_the_remedy(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done, plan = _plan(rig, "--crew-url", daemon.origin, **_no_installer(rig))
+
+    assert done.returncode == 0, done.stderr
+    worker, operator = plan["choices"]
+    assert [w["what"] for w in worker["writes"]] == ["install root", "wicked-crew MCP tools registry entry"]
+    assert operator["writes"] == worker["writes"], "no CLI config is written for either choice"
+    assert [s["cli"] for s in plan["skipped"]] == ["claude", "codex", "opencode", "antigravity", "pi"]
+    for row in plan["skipped"]:
+        assert "wicked-installer is not installed" in row["why"]
+        assert "npm install -g wicked-installer" in row["why"], "every skipped row says what to do"
+    assert rig.calls("npx") == [], "the dry run never downloads the installer"
+
+
+def test_the_dry_run_skips_only_the_requested_clis(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done, plan = _plan(rig, "--crew-url", daemon.origin, "--cli", "claude,codex", **_no_installer(rig))
+
+    assert done.returncode == 0, done.stderr
+    assert [s["cli"] for s in plan["skipped"]] == ["claude", "codex"]
+
+
+def test_the_dry_run_with_an_installer_without_the_verb_plans_and_names_the_remedy(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done, plan = _plan(rig, "--crew-url", daemon.origin, STUB_INSTALLER_MODE="noverb")
+
+    assert done.returncode == 0, done.stderr
+    assert len(plan["skipped"]) == 5
+    assert all("npm install -g wicked-installer@latest" in s["why"] for s in plan["skipped"])
+
+
+def test_the_install_with_no_installer_on_path_installs_and_never_downloads_one(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin, "--target", "operator", **_no_installer(rig))
+
+    assert code == 0, out
+    assert out["registered"] is True and out["smoke"] == "ok"
+    assert (rig.root / "current" / "dist" / "server.js").is_file()
+    for field in ("clis", "operatorClis"):
+        assert out[field].startswith("skipped: wicked-installer is not installed"), out[field]
+        assert "npm install -g wicked-installer" in out[field]
+    assert rig.calls("npx") == [], "no CLI config the plan did not list is written"
+
+
+def test_uninstall_with_no_installer_on_path_still_removes_the_server(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        assert rig.run("--from-run", "--crew-url", daemon.origin)[0] == 0
+        daemon.routes[("DELETE", "/api/v1/mcp/servers/acme-notes")] = (200, {"ok": True})
+        code, out = rig.run("--uninstall", "acme-notes", "--crew-url", daemon.origin, **_no_installer(rig))
+
+    assert code == 0, out
+    assert out["registered"] == "removed" and not rig.root.exists()
+    assert out["clis"].startswith("skipped: wicked-installer is not installed")
+    assert rig.calls("npx") == []
+
+
+# ── garden#1532 (same class): the install root follows the daemon's state home ──────────────────────────────────
+
+def test_the_install_root_defaults_to_wicked_home(rig):
+    env = {k: v for k, v in rig.env.items() if k != "WICKED_MCP_INSTALL_ROOT"}
+    scratch = rig.tmp / "scratch-home"
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json", "--cli", "none",
+                               "--crew-url", daemon.origin], capture_output=True, text=True, timeout=120,
+                              env={**env, "WICKED_HOME": str(scratch)}, cwd=rig.tree)
+    assert done.returncode == 0, done.stderr
+    root_row = json.loads(done.stdout)["choices"][0]["writes"][0]
+    assert root_row == {"path": str(scratch / "mcp-servers" / "acme-notes" / "current"), "what": "install root",
+                        "operator_owned": False}
