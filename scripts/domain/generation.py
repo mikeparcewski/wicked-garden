@@ -176,6 +176,29 @@ def visited(doc: dict[str, Any] | None) -> set[str]:
     return set(doc.get("visited") or [])
 
 
+def asked_again(doc: dict[str, Any] | None) -> set[str]:
+    """Placeholders the operator's "again" reopened in this generation (wicked-garden#1533)."""
+    if not doc:
+        return set()
+    return set(doc.get("asked_again") or [])
+
+
+def asked_unresolved(doc: dict[str, Any] | None, placeholder_ids: set[str]) -> set[str]:
+    """Placeholders a closed page of this generation asked about that are still placeholders
+    (wicked-garden#1533): no page re-asks them on its own, but asking them again can still raise
+    the real share (a new run did: 101 of 263 resolved on the second ask), so the operator may."""
+    return set(placeholder_ids) & visited(doc)
+
+
+def reopen(doc: dict[str, Any], placeholder_ids: set[str]) -> int:
+    """The operator's "again": the asked, unresolved placeholders leave `visited`, so the next page
+    frames them, and are remembered in `asked_again`. Returns how many were reopened."""
+    ids = asked_unresolved(doc, placeholder_ids)
+    doc["visited"] = sorted(visited(doc) - ids)
+    doc["asked_again"] = sorted(asked_again(doc) | ids)
+    return len(ids)
+
+
 def page_in_flight(doc: dict[str, Any] | None) -> list[str] | None:
     """The units `extract-prepare` framed for the page in flight (possibly none), or None when no
     page is in flight: no record, a page `extract-next` closed, or a record written before the
@@ -391,15 +414,34 @@ def _budget_spent(doc: dict[str, Any], now: int, max_pages: int,
     return None
 
 
+def _asked_text(asked_left: int, asked_once: int) -> str:
+    """What the placeholders this run already asked about are, said as such (wicked-garden#1533:
+    the card read "nothing left to map" with 263 of them left)."""
+    n = count(asked_left)
+    s = "s" if asked_left != 1 else ""
+    if asked_once >= asked_left:
+        return (f"every unit in the files the repository tracks was asked once; {n} placeholder{s} "
+                f"not resolved yet, and asking again can raise the share")
+    if asked_once <= 0:
+        return (f"every unit in the files the repository tracks was asked; {n} placeholder{s} "
+                f"asked again and still not resolved")
+    return (f"every unit in the files the repository tracks was asked; {n} placeholder{s} not "
+            f"resolved yet ({count(asked_once)} asked only once)")
+
+
 def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: int,
            max_minutes: int, left_to_map: int, changed_left: int = 0,
-           assign_left: int = 0, assign_progress: bool = False) -> dict[str, Any]:
+           assign_left: int = 0, assign_progress: bool = False,
+           asked_left: int = 0, asked_once: int = 0) -> dict[str, Any]:
     """The loop's decision after the record's last point (pure). Returns the `wicked-repeat`
     object: `done` when the REAL share reaches the target and no mapped behaviour that changed
     since the map was built is left to re-ask (`changed_left`, wicked-garden#1425: those are
     paged through under the same budget ask); `ask` when nothing is left to map,
     when the last page resolved almost nothing of what it framed, when the last two pages added
-    no real requirement, or when the grant's pages or minutes are spent; `continue` otherwise."""
+    no real requirement, or when the grant's pages or minutes are spent; `continue` otherwise.
+    `asked_left` counts the placeholders a page of this run asked about and left unresolved, of
+    which `asked_once` were never asked again (wicked-garden#1533): when nothing unasked is left,
+    the ask offers to ask them again, recommended while some were asked only once."""
     points = doc["points"]
     last = points[-1]
     page = last["page"]
@@ -436,6 +478,9 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
                                       f"the graph"} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {count(max_pages)} more pages"}
+    again = ({"id": "again", "label": f"Ask the {count(asked_left)} placeholder"
+                                      f"{'s' if asked_left != 1 else ''} again"}
+             if asked_left > 0 else None)
     # With changed units left there is always work, so an ask with no "lower" (a share under 1%)
     # still offers a way to finish (codex r2).
     stop = lower if lower is not None else (FINISH if changed_left > 0 else None)
@@ -449,6 +494,15 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             choices = [c for c in (more, stop) if c is not None]
             warn = (f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
                     f"read its review before mapping more")
+        elif again is not None:
+            # Every unit was asked, but placeholders this run asked about are left: asking them
+            # again is a choice, never hidden behind "nothing is left" (wicked-garden#1533).
+            choices = [again, lower if lower is not None else FINISH]
+            head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+            warn = (f"{head} · the last page resolved under 1 in {LOW_YIELD_PER} of its units · "
+                    f"{_asked_text(asked_left, asked_once)}: read its review")
+            return {"next": "ask", "choices": choices,
+                    "recommended": "again" if asked_once > 0 else choices[1]["id"], "line": warn}
         else:
             # Nothing left to ask (agy/codex r2 on #1375): still the operator's word, never a
             # silent "done"; going on hands the share to the coverage step.
@@ -460,6 +514,13 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
         return {"next": "ask", "choices": choices, "recommended": choices[0]["id"], "line": warn}
     if left_to_map <= 0 and changed_left <= 0:
         head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+        if again is not None:
+            # wicked-garden#1533: "nothing left to map" with 263 placeholders a second ask could
+            # still resolve steered the operator to lower the minimum. Say what is left and offer it.
+            choices = [again, lower if lower is not None else FINISH]
+            return {"next": "ask", "choices": choices,
+                    "recommended": "again" if asked_once > 0 else choices[1]["id"],
+                    "line": f"{head} · {_asked_text(asked_left, asked_once)}"}
         rest = (f"{head} · nothing left to map "
                 f"in the files the repository tracks")
         if lower is None:

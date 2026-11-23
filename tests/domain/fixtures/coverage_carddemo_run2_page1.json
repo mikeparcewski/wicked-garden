@@ -1,0 +1,1261 @@
+{
+ "total": 10843,
+ "behavior_bearing": 697,
+ "resolved": 535,
+ "risk_flagged": 162,
+ "unaccounted": 0,
+ "coverage": 1.0,
+ "resolved_rate": 0.7676,
+ "mean_confidence": 0.8533,
+ "resolve_threshold": 0.75,
+ "per_app": [
+  {
+   "app": "app/app-authorization-ims-db2-mq/cbl",
+   "behavior_bearing": 57,
+   "resolved": 46,
+   "risk_flagged": 11,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-authorization-ims-db2-mq/dcl",
+   "behavior_bearing": 1,
+   "resolved": 1,
+   "risk_flagged": 0,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-authorization-ims-db2-mq/jcl",
+   "behavior_bearing": 7,
+   "resolved": 7,
+   "risk_flagged": 0,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-transaction-type-db2/cbl",
+   "behavior_bearing": 63,
+   "resolved": 45,
+   "risk_flagged": 18,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-transaction-type-db2/cpy",
+   "behavior_bearing": 1,
+   "resolved": 0,
+   "risk_flagged": 1,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-transaction-type-db2/dcl",
+   "behavior_bearing": 2,
+   "resolved": 2,
+   "risk_flagged": 0,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-transaction-type-db2/jcl",
+   "behavior_bearing": 12,
+   "resolved": 9,
+   "risk_flagged": 3,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/app-vsam-mq/cbl",
+   "behavior_bearing": 4,
+   "resolved": 1,
+   "risk_flagged": 3,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/cbl",
+   "behavior_bearing": 409,
+   "resolved": 300,
+   "risk_flagged": 109,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/jcl",
+   "behavior_bearing": 101,
+   "resolved": 99,
+   "risk_flagged": 2,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "app/proc",
+   "behavior_bearing": 4,
+   "resolved": 3,
+   "risk_flagged": 1,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "samples/jcl",
+   "behavior_bearing": 17,
+   "resolved": 9,
+   "risk_flagged": 8,
+   "unaccounted": 0,
+   "coverage": 1.0
+  },
+  {
+   "app": "samples/proc",
+   "behavior_bearing": 19,
+   "resolved": 13,
+   "risk_flagged": 6,
+   "unaccounted": 0,
+   "coverage": 1.0
+  }
+ ],
+ "unaccounted_nodes": [],
+ "requirement_reuse": {
+  "nodes_with_requirement": 697,
+  "distinct_requirements": 635,
+  "max_nodes_per_requirement": 14,
+  "most_reused_requirement": "[RISK] POPULATE-HEADER-INFO: empty statement (model could not state a rule)"
+ },
+ "not_product": 0,
+ "placeholder_nodes": [
+  {
+   "symbol_id": "db2 synthetic SYSIBM.SYSDUMMY1:",
+   "name": "SYSIBM.SYSDUMMY1",
+   "kind": "db2_table",
+   "file": "app/app-transaction-type-db2/cpy/CSDB2RPY.cpy",
+   "app": "app/app-transaction-type-db2/cpy"
+  },
+  {
+   "symbol_id": "jcl synthetic app/app-transaction-type-db2/jcl/CREADB21.jcl::CREADB2:",
+   "name": "CREADB2",
+   "kind": "Module",
+   "file": "app/app-transaction-type-db2/jcl/CREADB21.jcl",
+   "app": "app/app-transaction-type-db2/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic app/app-transaction-type-db2/jcl/CREADB21.jcl::CREADB2::FREEPLN:",
+   "name": "FREEPLN",
+   "kind": "step",
+   "file": "app/app-transaction-type-db2/jcl/CREADB21.jcl",
+   "app": "app/app-transaction-type-db2/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic app/app-transaction-type-db2/jcl/CREADB21.jcl::CREADB2::LDTTYPE:",
+   "name": "LDTTYPE",
+   "kind": "step",
+   "file": "app/app-transaction-type-db2/jcl/CREADB21.jcl",
+   "app": "app/app-transaction-type-db2/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic app/jcl/FTPJCL.JCL::FTPJCLS::STEP1:",
+   "name": "STEP1",
+   "kind": "step",
+   "file": "app/jcl/FTPJCL.JCL",
+   "app": "app/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic app/jcl/INTRDRJ2.JCL::INTRDRJ2::IDCAMS:",
+   "name": "IDCAMS",
+   "kind": "step",
+   "file": "app/jcl/INTRDRJ2.JCL",
+   "app": "app/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic app/proc/REPROC.prc::REPROC::PRC001:",
+   "name": "PRC001",
+   "kind": "step",
+   "file": "app/proc/REPROC.prc",
+   "app": "app/proc"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/BATCMP.jcl::CNJBATMP::BATCMP:",
+   "name": "BATCMP",
+   "kind": "step",
+   "file": "samples/jcl/BATCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/BMSCMP.jcl::CBLDBMS::STEP1:",
+   "name": "STEP1",
+   "kind": "step",
+   "file": "samples/jcl/BMSCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/CICCMP.jcl::CICCMP::CICSCMP:",
+   "name": "CICSCMP",
+   "kind": "step",
+   "file": "samples/jcl/CICCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/CICDBCMP.jcl::CIDBCMP::CICSCMP:",
+   "name": "CICSCMP",
+   "kind": "step",
+   "file": "samples/jcl/CICDBCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/IMSMQCMP.jcl::IMSMQCMP::COPYIMS:",
+   "name": "COPYIMS",
+   "kind": "step",
+   "file": "samples/jcl/IMSMQCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/IMSMQCMP.jcl::IMSMQCMP::COPYLINK:",
+   "name": "COPYLINK",
+   "kind": "step",
+   "file": "samples/jcl/IMSMQCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/IMSMQCMP.jcl::IMSMQCMP::COPYMQ:",
+   "name": "COPYMQ",
+   "kind": "step",
+   "file": "samples/jcl/IMSMQCMP.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/jcl/RACFCMDS.jcl::RACFCMDS::TSOBAT:",
+   "name": "TSOBAT",
+   "kind": "step",
+   "file": "samples/jcl/RACFCMDS.jcl",
+   "app": "samples/jcl"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/proc/BUILDBAT.prc::BLDBAT::CBLPRINT:",
+   "name": "CBLPRINT",
+   "kind": "step",
+   "file": "samples/proc/BUILDBAT.prc",
+   "app": "samples/proc"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/proc/BUILDBMS.prc::BUILDBMS::DELTEMP:",
+   "name": "DELTEMP",
+   "kind": "step",
+   "file": "samples/proc/BUILDBMS.prc",
+   "app": "samples/proc"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/proc/BUILDBMS.prc::BUILDBMS::DISPLIST:",
+   "name": "DISPLIST",
+   "kind": "step",
+   "file": "samples/proc/BUILDBMS.prc",
+   "app": "samples/proc"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/proc/BUILDBMS.prc::BUILDBMS::PRINT:",
+   "name": "PRINT",
+   "kind": "step",
+   "file": "samples/proc/BUILDBMS.prc",
+   "app": "samples/proc"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/proc/BUILDONL.prc::BLDONL::COPYLINK:",
+   "name": "COPYLINK",
+   "kind": "step",
+   "file": "samples/proc/BUILDONL.prc",
+   "app": "samples/proc"
+  },
+  {
+   "symbol_id": "jcl synthetic samples/proc/BUILDONL.prc::BLDONL::DISPLIST:",
+   "name": "DISPLIST",
+   "kind": "step",
+   "file": "samples/proc/BUILDONL.prc",
+   "app": "samples/proc"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/CBPAUP0C/CBPAUP0C#",
+   "name": "CBPAUP0C",
+   "kind": "Module",
+   "file": "app/app-authorization-ims-db2-mq/cbl/CBPAUP0C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS0C/COPAUS0C#INITIALIZE-AUTH-DATA().",
+   "name": "INITIALIZE-AUTH-DATA",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS0C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS0C/COPAUS0C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS0C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS0C/COPAUS0C#RECEIVE-PAULST-SCREEN().",
+   "name": "RECEIVE-PAULST-SCREEN",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS0C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS1C/COPAUS1C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS1C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS1C/COPAUS1C#RECEIVE-AUTHVIEW-SCREEN().",
+   "name": "RECEIVE-AUTHVIEW-SCREEN",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS1C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS1C/COPAUS1C#RETURN-TO-PREV-SCREEN().",
+   "name": "RETURN-TO-PREV-SCREEN",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS1C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS1C/COPAUS1C#SEND-AUTHVIEW-SCREEN().",
+   "name": "SEND-AUTHVIEW-SCREEN",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS1C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS1C/COPAUS1C#TAKE-SYNCPOINT().",
+   "name": "TAKE-SYNCPOINT",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS1C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/COPAUS2C/COPAUS2C#",
+   "name": "COPAUS2C",
+   "kind": "Module",
+   "file": "app/app-authorization-ims-db2-mq/cbl/COPAUS2C.cbl",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-authorization-ims-db2-mq/cbl/DBUNLDGS/MAIN-PARA().",
+   "name": "MAIN-PARA",
+   "kind": "Function",
+   "file": "app/app-authorization-ims-db2-mq/cbl/DBUNLDGS.CBL",
+   "app": "app/app-authorization-ims-db2-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COBTUPDT/COBTUPDT#2001-CLOSE-STOP().",
+   "name": "2001-CLOSE-STOP",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COBTUPDT.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#",
+   "name": "COTRTLIC",
+   "kind": "Module",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#1000-RECEIVE-MAP().",
+   "name": "1000-RECEIVE-MAP",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#2000-SEND-MAP().",
+   "name": "2000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#2100-SCREEN-INIT().",
+   "name": "2100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#2600-SEND-SCREEN().",
+   "name": "2600-SEND-SCREEN",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#8100-READ-BACKWARDS-EXIT().",
+   "name": "8100-READ-BACKWARDS-EXIT",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#9550-CLOSE-BACK-CURSOR-EXIT().",
+   "name": "9550-CLOSE-BACK-CURSOR-EXIT",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTLIC/COTRTLIC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTLIC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#",
+   "name": "COTRTUPC",
+   "kind": "Module",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#1000-PROCESS-INPUTS().",
+   "name": "1000-PROCESS-INPUTS",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#1100-RECEIVE-MAP().",
+   "name": "1100-RECEIVE-MAP",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#3000-SEND-MAP().",
+   "name": "3000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#3100-SCREEN-INIT().",
+   "name": "3100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#3201-SHOW-INITIAL-VALUES().",
+   "name": "3201-SHOW-INITIAL-VALUES",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#3202-SHOW-ORIGINAL-VALUES().",
+   "name": "3202-SHOW-ORIGINAL-VALUES",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#3203-SHOW-UPDATED-VALUES().",
+   "name": "3203-SHOW-UPDATED-VALUES",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-transaction-type-db2/cbl/COTRTUPC/COTRTUPC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/app-transaction-type-db2/cbl/COTRTUPC.cbl",
+   "app": "app/app-transaction-type-db2/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-vsam-mq/cbl/COACCT01/COACCT01#1000-CONTROL().",
+   "name": "1000-CONTROL",
+   "kind": "Function",
+   "file": "app/app-vsam-mq/cbl/COACCT01.cbl",
+   "app": "app/app-vsam-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-vsam-mq/cbl/CODATE01/CODATE01#",
+   "name": "CODATE01",
+   "kind": "Module",
+   "file": "app/app-vsam-mq/cbl/CODATE01.cbl",
+   "app": "app/app-vsam-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/app-vsam-mq/cbl/CODATE01/CODATE01#1000-CONTROL().",
+   "name": "1000-CONTROL",
+   "kind": "Function",
+   "file": "app/app-vsam-mq/cbl/CODATE01.cbl",
+   "app": "app/app-vsam-mq/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBEXPORT/CBEXPORT#1000-INITIALIZE().",
+   "name": "1000-INITIALIZE",
+   "kind": "Function",
+   "file": "app/cbl/CBEXPORT.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBIMPORT/CBIMPORT#1000-INITIALIZE().",
+   "name": "1000-INITIALIZE",
+   "kind": "Function",
+   "file": "app/cbl/CBIMPORT.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBSTM03A/CBSTM03A#5100-WRITE-HTML-HEADER().",
+   "name": "5100-WRITE-HTML-HEADER",
+   "kind": "Function",
+   "file": "app/cbl/CBSTM03A.CBL",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBSTM03A/CBSTM03A#5200-WRITE-HTML-NMADBS().",
+   "name": "5200-WRITE-HTML-NMADBS",
+   "kind": "Function",
+   "file": "app/cbl/CBSTM03A.CBL",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBSTM03A/CBSTM03A#8100-FILE-OPEN().",
+   "name": "8100-FILE-OPEN",
+   "kind": "Function",
+   "file": "app/cbl/CBSTM03A.CBL",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBSTM03A/CBSTM03A#8599-EXIT().",
+   "name": "8599-EXIT",
+   "kind": "Function",
+   "file": "app/cbl/CBSTM03A.CBL",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#",
+   "name": "COACTUPC",
+   "kind": "Module",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#1000-PROCESS-INPUTS().",
+   "name": "1000-PROCESS-INPUTS",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#1260-EDIT-US-PHONE-NUM().",
+   "name": "1260-EDIT-US-PHONE-NUM",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#3000-SEND-MAP().",
+   "name": "3000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#3100-SCREEN-INIT().",
+   "name": "3100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#3200-SETUP-SCREEN-VARS().",
+   "name": "3200-SETUP-SCREEN-VARS",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#3201-SHOW-INITIAL-VALUES().",
+   "name": "3201-SHOW-INITIAL-VALUES",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#3202-SHOW-ORIGINAL-VALUES().",
+   "name": "3202-SHOW-ORIGINAL-VALUES",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTUPC/COACTUPC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/cbl/COACTUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#1000-SEND-MAP().",
+   "name": "1000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#1100-SCREEN-INIT().",
+   "name": "1100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#1200-SETUP-SCREEN-VARS().",
+   "name": "1200-SETUP-SCREEN-VARS",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#1300-SETUP-SCREEN-ATTRS().",
+   "name": "1300-SETUP-SCREEN-ATTRS",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#1400-SEND-SCREEN().",
+   "name": "1400-SEND-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#2000-PROCESS-INPUTS().",
+   "name": "2000-PROCESS-INPUTS",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#2100-RECEIVE-MAP().",
+   "name": "2100-RECEIVE-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#SEND-LONG-TEXT().",
+   "name": "SEND-LONG-TEXT",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#SEND-LONG-TEXT-EXIT().",
+   "name": "SEND-LONG-TEXT-EXIT",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COACTVWC/COACTVWC#SEND-PLAIN-TEXT().",
+   "name": "SEND-PLAIN-TEXT",
+   "kind": "Function",
+   "file": "app/cbl/COACTVWC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COADM01C/COADM01C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COADM01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COADM01C/COADM01C#RECEIVE-MENU-SCREEN().",
+   "name": "RECEIVE-MENU-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COADM01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COADM01C/COADM01C#SEND-MENU-SCREEN().",
+   "name": "SEND-MENU-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COADM01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#CLEAR-CURRENT-SCREEN().",
+   "name": "CLEAR-CURRENT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COBIL00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#ENDBR-TRANSACT-FILE().",
+   "name": "ENDBR-TRANSACT-FILE",
+   "kind": "Function",
+   "file": "app/cbl/COBIL00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/COBIL00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COBIL00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#RECEIVE-BILLPAY-SCREEN().",
+   "name": "RECEIVE-BILLPAY-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COBIL00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#SEND-BILLPAY-SCREEN().",
+   "name": "SEND-BILLPAY-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COBIL00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#1000-SEND-MAP().",
+   "name": "1000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#1100-SCREEN-INIT().",
+   "name": "1100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#1200-SCREEN-ARRAY-INIT().",
+   "name": "1200-SCREEN-ARRAY-INIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#1300-SETUP-SCREEN-ATTRS().",
+   "name": "1300-SETUP-SCREEN-ATTRS",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#1500-SEND-SCREEN().",
+   "name": "1500-SEND-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#2000-RECEIVE-MAP().",
+   "name": "2000-RECEIVE-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#2100-RECEIVE-SCREEN().",
+   "name": "2100-RECEIVE-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#9100-READ-BACKWARDS-EXIT().",
+   "name": "9100-READ-BACKWARDS-EXIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#9500-FILTER-RECORDS-EXIT().",
+   "name": "9500-FILTER-RECORDS-EXIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDLIC/COCRDLIC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDLIC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#1000-SEND-MAP().",
+   "name": "1000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#1100-SCREEN-INIT().",
+   "name": "1100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#1200-SETUP-SCREEN-VARS().",
+   "name": "1200-SETUP-SCREEN-VARS",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#1400-SEND-SCREEN().",
+   "name": "1400-SEND-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#2000-PROCESS-INPUTS().",
+   "name": "2000-PROCESS-INPUTS",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#2100-RECEIVE-MAP().",
+   "name": "2100-RECEIVE-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#9000-READ-DATA().",
+   "name": "9000-READ-DATA",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#SEND-LONG-TEXT().",
+   "name": "SEND-LONG-TEXT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#SEND-PLAIN-TEXT().",
+   "name": "SEND-PLAIN-TEXT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDSLC/COCRDSLC#SEND-PLAIN-TEXT-EXIT().",
+   "name": "SEND-PLAIN-TEXT-EXIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDSLC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDUPC/COCRDUPC#1000-PROCESS-INPUTS().",
+   "name": "1000-PROCESS-INPUTS",
+   "kind": "Function",
+   "file": "app/cbl/COCRDUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDUPC/COCRDUPC#3000-SEND-MAP().",
+   "name": "3000-SEND-MAP",
+   "kind": "Function",
+   "file": "app/cbl/COCRDUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDUPC/COCRDUPC#3100-SCREEN-INIT().",
+   "name": "3100-SCREEN-INIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDUPC/COCRDUPC#3400-SEND-SCREEN().",
+   "name": "3400-SEND-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDUPC/COCRDUPC#9300-CHECK-CHANGE-IN-REC-EXIT().",
+   "name": "9300-CHECK-CHANGE-IN-REC-EXIT",
+   "kind": "Function",
+   "file": "app/cbl/COCRDUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COCRDUPC/COCRDUPC#COMMON-RETURN().",
+   "name": "COMMON-RETURN",
+   "kind": "Function",
+   "file": "app/cbl/COCRDUPC.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COMEN01C/COMEN01C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COMEN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COMEN01C/COMEN01C#RECEIVE-MENU-SCREEN().",
+   "name": "RECEIVE-MENU-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COMEN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COMEN01C/COMEN01C#SEND-MENU-SCREEN().",
+   "name": "SEND-MENU-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COMEN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CORPT00C/CORPT00C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/CORPT00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CORPT00C/CORPT00C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/CORPT00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CORPT00C/CORPT00C#RECEIVE-TRNRPT-SCREEN().",
+   "name": "RECEIVE-TRNRPT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/CORPT00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CORPT00C/CORPT00C#RETURN-TO-CICS().",
+   "name": "RETURN-TO-CICS",
+   "kind": "Function",
+   "file": "app/cbl/CORPT00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CORPT00C/CORPT00C#SEND-TRNRPT-SCREEN().",
+   "name": "SEND-TRNRPT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/CORPT00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COSGN00C/COSGN00C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COSGN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COSGN00C/COSGN00C#SEND-PLAIN-TEXT().",
+   "name": "SEND-PLAIN-TEXT",
+   "kind": "Function",
+   "file": "app/cbl/COSGN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COSGN00C/COSGN00C#SEND-SIGNON-SCREEN().",
+   "name": "SEND-SIGNON-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COSGN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN00C/COTRN00C#ENDBR-TRANSACT-FILE().",
+   "name": "ENDBR-TRANSACT-FILE",
+   "kind": "Function",
+   "file": "app/cbl/COTRN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN00C/COTRN00C#INITIALIZE-TRAN-DATA().",
+   "name": "INITIALIZE-TRAN-DATA",
+   "kind": "Function",
+   "file": "app/cbl/COTRN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN00C/COTRN00C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COTRN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN00C/COTRN00C#RECEIVE-TRNLST-SCREEN().",
+   "name": "RECEIVE-TRNLST-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN00C/COTRN00C#SEND-TRNLST-SCREEN().",
+   "name": "SEND-TRNLST-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN01C/COTRN01C#CLEAR-CURRENT-SCREEN().",
+   "name": "CLEAR-CURRENT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN01C/COTRN01C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/COTRN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN01C/COTRN01C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COTRN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN01C/COTRN01C#RECEIVE-TRNVIEW-SCREEN().",
+   "name": "RECEIVE-TRNVIEW-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN01C/COTRN01C#SEND-TRNVIEW-SCREEN().",
+   "name": "SEND-TRNVIEW-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN02C/COTRN02C#CLEAR-CURRENT-SCREEN().",
+   "name": "CLEAR-CURRENT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN02C/COTRN02C#ENDBR-TRANSACT-FILE().",
+   "name": "ENDBR-TRANSACT-FILE",
+   "kind": "Function",
+   "file": "app/cbl/COTRN02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN02C/COTRN02C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/COTRN02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN02C/COTRN02C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COTRN02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN02C/COTRN02C#RECEIVE-TRNADD-SCREEN().",
+   "name": "RECEIVE-TRNADD-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COTRN02C/COTRN02C#SEND-TRNADD-SCREEN().",
+   "name": "SEND-TRNADD-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COTRN02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR00C/COUSR00C#ENDBR-USER-SEC-FILE().",
+   "name": "ENDBR-USER-SEC-FILE",
+   "kind": "Function",
+   "file": "app/cbl/COUSR00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR00C/COUSR00C#INITIALIZE-USER-DATA().",
+   "name": "INITIALIZE-USER-DATA",
+   "kind": "Function",
+   "file": "app/cbl/COUSR00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR00C/COUSR00C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COUSR00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR00C/COUSR00C#RECEIVE-USRLST-SCREEN().",
+   "name": "RECEIVE-USRLST-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR00C/COUSR00C#SEND-USRLST-SCREEN().",
+   "name": "SEND-USRLST-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR00C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR01C/COUSR01C#CLEAR-CURRENT-SCREEN().",
+   "name": "CLEAR-CURRENT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR01C/COUSR01C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/COUSR01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR01C/COUSR01C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COUSR01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR01C/COUSR01C#RECEIVE-USRADD-SCREEN().",
+   "name": "RECEIVE-USRADD-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR01C/COUSR01C#SEND-USRADD-SCREEN().",
+   "name": "SEND-USRADD-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR01C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR02C/COUSR02C#CLEAR-CURRENT-SCREEN().",
+   "name": "CLEAR-CURRENT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR02C/COUSR02C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/COUSR02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR02C/COUSR02C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COUSR02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR02C/COUSR02C#RECEIVE-USRUPD-SCREEN().",
+   "name": "RECEIVE-USRUPD-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR02C/COUSR02C#SEND-USRUPD-SCREEN().",
+   "name": "SEND-USRUPD-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR02C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR03C/COUSR03C#CLEAR-CURRENT-SCREEN().",
+   "name": "CLEAR-CURRENT-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR03C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR03C/COUSR03C#INITIALIZE-ALL-FIELDS().",
+   "name": "INITIALIZE-ALL-FIELDS",
+   "kind": "Function",
+   "file": "app/cbl/COUSR03C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR03C/COUSR03C#POPULATE-HEADER-INFO().",
+   "name": "POPULATE-HEADER-INFO",
+   "kind": "Function",
+   "file": "app/cbl/COUSR03C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR03C/COUSR03C#RECEIVE-USRDEL-SCREEN().",
+   "name": "RECEIVE-USRDEL-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR03C.cbl",
+   "app": "app/cbl"
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COUSR03C/COUSR03C#SEND-USRDEL-SCREEN().",
+   "name": "SEND-USRDEL-SCREEN",
+   "kind": "Function",
+   "file": "app/cbl/COUSR03C.cbl",
+   "app": "app/cbl"
+  }
+ ]
+}

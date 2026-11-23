@@ -102,8 +102,17 @@ value on the page.
    even when it is small. An interface or type is a rule only when the type itself encodes a
    constraint the business relies on (a closed set of values, a limit, a required field whose
    comment says what it means); a plain list of fields describes code, so leave it empty.
+   **The page is the worklist, whatever the job's request names.** A request that names
+   programs or features says where to look first and what to state most fully; it never
+   takes a worklist unit off the page. A unit outside what the request names gets the rule
+   its own source shows, like any other: coverage counts every behaviour the repository
+   tracks, and an empty entry stays a placeholder that the run asks again only when the
+   operator chooses to.
    Leave a statement empty for pure plumbing too (a re-export, a trivial getter, a
-   pass-through wrapper, formatting), never because the rule is small or obvious: the page's
+   pass-through wrapper, formatting, a paragraph that only moves control or data with no
+   condition). A screen, step or I/O unit that decides something (what is shown or protected
+   under which condition, which input is refused, what a failed open or read stops) states
+   that rule. Never leave one empty because the rule is small or obvious: the page's
    review lists an empty statement whose source shows a rule as a missed rule, and fails a
    page that leaves most of the units whose source shows a rule empty, or whose statements
    mostly describe code (a page of mostly plain types and plumbing, left empty, is fine). A
