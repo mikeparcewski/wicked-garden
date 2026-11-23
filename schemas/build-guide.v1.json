@@ -109,6 +109,10 @@
               "items": { "$ref": "#/$defs/regex" },
               "description": "Per-line failures, each with a named group `id`."
             },
+            "count": {
+              "$ref": "#/$defs/regex",
+              "description": "Lines that say how many tests ran, with a named group `n` (a number), e.g. libtest's `^running (?P<n>\\d+) tests?$`. Summed per `section` over the clean run's results, each qualifier's total must equal the number of tests the list names under it, and a section the list never names (a binary a `--lib` list omits, or doctests a list does not print) fails: this is the `complete` probe, which also refuses a list that names a test twice, and with junit compares every testcase id, skipped ones included. Required for a text check's exclusion to be relied on."
+            },
             "blocks": {
               "type": "array",
               "items": {
@@ -157,7 +161,7 @@
             "append": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "`{ids:re|}` and `{q}` never appear in the same `deselect.append` (the pattern cannot bind ids to qualifiers). Tokens before the first one with `{id}`/`{q}` are appended once, the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`); a guide that puts `{ids:re|}` among the per-id tokens is refused. The tokens are then composed onto the argv around its `--` (see `results.how.argvAppend`)."
+              "description": "`{ids:re|}` and `{q}` never appear in the same `deselect.append` (the pattern cannot bind ids to qualifiers). When any token holds `{q}`, every per-id token holds both `{q}` and `{id}` (or `{id:re}`), or neither: a qualifier is bound to its id only inside one token (`--skip={q}::{id}`), so `--suite={q}` beside `--skip={id}` is refused. Tokens before the first one with `{id}`/`{q}` are appended once, the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`); a guide that puts `{ids:re|}` among the per-id tokens is refused. The tokens are then composed onto the argv around its `--` (see `results.how.argvAppend`)."
             }
           }
         },
@@ -186,12 +190,12 @@
             "mutation": { "$ref": "#/$defs/mutation" },
             "mutation2": {
               "$ref": "#/$defs/mutation",
-              "description": "A second deliberately failing test (another file): with both written, both must be parsed and deselecting both must run clean."
+              "description": "A second deliberately failing test (another file): with both written, both must be parsed, deselecting the first alone must still fail naming exactly the second, and deselecting both must run clean."
             }
           }
         },
         "verified": {
-          "description": "Written by `wicked-core floor probe`, which first runs the guide's `install` check for the same `cwd` in every fresh copy it probes (an install that fails fails every probe). `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. The probes need a green clean run. When any probe fails, the whole probe re-runs once on a fresh copy and that retry's results are recorded, each marked ` (retried)`: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
+          "description": "Written by `wicked-core floor probe`, which first runs the guide's `install` check for the same `cwd` in every fresh copy it probes (an install that fails fails every probe). `results` keys: list, run, complete, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. The probes need a green clean run. When any probe fails, the whole probe re-runs once on a fresh copy and that retry's results are recorded, each marked ` (retried)`: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
