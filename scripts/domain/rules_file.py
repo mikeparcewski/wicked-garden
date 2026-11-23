@@ -53,7 +53,7 @@ SOURCE_KINDS = frozenset({"code-body", "type-def", "comment", "doc"})
 # earlier page resolved) are checked by `business_domains.py` at apply time (reqgraph Fix B).
 _TOP_KEYS = frozenset({"schema", "seat", "rules", "business_domains", "assignments"})
 _RULE_KEYS = frozenset({"symbol_id", "statement", "confidence", "provenance", "code_meets",
-                        "mismatch", "domain", "domain_confidence"})
+                        "mismatch", "domain", "domain_confidence", "unsure"})
 _DOMAIN_ID_RE = re.compile(r"^[a-z][a-z0-9-]{1,47}$")
 _PROVENANCE_KEYS = frozenset({"source", "ref", "source_kinds"})
 # The seat a file DECLARES: a short plain token, reported as declared. It is never authorship —
@@ -126,6 +126,12 @@ def check_rule_entry(entry: Any) -> str | None:
             return "mismatch starts with '-' (the host passes it to the estate CLI as a value)"
         if " ".join(entry["mismatch"].split()).casefold() == "code meets it":
             return "mismatch is the host's reserved 'code meets it'"
+    if "unsure" in entry:
+        # What the seat could not see or confirm about a rule under the resolve line
+        # (wicked-garden#1536): it becomes part of the placeholder's RISK reason.
+        why = _bad_text(entry["unsure"], MAX_MISMATCH, allow_empty=True)
+        if why:
+            return f"unsure {why}"
     if "domain" in entry or "domain_confidence" in entry:
         # The business domain the rule picks (an id of the repository's catalog; membership is the
         # apply step's check). Both or neither.

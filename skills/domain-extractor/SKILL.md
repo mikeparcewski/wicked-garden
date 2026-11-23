@@ -38,7 +38,8 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 When `.wicked/domain/worklist.json` exists in your working directory, the run's host step
 `extract-prepare` wrote it: behaviours that are not real requirements yet (the unmapped ones,
-then placeholders an earlier page left empty or under the confidence threshold, then mapped
+then placeholders an earlier page left empty or under the confidence threshold, each with its
+`prior_answer` (the stored answer and why it did not count) and more of its source, then mapped
 behaviours whose code changed since the map was built, marked `changed_since_build` with their
 `prior_statement`), hub-first, each framed with its source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
 `wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
@@ -88,7 +89,8 @@ value on the page.
    "provenance": {"source": "<module>", "ref": "<the symbol_id>", "source_kinds":
    ["code-body"|"type-def"|"comment"|"doc"]}}`, plus `"code_meets": false, "mismatch": "<one
    line>"` only when the code does not meet the requirement, and `"domain"` +
-   `"domain_confidence"` — no other keys. Then check it (it also checks the domains):
+   `"domain_confidence"`, and `"unsure": "<one line: what you could not see or confirm>"` for a
+   rule under 0.75 — no other keys. Then check it (it also checks the domains):
    `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
    --worklist .wicked/domain/worklist.json` and fix what it names.
    **Read each unit's source and write each statement yourself.** Create and change the file
@@ -127,7 +129,10 @@ value on the page.
    or a cut-off slice is low, and the host records it as a placeholder; a comment alone never
    sets a statement, so leave it empty. Judge
    each statement's confidence on its own; never stamp one value on the whole page (equal
-   values are fine where the support is equal). Only real requirements count toward the
+   values are fine where the support is equal). Never lower a confidence because the rule
+   seems minor or operational: that is the empty-statement choice. A rule under 0.75 says why
+   in `unsure`; the next ask of that unit shows it in `prior_answer`, so state what the source
+   shows and leave the guessed part out. Only real requirements count toward the
    target; a placeholder is shown, never counted.
    **State what the body enforces.** State what the unit's body enforces: its values, limits,
    defaults, and what it does with each parameter. The statement comes from what the body does; a
