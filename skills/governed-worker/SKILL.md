@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts or seat notes, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails, a shipped RVWL process rule is only reported), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts or seat notes, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -255,10 +255,12 @@ verdict with reasons. You are output-only.
   <the artifact it waits for>` (E6): it never fails the unit by itself, and a
   broken in-run part is still BROKEN. A BROKEN rule is a Critical, and the
   verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line.
-  Process rules (the `RVWL-*` rules: how the review loop, the engine and the
-  person's intent ran, not the change) are reported, never blocking: write their
-  `RULE <id>:` line like any other, but a BROKEN one is a Concern, never a
-  Critical, and never makes the verdict FAIL on its own. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
+  Process rules (the shipped `RVWL-*` rules: how the review loop, the engine and
+  the person's intent ran, not the change) are reported, never blocking: write
+  their `RULE <id>:` line like any other, but a BROKEN one is a Concern, never a
+  Critical, and never makes the verdict FAIL on its own. The engine's own rule
+  check decides which rules block: an RVWL rule an operator has rewritten is
+  judged there like any other rule, whatever you write. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
   test that fails without the fix; the diff changes `src/math.js:6` and no test,
   so `RULE learn-tests-with-fixes: BROKEN — the fix adds no test that fails
   without it (only src/math.js changed)` and `VERDICT: FAIL`. With such a test in
