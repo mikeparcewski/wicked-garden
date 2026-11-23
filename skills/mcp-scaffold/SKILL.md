@@ -242,7 +242,9 @@ JSON line, the plan the install gate shows: `{"dry_run": true, "key", "choices":
 "worker" | "operator", "label", "default"?, "writes": [{"path", "what", "cli"?,
 "operator_owned"}]}], "skipped": [{"cli", "why"}]}` — every path absolute, each choice listing
 everything it would write, the CLI rows from `wicked-installer mcp upsert --dry-run`. With no usable installer every
-requested CLI is a `skipped` row carrying the remedy, and the plan still exits 0. It exits
+requested CLI is a `skipped` row carrying the remedy, the plan still exits 0, and the choice
+ids carry `_no-cli` (`worker_no-cli`): an install approved from that card writes no CLI config,
+even if an installer appeared meanwhile. It exits
 non-zero (the reason on stderr) when it cannot plan.
 7. **Record** `<root>/<key>/installed.json` `{key, version, source, command, args,
    envNames, installedAt, registered, smoke}` and print it with `probe`, `registry` and `clis`.

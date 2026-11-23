@@ -593,8 +593,10 @@ def test_the_dry_run_with_no_installer_on_path_plans_and_names_the_remedy(rig):
 
     assert done.returncode == 0, done.stderr
     worker, operator = plan["choices"]
-    assert [w["what"] for w in worker["writes"]] == ["install root", "wicked-crew MCP tools registry entry"]
+    assert [w["what"] for w in worker["writes"]] == ["install root", "the install record",
+                                                     "wicked-crew MCP tools registry entry"]
     assert operator["writes"] == worker["writes"], "no CLI config is written for either choice"
+    assert [worker["id"], operator["id"]] == ["worker_no-cli", "operator_no-cli"], "the approval keeps the skip"
     assert [s["cli"] for s in plan["skipped"]] == ["claude", "codex", "opencode", "antigravity", "pi"]
     for row in plan["skipped"]:
         assert "wicked-installer is not installed" in row["why"]
@@ -635,6 +637,32 @@ def test_the_install_with_no_installer_on_path_installs_and_never_downloads_one(
     assert rig.calls("npx") == [], "no CLI config the plan did not list is written"
 
 
+def test_a_choice_approved_with_no_cli_writes_none_after_an_installer_appears(rig):
+    # The card listed no CLI config (no installer when it was planned); the user then ran the remedy and approved
+    # the same card. The install must not write the CLI configs the card never listed.
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin, "--target", "operator_no-cli")
+
+    assert code == 0, out
+    assert out["registered"] is True and out["target"] == "operator"
+    assert rig.calls("wicked-installer") == [], "no CLI config the approved plan did not list"
+    for field in ("clis", "operatorClis"):
+        assert out[field].startswith("skipped: the approved install plan listed no CLI config"), out[field]
+
+
+def test_the_plan_lists_the_install_record_and_the_roll_back_copy(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        assert rig.run("--from-run", "--crew-url", daemon.origin, "--cli", "none")[0] == 0
+        done, plan = _plan(rig, "--crew-url", daemon.origin, "--cli", "none")
+
+    assert done.returncode == 0, done.stderr
+    paths = [w["path"] for w in plan["choices"][0]["writes"]]
+    assert paths[:3] == [str(rig.root / "current"), str(rig.root / "previous"), str(rig.root / "installed.json")]
+    assert [c["id"] for c in plan["choices"]] == ["worker", "operator"]
+
+
 def test_uninstall_with_no_installer_on_path_still_removes_the_server(rig):
     with FakeDaemon() as daemon:
         _registry(daemon)
@@ -662,3 +690,16 @@ def test_the_install_root_defaults_to_wicked_home(rig):
     root_row = json.loads(done.stdout)["choices"][0]["writes"][0]
     assert root_row == {"path": str(scratch / "mcp-servers" / "acme-notes" / "current"), "what": "install root",
                         "operator_owned": False}
+
+
+def test_a_relative_wicked_home_installs_to_an_absolute_launch_path(rig):
+    env = {k: v for k, v in rig.env.items() if k != "WICKED_MCP_INSTALL_ROOT"}
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--json", "--cli", "none",
+                               "--crew-url", daemon.origin], capture_output=True, text=True, timeout=180,
+                              env={**env, "WICKED_HOME": "state"}, cwd=rig.tree)
+    assert done.returncode == 0, done.stdout + done.stderr
+    out = json.loads(done.stdout)
+    current_js = rig.tree / "state" / "mcp-servers" / "acme-notes" / "current" / "dist" / "server.js"
+    assert out["args"] == [str(current_js)] and current_js.is_file()

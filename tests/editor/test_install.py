@@ -27,6 +27,8 @@ ROOT_VARS = ("WICKED_CREW_URL", "WICKED_HOME", "WICKED_EDITOR_INSTALL_ROOT")
 def _run(script: str, *args: str, env: dict, cwd: Path | None = None) -> subprocess.CompletedProcess:
     full = {k: v for k, v in os.environ.items() if k not in ROOT_VARS}
     full.update(env)
+    if "HOME" in env:  # Path.home() reads USERPROFILE on Windows
+        full["USERPROFILE"] = env["HOME"]
     return subprocess.run([sys.executable, str(SCRIPTS / script), *args], capture_output=True, text=True,
                           env=full, cwd=cwd, timeout=240)
 
@@ -67,6 +69,15 @@ def test_the_install_root_variable_still_wins_over_wicked_home(tmp_path, pack):
     root = tmp_path / "explicit"
     paths = _plan_paths(pack, {"WICKED_HOME": str(tmp_path / "scratch-home"), "WICKED_EDITOR_INSTALL_ROOT": str(root)})
     assert paths[0] == str(root / "acme-json" / "current")
+
+
+def test_a_relative_wicked_home_plans_an_absolute_root(tmp_path, pack):
+    with FakeDaemon() as d:
+        done = _run("install.py", "--dir", str(pack), "--dry-run", "--json", cwd=tmp_path,
+                    env={"WICKED_CREW_URL": d.origin, "WICKED_HOME": "state"})
+    assert done.returncode == 0, done.stdout + done.stderr
+    plan = json.loads(done.stdout.strip().splitlines()[-1])
+    assert plan["choices"][0]["writes"][0]["path"] == str(tmp_path / "state" / "editors" / "acme-json" / "current")
 
 
 def test_the_install_writes_under_wicked_home(tmp_path, pack):

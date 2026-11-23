@@ -109,7 +109,7 @@ def install_root(flag: Path | None) -> Path:
     if env:
         return Path(env)
     home = os.environ.get("WICKED_HOME")
-    return (Path(home) if home else Path.home() / ".wicked") / "editors"
+    return Path(os.path.abspath((Path(home) if home else Path.home() / ".wicked") / "editors"))
 
 
 def http_json(method: str, url: str, body: dict | None = None) -> tuple[int, dict]:
