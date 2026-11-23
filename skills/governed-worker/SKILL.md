@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts or seat notes, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails, a shipped RVWL process rule is only reported), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts or seat notes, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -206,8 +206,9 @@ verdict with reasons. You are output-only.
   whose output records no built-in check (C8). Code that swaps out the framework the
   user or a policy chose is a Critical. Record your own check of the change the
   same way, on one line: `STACK-CHECK: looked at <docs or source> :: offers <what
-  it provides for this change>`. The rule judge accepts it as the record when the
-  creator's output has none. A bare "kept" or "no duplicate" is not a record.
+  it provides for this change, or nothing this change needs>`, both halves. The
+  rule judge accepts it as the record when the creator's output has none. A bare
+  "kept" or "no duplicate" is not a record.
 - **E6 — Judge what the run can show; defer what only delivery can.** A
   criterion whose evidence exists only after the deliver phase pushes — CI
   results on the opened pull request, the pull request's title or body, a merge,
@@ -252,7 +253,11 @@ verdict with reasons. You are output-only.
   A rule whose evidence exists only after delivery is `RULE <id>: DEFERRED —
   <the artifact it waits for>` (E6): it never fails the unit by itself, and a
   broken in-run part is still BROKEN. A BROKEN rule is a Critical, and the
-  verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
+  verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line.
+  Shipped `RVWL-*` process rules (how the loop ran, not the change) are only
+  reported: a BROKEN one is a Concern, never a Critical, and never makes the
+  verdict FAIL on its own; the engine's rule check judges a rewritten one like
+  any other rule. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
   test that fails without the fix; the diff changes `src/math.js:6` and no test,
   so `RULE learn-tests-with-fixes: BROKEN — the fix adds no test that fails
   without it (only src/math.js changed)` and `VERDICT: FAIL`. With such a test in
@@ -323,9 +328,9 @@ Rules cite the acceptance-program findings that motivated them.
 | A4 | F-RC1-048 |
 | A5 | F-RC1-046 |
 | A6 | F-RC2-031 |
-| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to. Narrowed 2026-11-18: the queue held many repeated sandbox limits and verdicts |
-| A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
-| A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit; garden#1406 |
+| A7 | operator report 2026-10-31 (only the pi seat proposed memories); narrowed 2026-11-18 (repeated sandbox limits and verdicts) |
+| A8 | chat-artifacts corpus 2026-11-02 (chat seats wrote a release note in their output instead of proposing a card) |
+| A9 | knowledge journey 2026-11-04 (a chat answer ended with the unit's run counts); garden#1406 |
 | C1 | F-RC1-019, F-RC1-070 |
 | C2 | F-RC1-070 |
 | C3 | F-RC1-019 |
@@ -339,8 +344,8 @@ Rules cite the acceptance-program findings that motivated them.
 | E3 | garden#1223 (companion to wicked-core#760) |
 | E4 | garden#1253 (S19a: `before:1` vs the form's `before:2`, passed on presence) |
 | E5 | operator ruling 2026-10-12 (wicked-core POL-2101) |
-| E6 | operator-approved fix, 2026-10-19 (runs 290a7fee and a74f51ac: reviews FAILed "CI green on every OS" and "PR body says Closes #N", which cannot exist before the deliver phase) |
-| E7 | operator ruling 2026-11-05 (end-to-end pass, run 9d2b6565: a bug fix shipped with no test while `learn-tests-with-fixes` and a project rule applied, and review and QE passed it; "validate them via third party", not creator citations) |
+| E6 | operator-approved fix, 2026-10-19 (runs 290a7fee and a74f51ac FAILed checks that only exist after delivery) |
+| E7 | operator ruling 2026-11-05 (run 9d2b6565: a fix shipped with no test while `learn-tests-with-fixes` applied); wicked-core#1316 (process rules reported) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions
