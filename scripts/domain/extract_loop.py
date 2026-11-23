@@ -46,6 +46,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on p
 from domain import _clients, _rule_extractor, business_domains, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
+# Source a first ask frames per unit, and what a placeholder asked again gets (wicked-garden#1536:
+# a program cut at the first cap shows the model its declarations and none of its logic).
+SOURCE_CAP = 4000
+REASK_SOURCE_CAP = 12000
+# How much of a placeholder's stored answer (its RISK requirement) a re-ask shows the model.
+MAX_PRIOR_ANSWER = 800
 # wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
 CODE_MISMATCH_ANN = "code_mismatch"
 # wicked-core's `CODE_MEETS`: the value a restatement writes over an earlier mismatch (estate's CLI
@@ -174,7 +180,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         replace=True, author=seat)
         estate.set_requirement(sid, requirement=stmt, validated=True, validated_by=seat)
     else:
-        stmt = (rule or {}).get("statement") or ""
+        stmt = str((rule or {}).get("statement") or "").strip()
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")
         raw_conf = (rule or {}).get("confidence", 0.0)
         try:
@@ -963,6 +969,24 @@ NOT_PRODUCT_REASON = ("not product code (a test, data or document file): recorde
                       "never a validated requirement")
 
 
+def below_threshold_reason(rule: dict) -> str:
+    """Why a valid rule stays a placeholder, said so the next ask of the unit can act on it
+    (wicked-garden#1536: re-asked units came back at 0.5-0.6 round after round, and the stored
+    reason said only "below confidence threshold"): the confidence it was stated at, the line,
+    and what the model said it could not see or confirm."""
+    conf = float(rule["confidence"])
+    # Two places, unless that would read as the line itself (0.749 is not "0.75", codex r1).
+    shown = f"{conf:.2f}" if round(conf, 2) < RESOLVE_THRESHOLD else repr(conf)
+    return _with_doubt(f"below confidence threshold: stated at {shown}, a rule counts at "
+                       f"{RESOLVE_THRESHOLD:.2f}", rule)
+
+
+def _with_doubt(reason: str, rule: dict | None) -> str:
+    """`reason` with what the model said it could not see or confirm, when it said so."""
+    unsure = _rule_extractor.unsure_text(rule)
+    return f"{reason}; unsure: {unsure}" if unsure else reason
+
+
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
                      seat: str | None = None, read_back=None,
@@ -991,10 +1015,10 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         shows = prior_mismatch or getattr(store, "mismatch_now", None)
         clear = bool(resolved and shows is not None and shows(sid))
         _write_node(estate, sid, name, rule, resolved,
-                    "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back,
-                    clear_mismatch=clear)
+                    below_threshold_reason(rule) if not resolved else "", seat=seat,
+                    read_back=read_back, clear_mismatch=clear)
         return "resolved" if resolved else "risk"
-    if (rule or {}).get("statement"):
+    if str((rule or {}).get("statement") or "").strip():
         _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
         return "risk"
     if _has_statement(store, sid):
@@ -1003,7 +1027,9 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # monotonic.
         print(f"[extract-loop] floor skipped for {sid} (existing statement kept)", file=sys.stderr)
         return "kept"
-    _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
+    # An empty answer's doubt is kept with the floor, so the next ask shows it (codex r1).
+    _write_node(estate, sid, name, rule, False, _with_doubt(reason, rule), seat=seat,
+                read_back=read_back)
     return "risk"
 
 
@@ -1027,13 +1053,22 @@ def read_worklist(base: Path, rel: str) -> dict:
     return doc
 
 
+def _source_cap(unit: dict) -> int:
+    """How much of a worklist unit's source the model sees: more for a placeholder asked again
+    (it carries its `prior_answer`), whose first ask may have been cut before its logic."""
+    prior = unit.get("prior_answer")
+    return REASK_SOURCE_CAP if isinstance(prior, str) and prior.strip() else SOURCE_CAP
+
+
 def _units_batch(units: list[dict], base_batch: int) -> int:
-    """`_density_batch` over the framed source the worklist already carries."""
+    """`_density_batch` over the framed source the worklist already carries; a batch of long
+    re-asked units packs fewer of them, so a prompt stays about the size of a first ask's."""
     if not units:
         return base_batch
     sample = units[: min(len(units), 12)]
-    avg = sum(len(str(u.get("source") or "")[:2000]) for u in sample) / len(sample)
-    mult = 1.6 if avg < 300 else (0.6 if avg > 1500 else 1.0)
+    avg = sum(len(str(u.get("source") or "")[:_source_cap(u)]) for u in sample) / len(sample)
+    mult = (1.6 if avg < 300 else 1.0 if avg <= 1500 else 0.6 if avg <= 4000
+            else 0.6 * 4000 / avg)
     return max(4, min(64, int(base_batch * mult)))
 
 
@@ -1068,6 +1103,9 @@ def to_entry(sid: str, rule: dict | None, domain_ids: set[str] | None = None) ->
     # Operator ruling 2026-11-06 (codex r1): an unmet requirement keeps its finding through the
     # file. A `code_meets: false` with no usable mismatch stays false with an empty mismatch, so
     # the host's validator refuses it (a placeholder), never reads it as a rule the code meets.
+    unsure = _rule_extractor.unsure_text(rule)
+    if unsure:
+        entry["unsure"] = unsure
     if rule.get("code_meets") is False:
         entry["code_meets"] = False
         entry["mismatch"] = _rule_extractor.code_mismatch(rule)
@@ -1086,6 +1124,7 @@ def to_entry(sid: str, rule: dict | None, domain_ids: set[str] | None = None) ->
     if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
         entry["statement"] = ""
         entry.pop("mismatch", None)
+        entry.pop("unsure", None)
         if entry.get("code_meets") is False:
             entry["mismatch"] = ""
     return entry
@@ -1103,12 +1142,29 @@ def _domain_extras(base: Path, rules_rel: str) -> dict:
     return {k: doc[k] for k in ("business_domains", "assignments") if k in doc}
 
 
+def _room(block: dict) -> int:
+    """How many areas the host said this page may add (`business_domains.add`; none from an
+    older host, which stores no added area)."""
+    add = block.get("add")
+    return add if isinstance(add, int) and not isinstance(add, bool) and add > 0 else 0
+
+
 def _page_domains(worklist: dict, extra: dict) -> list[dict] | None:
-    """The domains this page picks from: the worklist's stored catalog, else the proposal in the
-    rules file when it has the catalog's shape. None when there are none."""
+    """The domains this page picks from: the worklist's stored catalog with any areas the rules
+    file adds to it, else the proposal in the rules file when it has the catalog's shape. None
+    when there are none."""
     block = worklist.get("business_domains")
     if isinstance(block, dict) and isinstance(block.get("catalog"), list) and block["catalog"]:
-        return [d for d in block["catalog"] if isinstance(d, dict) and isinstance(d.get("id"), str)]
+        stored = [d for d in block["catalog"] if isinstance(d, dict) and isinstance(d.get("id"), str)]
+        try:
+            # Areas the seat added to the stored catalog (wicked-garden#1537) are picked from too.
+            added = business_domains.check_additions(
+                [d for d in stored if isinstance(d.get("name"), str)],
+                extra.get("business_domains"), room=_room(block)) \
+                if "business_domains" in extra else []
+        except business_domains.CatalogRefused:
+            added = []
+        return [*stored, *added]
     try:
         return business_domains.check_catalog_shape(extra.get("business_domains"))
     except business_domains.CatalogRefused:
@@ -1169,9 +1225,13 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
             break
         take = take[:room]
         framed = [_rule_extractor.frame_context(
-            u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
+            u, str(u.get("source") or "")[:_source_cap(u)], cluster_label=u.get("cluster"),
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
         for f, u in zip(framed, take):
+            # A placeholder asked again (wicked-garden#1536): its stored answer and why it did not
+            # count, so the model fixes what it could not confirm instead of guessing again.
+            if isinstance(u.get("prior_answer"), str) and u["prior_answer"].strip():
+                f["prior_answer"] = u["prior_answer"][:MAX_PRIOR_ANSWER]
             # A mapped unit whose code changed since the map was built (wicked-garden#1425, codex
             # r2): the prompt says so and shows the earlier statement, as data.
             if u.get("changed_since_build") is True:
@@ -1248,6 +1308,18 @@ class _WorktreeEvidence:
         return path is not None and path.is_dir()
 
 
+def _evidence_problems(proposed: list[dict], dropped: list[dict]) -> list[dict]:
+    """Each dropped evidence item (or domain) as a check problem naming where it is."""
+    positions = {d["id"]: i for i, d in enumerate(proposed)}
+    out = []
+    for item in dropped:
+        where = f"business_domains[{positions[item['domain']]}]"
+        if item["index"] is not None:
+            where += f".evidence[{item['index']}]"
+        out.append({"index": None, "symbol_id": None, "why": f"{where}: {item['why']}"})
+    return out
+
+
 def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -> list[dict]:
     """What the seat's business-domain answers get wrong against the worklist (reqgraph Fix B):
     the seat's own check of what the host will check again. One `{index, symbol_id, why}` each."""
@@ -1257,13 +1329,25 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
     problems: list[dict] = []
     proposed = doc.get("business_domains")
     domains = None
+    dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
     if isinstance(block.get("catalog"), list) and block["catalog"]:
         domains = block["catalog"]
         if proposed is not None:
-            problems.append({"index": None, "symbol_id": None,
-                             "why": "business_domains: this repository already has a catalog "
-                                    "(the worklist's business_domains.catalog); pick from it, "
-                                    "do not propose another"})
+            # Areas added to the stored catalog (wicked-garden#1537): only new ones, grounded.
+            try:
+                added = business_domains.check_additions(
+                    [d for d in domains if isinstance(d, dict) and isinstance(d.get("id"), str)
+                     and isinstance(d.get("name"), str)], proposed, dirs, room=_room(block))
+                added, dropped = business_domains.check_catalog_evidence(
+                    added, _WorktreeEvidence(base), lambda file, symbol: "",
+                    business_domains.repo_reader(str(base)),
+                    lambda file, kind: not business_domains.not_product(file, kind), min_kept=0)
+                domains = [*domains, *added]
+                problems += _evidence_problems(proposed, dropped)
+            except business_domains.CatalogRefused as e:
+                problems.append({"index": None, "symbol_id": None,
+                                 "why": f"{e} (the worklist's business_domains.catalog is stored: "
+                                        "list only areas it lacks)"})
     elif proposed is None:
         if worklist.get("units") or worklist.get("assign"):
             problems.append({"index": None, "symbol_id": None,
@@ -1271,7 +1355,6 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
                                     "business domains (business_domains.propose); propose them "
                                     "as the wicked-garden-domain-modeler skill says"})
     else:
-        dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
         try:
             domains = business_domains.check_catalog_shape(proposed, dirs)
             # Symbol presence is not checked in the seat; the host checks it against the store.
@@ -1279,13 +1362,7 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
                 domains, _WorktreeEvidence(base), lambda file, symbol: "",
                 business_domains.repo_reader(str(base)),
                 lambda file, kind: not business_domains.not_product(file, kind))
-            positions = {d["id"]: i for i, d in enumerate(proposed)}
-            for item in dropped:
-                where = f"business_domains[{positions[item['domain']]}]"
-                if item["index"] is not None:
-                    where += f".evidence[{item['index']}]"
-                problems.append({"index": None, "symbol_id": None,
-                                 "why": f"{where}: {item['why']}"})
+            problems += _evidence_problems(proposed, dropped)
         except business_domains.CatalogRefused as e:
             problems.append({"index": None, "symbol_id": None, "why": str(e)})
     ids = {d["id"] for d in domains or [] if isinstance(d, dict) and isinstance(d.get("id"), str)}

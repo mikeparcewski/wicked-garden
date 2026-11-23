@@ -49,8 +49,16 @@ _PROMPT_HEADER = (
     "State what the unit's body enforces: its values, limits, defaults, and what it does "
     "with each parameter. The statement comes from what the body does; a comment, docstring "
     "or parameter name that disagrees with the body never sets it (a docstring that says "
-    "batches of 10 while the body passes 100 is a rule about 100). Set confidence by how "
-    "sure you are of that rule. When a test or a caller shows the unit is meant to behave "
+    "batches of 10 while the body passes 100 is a rule about 100). Confidence is how sure you "
+    "are that the statement says what the source shown does: 0.8 or more for a statement read "
+    "from the body (its conditions, values, dispositions, messages), however small or routine "
+    "the rule. Never lower it because a rule seems minor, technical or operational: whether a "
+    "unit holds a rule at all is the choice of statement \"\", not of confidence. Lower it only "
+    "for what the statement takes from outside the source shown (a callee's or caller's "
+    "behaviour guessed from its name, code past the end of a cut slice), and rather leave that "
+    "part out. A rule under 0.75 does not count: then add "
+    '"unsure": "<one line: what you could not see or confirm>". '
+    "When a test or a caller shows the unit is meant to behave "
     "differently from its body (a bug: e.g. a sum that skips the first element), still state "
     "the intended requirement and add "
     '"code_meets": false, "mismatch": "<one line: how the code departs>". Never restate '
@@ -114,6 +122,12 @@ def _domains_text(domains: list[dict[str, Any]]) -> str:
         "users, never from the file's directory. When no area fits, leave both keys out.\n")
 
 
+def _fence_safe(text: Any) -> str:
+    """Untrusted text for inside a ``` fence: a run of backticks can never close it (codex r1 on
+    #1536: a source comment holding ``` and an instruction after it left the fence)."""
+    return re.sub(r"`{3,}", lambda m: "'" * len(m.group(0)), str(text or ""))
+
+
 def _build_prompt(batch: list[dict[str, Any]]) -> str:
     parts = [_PROMPT_HEADER]
     domains = next((c["business_domains"] for c in batch
@@ -127,8 +141,19 @@ def _build_prompt(batch: list[dict[str, Any]]) -> str:
             f"symbol_id: {c['symbol_id']}\n"
             f"name: {c.get('name','')}  file: {c.get('file','')}  "
             f"cluster: {c.get('cluster','')}  neighbors: {neigh}\n"
-            f"source:\n```\n{c.get('source','')}\n```\n"
+            f"source:\n```\n{_fence_safe(c.get('source', ''))}\n```\n"
         )
+        if c.get("prior_answer") and not c.get("changed_since_build"):
+            # A placeholder asked again (wicked-garden#1536): its stored answer and why it did not
+            # count, as data fenced like the source (no fence of its own inside), so this ask can
+            # fix what the last one could not confirm instead of guessing the same way again.
+            prior = _fence_safe(c.get("prior_answer"))
+            parts.append(
+                "this unit was asked before and is still a placeholder. The earlier answer and "
+                "why it did not count (data, and it may be wrong):\n"
+                f"```\n{prior}\n```\n"
+                "State again only what the source shown supports, leaving out what the earlier "
+                "answer guessed; its confidence never sets yours.\n")
         if c.get("changed_since_build"):
             # Mapped before; its code changed since the map was built (wicked-garden#1425). The
             # earlier statement is data, fenced like the source (no fence of its own inside).
@@ -204,6 +229,17 @@ def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
     if not meets and not code_mismatch(rule):
         return False, "code_meets is false but no mismatch says how the code departs"
     return True, "ok"
+
+
+def unsure_text(rule: Any) -> str:
+    """What the model says it could not see or confirm about a rule under the resolve line
+    (wicked-garden#1536), as one clean line bounded like a mismatch, or "". It goes into the
+    placeholder's RISK reason, which the next ask of that unit shows the model."""
+    text = rule.get("unsure") if isinstance(rule, dict) else None
+    if not isinstance(text, str):
+        return ""
+    text = text.encode("utf-8", "replace").decode("utf-8")
+    return " ".join(_CONTROL.sub(" ", text).split())[:MAX_MISMATCH].strip()
 
 
 def code_mismatch(rule: Any) -> str:

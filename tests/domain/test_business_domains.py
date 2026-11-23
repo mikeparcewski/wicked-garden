@@ -274,7 +274,7 @@ def test_a_stored_catalog_is_never_replaced_and_picks_outside_it_are_refused(tmp
     bd = report["business_domains"]
     assert bd["catalog"] == "stored" and bd["picked"] == 1
     whys = " | ".join(r["why"] for r in bd["refused"])
-    assert "never replaces it" in whys and "'payments-x' is not an id" in whys
+    assert "repeats a domain of the stored catalog" in whys and "'payments-x' is not an id" in whys
     assert _domain_of(estate, "s::core") is None
     assert _domain_of(estate, "s::a") == ("reporting", 0.7)
     assert [d["id"] for d in business_domains.load_catalog(db)] == ["payments", "accounts",

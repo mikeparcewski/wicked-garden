@@ -42,6 +42,14 @@ PAGE_SIZE_ENV = "WICKED_DOMAIN_PAGE_SIZE"
 _ENVELOPE = 64 * 1024  # bytes kept for the document around the units (a first cut; trimmed after)
 
 
+def _prior_answer(store, sid: str) -> str:
+    """A placeholder's stored answer and why it did not count: the RISK requirement an earlier
+    page wrote (`extract_loop._write_node`: "[RISK] <name>: <reason> — <statement>"), bounded;
+    "" when the store holds none."""
+    text = (store.requirement_of(sid) or "").strip()
+    return text[:extract_loop.MAX_PRIOR_ANSWER] if text.startswith("[RISK]") else ""
+
+
 def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
             estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -119,11 +127,18 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
             # The store's content, else the repository's file at the same span. Never `estate source`
             # here: it looks a NAME up, and for a symbol id it answers "no symbols found" — text the
             # seat would read as the code.
-            slice_txt = store.source_slice(sid)
+            # A placeholder is asked again with its stored answer and why it did not count, and
+            # with more of its source (wicked-garden#1536: every stated program of a CardDemo
+            # re-ask was cut at the first-ask cap, before its logic, and came back under the line).
+            prior = _prior_answer(store, sid) if sid in revisit and sid not in restate else ""
+            slice_txt = (store.source_slice(sid, cap=extract_loop.REASK_SOURCE_CAP) if prior
+                         else store.source_slice(sid))
             unit = _rule_extractor.frame_context(n, slice_txt, cluster_label=node_community.get(sid),
                                                  neighbor_names=store.blast_neighbors(sid))
             unit.update(kind=n.get("kind", ""), position=order.get(sid, tail) + 1,
                         hop=hops.get(sid))
+            if prior:
+                unit["prior_answer"] = prior
             if sid in restate:  # mapped before; its code changed since the map was built
                 unit.update(changed_since_build=True, prior_statement=restate[sid]["prior"])
             room -= len(rules_file.encoded(unit))

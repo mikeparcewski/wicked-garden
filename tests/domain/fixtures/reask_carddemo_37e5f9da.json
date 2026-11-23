@@ -1,0 +1,157 @@
+{
+ "_from": "Run 37e5f9da (train 12 re-cut 3, CardDemo, J6), read GET-only from the proof daemon at 2026-11-23T18:00Z: GET /api/v1/runs/<run>/files?path=<run worktree>/.wicked/domain/{worklist.json,rules.json,apply-report.json}. worklist.json is extract-prepare's output (scripts/domain/prepare_worklist.py: rules_file.write_json_file(base, out_rel, doc)) for Ask again #4 (153 placeholders); rules.json is the extract seat's file for it, stated by the harness (scripts/domain/extract_loop.py run_files: rules_file.write_json_file(base, rules_rel, doc)); apply-report.json is extract-apply's report for the page before it (scripts/domain/apply_rules.py: rules_file.write_json_file(base, REPORT_REL, report)). Units and rules copied unchanged; only a subset of the 153 is kept.",
+ "apply_report": {
+  "declared_seat": "claude",
+  "author": "extract-loop:claude",
+  "entries": 163,
+  "applied": {
+   "resolved": 10,
+   "risk": 87,
+   "kept": 66
+  },
+  "eligible": 163,
+  "changed_since_build": {
+   "listed": 0,
+   "restated": 0
+  },
+  "reworked": 0,
+  "unsourced": 0,
+  "not_product": 0,
+  "refused": [],
+  "refused_count": 0,
+  "business_domains": {
+   "catalog": "stored",
+   "domains": 4,
+   "picked": 41,
+   "assigned": 1,
+   "dropped_evidence": [],
+   "dropped_evidence_count": 0,
+   "refused": [],
+   "refused_count": 0
+  },
+  "coverage": {
+   "coverage": 1.0,
+   "behavior_bearing": 697,
+   "resolved": 544,
+   "risk_flagged": 153,
+   "unaccounted": 0
+  },
+  "minimum_met": false,
+  "coverage_line": "coverage: 78% real requirements, minimum 80% (544 of 697 behaviours; 153 placeholders, 0 unmapped). The mapping so far is kept in the estate store; the next domain-extraction run continues from it."
+ },
+ "worklist_units": [
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBACT01C/CBACT01C#",
+   "name": "CBACT01C",
+   "file": "app/cbl/CBACT01C.cbl",
+   "cluster": "cobol-copybook synthetic CODATECN:",
+   "neighbors": [
+    "caller:STEP05",
+    "callee:COBDATFT",
+    "callee:1000-ACCTFILE-GET-NEXT",
+    "callee:1100-DISPLAY-ACCT-RECORD",
+    "callee:1300-POPUL-ACCT-RECORD",
+    "callee:1350-WRITE-ACCT-RECORD",
+    "callee:1400-POPUL-ARRAY-RECORD",
+    "callee:1450-WRITE-ARRY-RECORD"
+   ],
+   "source": "IDENTIFICATION DIVISION.\n       PROGRAM-ID.    CBACT01C.\n       AUTHOR.        AWS.\n\n       ENVIRONMENT DIVISION.\n       INPUT-OUTPUT SECTION.\n       FILE-CONTROL.\n           SELECT ACCTFILE-FILE ASSIGN TO ACCTFILE\n                  ORGANIZATION IS INDEXED\n                  ACCESS MODE  IS SEQUENTIAL\n                  RECORD KEY   IS FD-ACCT-ID\n                  FILE STATUS  IS ACCTFILE-STATUS.\n      *\n           SELECT OUT-FILE ASSIGN TO OUTFILE\n                  ORGANIZATION IS SEQUENTIAL\n                  ACCESS MODE IS SEQUENTIAL\n                  FILE STATUS IS OUTFILE-STATUS.\n      *\n           SELECT ARRY-FILE ASSIGN TO ARRYFILE\n                  ORGANIZATION IS SEQUENTIAL\n                  ACCESS MODE IS SEQUENTIAL\n                  FILE STATUS IS ARRYFILE-STATUS.\n      *\n           SELECT VBRC-FILE ASSIGN TO VBRCFILE\n                  ORGANIZATION IS SEQUENTIAL\n                  ACCESS MODE IS SEQUENTIAL\n                  FILE STATUS IS VBRCFILE-STATUS.\n      *\n       DATA DIVISION.\n       FILE SECTION.\n       FD  ACCTFILE-FILE.\n       01  FD-ACCTFILE-REC.\n           05 FD-ACCT-ID                        PIC 9(11).\n           05 FD-ACCT-DATA                      PIC X(289).\n       FD OUT-FILE.\n       01 OUT-ACCT-REC.\n          05  OUT-ACCT-ID                PIC 9(11).\n          05  OUT-ACCT-ACTIVE-STATUS     PIC X(01).\n          05  OUT-ACCT-CURR-BAL          PIC S9(10)V99.\n          05  OUT-ACCT-CREDIT-LIMIT      PIC S9(10)V99.\n          05  OUT-ACCT-CASH-CREDIT-LIMIT PIC S9(10)V99.\n          05  OUT-ACCT-OPEN-DATE         PIC X(10).\n          05  OUT-ACCT-EXPIRAION-DATE    PIC X(10).\n          05  OUT-ACCT-REISSUE-DATE      PIC X(10).\n          05  OUT-ACCT-CURR-CYC-CREDIT   PIC S9(10)V99.\n          05  OUT-ACCT-CURR-CYC-DEBIT    PIC S9(10)V99\n                                         USAGE IS COMP-3.\n          05  OUT-ACCT-GROUP-ID          PIC X(10).\n      *\n       FD ARRY-FILE.\n       01 ARR-ARRAY-REC.\n          05  ARR-ACCT-ID                PIC 9(11).\n          05  ARR-ACCT-BAL OCCURS 5  TIMES.\n            10  ARR-ACCT-CURR-BAL        PIC S9(10)V99.\n            10  ARR-ACCT-CURR-CYC-DEBIT  PIC S9(10)V99\n                                         USAGE IS COMP-3.\n          05  ARR-FILLER                 PIC X(04).\n      *\n       FD VBRC-FILE\n                  RECORDING MODE IS V\n                  RECORD IS VARYING IN SIZE\n                  FROM 10 TO 80 DEPENDING\n                  ON WS-RECD-LEN.\n       01 VBR-REC                        PIC X(80).\n       WORKING-STORAGE SECTION.\n\n      ****0************************************************************\n       COPY CVACT01Y.\n       COPY CODATECN.\n       01  ACCTFILE-STATUS.\n           05  ACCTFILE-STAT1      PIC X.\n           05  ACCTFILE-STAT2      PIC X.\n       01  OUTFILE-STATUS.\n           05  OUTFILE-STAT1       PIC X.\n           05  OUTFILE-STAT2       PIC X.\n       01  ARRYFILE-STATUS.\n           05  ARRYFILE-STAT1      PIC X.\n           05  ARRYFILE-STAT2      PIC X.\n       01  VBRCFILE-STATUS.\n           05  VBRCFILE-STAT1      PIC X.\n           05  VBRCFILE-STAT2      PIC X.\n\n       01  IO-STATUS.\n           05  IO-STAT1            PIC X.\n           05  IO-STAT2            PIC X.\n       01  TWO-BYTES-BINARY        PIC 9(4) BINARY.\n       01  TWO-BYTES-ALPHA         REDEFINES TWO-BYTES-BINARY.\n           05  TWO-BYTES-LEFT      PIC X.\n           05  TWO-BYTES-RIGHT     PIC X.\n       01  IO-STATUS-04.\n           05  IO-STATUS-0401      PIC 9   VALUE 0.\n           05  IO-STATUS-0403      PIC 999 VALUE 0.\n\n       01  APPL-RESULT             PIC S9(9)   COMP.\n           88  APPL-AOK            VALUE 0.\n           88  APPL-EOF            VALUE 16.\n\n       01  END-OF-FILE             PIC X(01)    VALUE 'N'.\n       01  ABCODE                  PIC S9(9) BINARY.\n       01  TIMING                  PIC S9(9) BINARY.\n       01  WS-RECD-LEN             PIC  9(04).\n       01 VBRC-REC1.\n          05  VB1-ACCT-ID                PIC 9(11).\n          05  VB1-ACCT-ACTIVE-STATUS ",
+   "kind": "Module",
+   "position": 8,
+   "hop": 0
+  },
+  {
+   "symbol_id": "jcl synthetic app/jcl/TRANBKP.jcl::TRANBKP::STEP05R:",
+   "name": "STEP05R",
+   "file": "app/jcl/TRANBKP.jcl",
+   "cluster": "jcl synthetic app/jcl/PRTCATBL.jcl::PRTCATBL::STEP05R:",
+   "neighbors": [
+    "callee:REPROC"
+   ],
+   "source": "//STEP05R EXEC PROC=REPROC,                                                     \n// CNTLLIB=AWS.M2.CARDDEMO.CNTL                                                 \n//*                                                                             \n//PRC001.FILEIN  DD DISP=SHR,                                                   \n//        DSN=AWS.M2.CARDDEMO.TRANSACT.VSAM.KSDS                                \n//*                                                                             \n//PRC001.FILEOUT DD DISP=(NEW,CATLG,DELETE),                                    \n//        UNIT=SYSDA,                                                           \n//        DCB=(LRECL=350,RECFM=FB,BLKSIZE=0),                                   \n//        SPACE=(CYL,(1,1),RLSE),                                               \n//        DSN=AWS.M2.CARDDEMO.TRANSACT.BKUP(+1)                                 \n//* *******************************************************************         \n//* DELETE TRANSACATION MASTER VSAM FILE IF ONE ALREADY EXISTS                  \n//* *******************************************************************         \n",
+   "kind": "step",
+   "position": 17,
+   "hop": 1
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#SEND-BILLPAY-SCREEN().",
+   "name": "SEND-BILLPAY-SCREEN",
+   "file": "app/cbl/COBIL00C.cbl",
+   "cluster": "cobol-copybook synthetic COBIL00:",
+   "neighbors": [
+    "caller:COBIL00C"
+   ],
+   "source": "SEND-BILLPAY-SCREEN.\n\n           PERFORM POPULATE-HEADER-INFO\n\n           MOVE WS-MESSAGE TO ERRMSGO OF COBIL0AO\n\n           EXEC CICS SEND\n                     MAP('COBIL0A')\n                     MAPSET('COBIL00')\n                     FROM(COBIL0AO)\n                     ERASE\n                     CURSOR\n           END-EXEC.\n\n      *----------------------------------------------------------------*\n      *                      RECEIVE-BILLPAY-SCREEN\n      *----------------------------------------------------------------*",
+   "kind": "Function",
+   "position": 749,
+   "hop": 3
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBEXPORT/CBEXPORT#1000-INITIALIZE().",
+   "name": "1000-INITIALIZE",
+   "file": "app/cbl/CBEXPORT.cbl",
+   "cluster": "cobol-copybook synthetic CVACT01Y:",
+   "neighbors": [
+    "caller:CBEXPORT"
+   ],
+   "source": "1000-INITIALIZE.\n      *****************************************************************\n           DISPLAY 'CBEXPORT: Starting Customer Data Export'\n           \n           PERFORM 1050-GENERATE-TIMESTAMP\n           PERFORM 1100-OPEN-FILES\n           \n           DISPLAY 'CBEXPORT: Export Date: ' WS-EXPORT-DATE\n           DISPLAY 'CBEXPORT: Export Time: ' WS-EXPORT-TIME.\n\n      *****************************************************************",
+   "kind": "Function",
+   "position": 551,
+   "hop": 3
+  }
+ ],
+ "rules": [
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBACT01C/CBACT01C#",
+   "statement": "The account master file is read in full, in account-key order, and each account record is extracted to three outputs: a fixed-layout account extract, an array-style extract holding up to five balance and cycle-debit pairs per account, and a variable-length extract of 10 to 80 bytes. Any file error stops the run.",
+   "confidence": 0.5,
+   "provenance": {
+    "source": "app/cbl/CBACT01C.cbl",
+    "ref": "ts-cobol . . . app/cbl/CBACT01C/CBACT01C#",
+    "source_kinds": [
+     "code-body"
+    ]
+   },
+   "domain": "account-and-card-management",
+   "domain_confidence": 0.6
+  },
+  {
+   "symbol_id": "jcl synthetic app/jcl/TRANBKP.jcl::TRANBKP::STEP05R:",
+   "statement": "The transaction master file is copied to a new cataloged backup generation of fixed-length 350-byte records. The source file is only read, and the backup is deleted if the step fails.",
+   "confidence": 0.65,
+   "provenance": {
+    "source": "app/jcl/TRANBKP.jcl",
+    "ref": "jcl synthetic app/jcl/TRANBKP.jcl::TRANBKP::STEP05R:",
+    "source_kinds": [
+     "code-body"
+    ]
+   },
+   "domain": "transaction-posting",
+   "domain_confidence": 0.55
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#SEND-BILLPAY-SCREEN().",
+   "statement": "The bill payment screen is always shown with current header information and any pending message in the error message field. The screen is cleared before it is redisplayed.",
+   "confidence": 0.5,
+   "provenance": {
+    "source": "app/cbl/COBIL00C.cbl",
+    "ref": "ts-cobol . . . app/cbl/COBIL00C/COBIL00C#SEND-BILLPAY-SCREEN().",
+    "source_kinds": [
+     "code-body"
+    ]
+   }
+  },
+  {
+   "symbol_id": "ts-cobol . . . app/cbl/CBEXPORT/CBEXPORT#1000-INITIALIZE().",
+   "statement": "",
+   "confidence": 0.2,
+   "provenance": {
+    "source": "app/cbl/CBEXPORT.cbl",
+    "ref": "ts-cobol . . . app/cbl/CBEXPORT/CBEXPORT#1000-INITIALIZE().",
+    "source_kinds": [
+     "code-body"
+    ]
+   }
+  }
+ ]
+}

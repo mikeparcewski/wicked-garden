@@ -101,7 +101,10 @@ def test_again_reopens_the_asked_placeholders_for_the_next_page(tmp_path, capsys
     assert [p["page"] for p in rec["points"]] == [0, 1], "an answer is not another page"
 
 
-def test_placeholders_asked_again_and_still_unresolved_recommend_no_third_ask(tmp_path, capsys):
+def test_a_second_ask_that_resolved_some_still_recommends_asking_again(tmp_path, capsys):
+    """wicked-garden#1536: after re-asks that resolved 11 and 14 units (run 37e5f9da) the card
+    recommended "Lower the minimum to 74%". While a re-ask still moves the share, asking again
+    stays the recommendation; lowering is offered and says what it gives up."""
     db, repo = _first_run_asked_everything(tmp_path)
     _next(db, repo, RUN1, 60, WICKED_REPEAT_PASS=1)
     _next(db, repo, RUN1, 61, WICKED_REPEAT_PASS=1, WICKED_REPEAT_CHOICE="again")
@@ -111,7 +114,9 @@ def test_placeholders_asked_again_and_still_unresolved_recommend_no_third_ask(tm
     d = _next(db, repo, RUN2, 120, WICKED_REPEAT_PASS=2)
     assert d["next"] == "ask"
     assert [c["id"] for c in d["choices"]] == ["again", "lower"]
-    assert d["recommended"] == "lower", "every one of them was asked twice"
+    assert d["recommended"] == "again", "the second ask resolved 101 of the 263"
+    assert d["choices"][1]["label"] == ("Lower the minimum to 76% for repo and build the "
+                                        "graph with 162 behaviours left without a requirement")
     assert "162 placeholders asked again and still unresolved" in d["line"], d["line"]
     assert "real requirements 0% → 62% → 76%" in d["line"]
     assert set(HELD2) <= generation.visited(generation.load(db, "run-1"))
@@ -131,10 +136,57 @@ def test_a_near_empty_second_ask_still_says_what_is_left_and_offers_it(tmp_path,
     generation.record_answered(db, "run-1", HELD2)
     d = _next(db, repo, RUN3, 180, WICKED_REPEAT_PASS=3)
     assert d["next"] == "ask"
-    assert [c["id"] for c in d["choices"]] == ["again", "lower"] and d["recommended"] == "lower"
+    # 8 of 162 resolved: under 1 in 20, but a re-ask still moves the share (wicked-garden#1536)
+    assert [c["id"] for c in d["choices"]] == ["again", "lower"] and d["recommended"] == "again"
     assert d["line"].endswith("the last page resolved under 1 in 20 of its units: read its review"
                               " · 154 placeholders asked again and still unresolved"), d["line"]
     assert "nothing is left to map" not in d["line"]
+
+
+def test_a_re_ask_that_resolved_none_recommends_lowering_and_says_what_it_gives_up(tmp_path,
+                                                                                    capsys):
+    """wicked-garden#1536: only a re-ask page that resolved none of its units leaves lowering
+    as the recommendation, and its label names the behaviours left without a requirement."""
+    db, repo = _first_run_asked_everything(tmp_path)
+    _next(db, repo, RUN1, 60, WICKED_REPEAT_PASS=1)
+    _next(db, repo, RUN1, 61, WICKED_REPEAT_PASS=1, WICKED_REPEAT_CHOICE="again")
+    generation.frame_page(db, "run-1", HELD1)
+    generation.record_answered(db, "run-1", HELD1)
+    # the 263 asked again and not one resolved: the same report as before the page
+    d = _next(db, repo, RUN1, 120, WICKED_REPEAT_PASS=2)
+    assert d["next"] == "ask" and [c["id"] for c in d["choices"]] == ["again", "lower"]
+    assert d["recommended"] == "lower", d
+    assert d["choices"][1]["label"] == ("Lower the minimum to 62% for repo and build the "
+                                        "graph with 263 behaviours left without a requirement")
+
+
+def test_a_page_whose_share_did_not_move_recommends_lowering_whatever_its_yield_says():
+    """codex r1: a page's yield also counts a changed mapped unit that was real before the page;
+    whether asking again helps is read from the share itself."""
+    pts = [{"page": 0, "at": 0, "pct": 74, "real": 520, "behaviours": 697, "placeholders": 177},
+           {"page": 1, "at": MIN, "took": MIN, "pct": 74, "real": 520, "behaviours": 697,
+            "placeholders": 177, "framed": 178, "page_real": 1}]
+    d = generation.decide({"points": pts, "grant": {"page": 0, "at": 0}}, repo="r", target=80,
+                          now=2 * MIN, max_pages=20, max_minutes=240, left_to_map=0,
+                          asked_left=177, asked_once=0)
+    assert [c["id"] for c in d["choices"]] == ["again", "lower"] and d["recommended"] == "lower"
+    moved = [pts[0], {**pts[1], "real": 521, "placeholders": 176}]
+    d = generation.decide({"points": moved, "grant": {"page": 0, "at": 0}}, repo="r", target=80,
+                          now=2 * MIN, max_pages=20, max_minutes=240, left_to_map=0,
+                          asked_left=176, asked_once=0)
+    assert d["recommended"] == "again"
+
+
+def test_the_lower_label_keeps_what_it_gives_up_inside_the_label_limit():
+    last = {"pct": 74, "real": 520, "behaviours": 697}
+    assert generation._lower_label("carddemo-t12r3", last) == (
+        "Lower the minimum to 74% for carddemo-t12r3 and build the graph with 177 behaviours "
+        "left without a requirement")
+    long = generation._lower_label("r" * 64, last)
+    assert len(long) <= generation.MAX_LABEL and long.endswith("177 behaviours left without a "
+                                                               "requirement"), long
+    assert "1 behaviour left" in generation._lower_label("r", {"pct": 99, "real": 99,
+                                                              "behaviours": 100})
 
 
 def test_a_minimum_the_placeholders_asked_again_can_reach_is_not_out_of_reach():
