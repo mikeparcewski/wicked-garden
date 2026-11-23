@@ -4,7 +4,7 @@
 
 ## [12.68.6] - 2026-11-23
 
-Patch release on the train-12 cut 6055a0eb, carrying 8 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468.
+Patch release on the train-12 re-cut 701dfd14, carrying 10 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534.
 
 ### Changed
 
@@ -20,6 +20,8 @@ Patch release on the train-12 cut 6055a0eb, carrying 8 PRs since 12.68.5: #1522,
 - The report floor reads links with a CommonMark parser, not patterns (#1525)
 - Start the fixture on the port the engine's jail opens (core#1297) (#1527)
 - No graph on a container seat hands the relayed read; re-vendor schema bundle 1.3.2 (#1526, #1511) (#1528)
+- Domain extraction asks the run's unresolved placeholders again instead of saying "nothing left to map"; a request never takes a unit off the page (#1533) (#1534)
+- build-guide catches up with core's floor schema: parser.count, the complete probe, bound {q} (#1529)
 
 ## [12.68.5] - 2026-11-22
 
