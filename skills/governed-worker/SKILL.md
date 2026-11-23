@@ -206,8 +206,10 @@ verdict with reasons. You are output-only.
   whose output records no built-in check (C8). Code that swaps out the framework the
   user or a policy chose is a Critical. Record your own check of the change the
   same way, on one line: `STACK-CHECK: looked at <docs or source> :: offers <what
-  it provides for this change>`. The rule judge accepts it as the record when the
-  creator's output has none. A bare "kept" or "no duplicate" is not a record.
+  it provides for this change, or nothing this change needs>`, with both halves
+  (what you looked at, and what it offers). The rule judge accepts it as the record
+  when the creator's output has none. A bare "kept" or "no duplicate" is not a
+  record.
 - **E6 — Judge what the run can show; defer what only delivery can.** A
   criterion whose evidence exists only after the deliver phase pushes — CI
   results on the opened pull request, the pull request's title or body, a merge,
@@ -252,7 +254,11 @@ verdict with reasons. You are output-only.
   A rule whose evidence exists only after delivery is `RULE <id>: DEFERRED —
   <the artifact it waits for>` (E6): it never fails the unit by itself, and a
   broken in-run part is still BROKEN. A BROKEN rule is a Critical, and the
-  verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
+  verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line.
+  Process rules (the `RVWL-*` rules: how the review loop, the engine and the
+  person's intent ran, not the change) are reported, never blocking: write their
+  `RULE <id>:` line like any other, but a BROKEN one is a Concern, never a
+  Critical, and never makes the verdict FAIL on its own. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
   test that fails without the fix; the diff changes `src/math.js:6` and no test,
   so `RULE learn-tests-with-fixes: BROKEN — the fix adds no test that fails
   without it (only src/math.js changed)` and `VERDICT: FAIL`. With such a test in

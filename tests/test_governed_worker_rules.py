@@ -87,6 +87,19 @@ def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 
     # wicked-core#1381: the evaluator's own check is a record the rule judge accepts.
     assert "Record your own check of the change the same way, on one line: `STACK-CHECK:" in rule
     assert 'A bare "kept" or "no duplicate" is not a record.' in rule
+    # wicked-core#1316/#1836: the reviewer's line in the exact form the record judge reads, both halves.
+    assert (
+        "`STACK-CHECK: looked at <docs or source> :: offers <what it provides for this change, "
+        "or nothing this change needs>`, with both halves" in rule
+    )
+
+
+def test_e7_process_rules_are_reported_never_critical():  # wicked-core#1316
+    rule = _rule("E7")
+    assert "A BROKEN rule is a Critical, and the verdict is FAIL" in rule
+    assert "Process rules (the `RVWL-*` rules" in rule
+    assert "are reported, never blocking" in rule
+    assert "a BROKEN one is a Concern, never a Critical, and never makes the verdict FAIL on its own" in rule
 
 
 def test_engineering_review_and_plan_carry_the_built_in_check():  # POL-2101
