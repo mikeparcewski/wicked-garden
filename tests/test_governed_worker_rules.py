@@ -90,19 +90,18 @@ def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 
     # wicked-core#1316/#1836: the reviewer's line in the exact form the record judge reads, both halves.
     assert (
         "`STACK-CHECK: looked at <docs or source> :: offers <what it provides for this change, "
-        "or nothing this change needs>`, with both halves" in rule
+        "or nothing this change needs>`, both halves" in rule
     )
 
 
 def test_e7_process_rules_are_reported_never_critical():  # wicked-core#1316
     rule = _rule("E7")
     assert "A BROKEN rule is a Critical, and the verdict is FAIL" in rule
-    assert "Process rules (the shipped `RVWL-*` rules" in rule
-    assert "an RVWL rule an operator has rewritten is judged there like any other rule" in rule
+    assert "Shipped `RVWL-*` process rules (how the loop ran, not the change) are only reported" in rule
+    assert "the engine's rule check judges a rewritten one like any other rule" in rule
     # The description (shown before the body loads) carries the same exception.
     head = FLOOR.read_text(encoding="utf-8").split("\n---", 1)[0]
     assert "a broken rule fails, a shipped RVWL process rule is only reported" in head
-    assert "are reported, never blocking" in rule
     assert "a BROKEN one is a Concern, never a Critical, and never makes the verdict FAIL on its own" in rule
 
 

@@ -206,10 +206,9 @@ verdict with reasons. You are output-only.
   whose output records no built-in check (C8). Code that swaps out the framework the
   user or a policy chose is a Critical. Record your own check of the change the
   same way, on one line: `STACK-CHECK: looked at <docs or source> :: offers <what
-  it provides for this change, or nothing this change needs>`, with both halves
-  (what you looked at, and what it offers). The rule judge accepts it as the record
-  when the creator's output has none. A bare "kept" or "no duplicate" is not a
-  record.
+  it provides for this change, or nothing this change needs>`, both halves. The
+  rule judge accepts it as the record when the creator's output has none. A bare
+  "kept" or "no duplicate" is not a record.
 - **E6 — Judge what the run can show; defer what only delivery can.** A
   criterion whose evidence exists only after the deliver phase pushes — CI
   results on the opened pull request, the pull request's title or body, a merge,
@@ -255,12 +254,10 @@ verdict with reasons. You are output-only.
   <the artifact it waits for>` (E6): it never fails the unit by itself, and a
   broken in-run part is still BROKEN. A BROKEN rule is a Critical, and the
   verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line.
-  Process rules (the shipped `RVWL-*` rules: how the review loop, the engine and
-  the person's intent ran, not the change) are reported, never blocking: write
-  their `RULE <id>:` line like any other, but a BROKEN one is a Concern, never a
-  Critical, and never makes the verdict FAIL on its own. The engine's own rule
-  check decides which rules block: an RVWL rule an operator has rewritten is
-  judged there like any other rule, whatever you write. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
+  Shipped `RVWL-*` process rules (how the loop ran, not the change) are only
+  reported: a BROKEN one is a Concern, never a Critical, and never makes the
+  verdict FAIL on its own; the engine's rule check judges a rewritten one like
+  any other rule. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
   test that fails without the fix; the diff changes `src/math.js:6` and no test,
   so `RULE learn-tests-with-fixes: BROKEN — the fix adds no test that fails
   without it (only src/math.js changed)` and `VERDICT: FAIL`. With such a test in
@@ -331,9 +328,9 @@ Rules cite the acceptance-program findings that motivated them.
 | A4 | F-RC1-048 |
 | A5 | F-RC1-046 |
 | A6 | F-RC2-031 |
-| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to. Narrowed 2026-11-18: the queue held many repeated sandbox limits and verdicts |
-| A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
-| A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit; garden#1406 |
+| A7 | operator report 2026-10-31 (only the pi seat proposed memories); narrowed 2026-11-18 (repeated sandbox limits and verdicts) |
+| A8 | chat-artifacts corpus 2026-11-02 (chat seats wrote a release note in their output instead of proposing a card) |
+| A9 | knowledge journey 2026-11-04 (a chat answer ended with the unit's run counts); garden#1406 |
 | C1 | F-RC1-019, F-RC1-070 |
 | C2 | F-RC1-070 |
 | C3 | F-RC1-019 |
@@ -347,8 +344,8 @@ Rules cite the acceptance-program findings that motivated them.
 | E3 | garden#1223 (companion to wicked-core#760) |
 | E4 | garden#1253 (S19a: `before:1` vs the form's `before:2`, passed on presence) |
 | E5 | operator ruling 2026-10-12 (wicked-core POL-2101) |
-| E6 | operator-approved fix, 2026-10-19 (runs 290a7fee and a74f51ac: reviews FAILed "CI green on every OS" and "PR body says Closes #N", which cannot exist before the deliver phase) |
-| E7 | operator ruling 2026-11-05 (end-to-end pass, run 9d2b6565: a bug fix shipped with no test while `learn-tests-with-fixes` and a project rule applied, and review and QE passed it; "validate them via third party", not creator citations) |
+| E6 | operator-approved fix, 2026-10-19 (runs 290a7fee and a74f51ac FAILed checks that only exist after delivery) |
+| E7 | operator ruling 2026-11-05 (run 9d2b6565: a fix shipped with no test while `learn-tests-with-fixes` applied); wicked-core#1316 (process rules reported) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions
