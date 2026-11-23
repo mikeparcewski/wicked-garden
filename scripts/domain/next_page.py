@@ -10,7 +10,8 @@ step:
   * measures the real share in the store (`wicked-core coverage`) against the repository's
     target (`wicked-core requirements-target`: its own, else the daemon-wide minimum);
   * closes the page in the generation's record (`generation.py`, beside the store, never in the
-    seat-writable worktree: its units are not asked again this run), adds the point and prints
+    seat-writable worktree: its units are not asked again this run unless the operator chooses
+    `again`), adds the point and prints
     ONE progress line — "Mapping wicked-crew · real requirements 23% → 27% · minimum 80% · page 2
     · 4,397 placeholders · last page resolved 212 of 500 units · about 3 h left";
   * ends with the engine's decision line (`wicked-repeat {...}`, wicked-core's bounded loop):
@@ -21,8 +22,13 @@ step:
     repository, or stop; done at the target once no mapped behaviour that changed since the map
     was built is left to re-ask (wicked-garden#1425).
 
+When every unit was asked once but placeholders this run asked about are still not resolved,
+the ask says so and offers to ask them again (wicked-garden#1533); it never reads "nothing left
+to map" while a second ask can still raise the share.
+
 The engine re-runs this step with the operator's choice in `WICKED_REPEAT_CHOICE`: `continue`
-grants a fresh budget, `lower` sets the repository's own target to the share mapped so far (so
+grants a fresh budget, `again` reopens the asked, unresolved placeholders for the next page (with
+a fresh budget), `lower` sets the repository's own target to the share mapped so far (so
 the coverage step passes and the graph is built, labelled with that share) and restates the
 page's `.wicked/domain/apply-report.json` in the worktree against the lowered minimum, so the
 work the coverage step's judge reads no longer says "minimum 80%, not met" (wicked-core e2e F29).
@@ -50,13 +56,18 @@ CHOICE_ENV = "WICKED_REPEAT_CHOICE"
 PASS_ENV = "WICKED_REPEAT_PASS"
 
 
-def _left_to_map(coverage: dict, repo_root: str, seen: set[str]) -> int:
+def _left_to_map(coverage: dict, tracked: set[str], seen: set[str]) -> int:
     """Behaviours that are not real requirements yet (unmapped, or placeholders) in files the
     repository tracks that no page of this generation has asked about: what another page could
     still raise the real share with."""
-    tracked = rules_file.tracked_files(repo_root)
     nodes = [*_clients.unaccounted_nodes(coverage), *_clients.placeholder_nodes(coverage)]
     return sum(1 for n in nodes if n.get("file") in tracked and n.get("symbol_id") not in seen)
+
+
+def _held(coverage: dict, tracked: set[str]) -> set[str]:
+    """The placeholders in files the repository tracks (what an "again" may reopen)."""
+    return {n.get("symbol_id") for n in _clients.placeholder_nodes(coverage)
+            if n.get("file") in tracked and isinstance(n.get("symbol_id"), str)}
 
 
 # The restated report keeps these fields of the page's report (what `apply_rules.py` writes, minus
@@ -184,7 +195,12 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
     doc["points"] = sorted([p for p in points if p["page"] != page] + [point],
                            key=lambda p: p["page"])
 
-    if choice == "continue" and doc["grant"]["page"] != page:
+    tracked = rules_file.tracked_files(repo_root)
+    held = _held(cov, tracked)
+    if choice == "again" and run_id != "standalone":
+        # wicked-garden#1533: the operator asks the placeholders this run asked about once more.
+        generation.reopen(doc, held)
+    if choice in ("continue", "again") and doc["grant"]["page"] != page:
         doc["grant"] = {"page": page, "at": now}
     if choice == "lower" and 1 <= point["pct"] < target:
         target, source = core.requirements_target(db, set_pct=point["pct"])
@@ -195,13 +211,16 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         # (no share to lower to, so the daemon's minimum applies): the report is not touched.
         _restate_apply_report(core, db, worktree, target)
     max_pages, max_minutes = generation.budget_from_env(env)
+    asked = generation.asked_unresolved(doc, held)
     decision = generation.decide(doc, repo=repo, target=target, now=now, max_pages=max_pages,
                                  max_minutes=max_minutes,
-                                 left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)),
+                                 left_to_map=_left_to_map(cov, tracked, generation.visited(doc)),
                                  # "Lower the minimum ... and build the graph" ends the mapping
                                  # as its label says, changed units left or not (codex r2).
                                  changed_left=0 if choice == "lower" else generation.changed_left(doc),
-                                 assign_left=unassigned, assign_progress=assign_progress)
+                                 assign_left=unassigned, assign_progress=assign_progress,
+                                 asked_left=0 if choice == "lower" else len(asked),
+                                 asked_once=len(asked - generation.asked_again(doc)))
     if choice == "finish":
         decision = {"next": "done", "line": generation.progress_line(
             repo, doc["points"], target, next_page=None, left_to_map=0)

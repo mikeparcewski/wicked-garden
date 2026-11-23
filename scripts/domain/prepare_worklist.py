@@ -63,7 +63,8 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         except (OSError, ValueError) as e:
             raise RuntimeError(f"the generation record could not be opened ({e})") from e
     # Units an earlier page of this generation framed are not asked again (a placeholder the
-    # seat left empty stays one; a later generation may try it again).
+    # seat left empty stays one) unless the operator chose to ask them again (`again`, which
+    # takes them out of `visited`, wicked-garden#1533); a later generation may try it again.
     seen = generation.visited(record)
     revisit = {n["symbol_id"] for n in placeholders}
     tracked = rules_file.tracked_files(repo_root)
@@ -176,6 +177,12 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         except (OSError, ValueError) as e:
             raise RuntimeError(f"the page's units could not be recorded in the generation "
                                f"record ({e})") from e
+    if run_id:
+        # A new page starts with no answer (wicked-garden#1533, codex r1): an earlier page's rules
+        # file holds entries for units an operator's "again" frames once more, and the harness
+        # resumes after any entry the worklist holds, so it would hand the old empty answers back
+        # with no model call. A same-page retry or send-back never re-runs this step.
+        rules_file.remove_file(base, rules_file.RULES_REL)
     rules_file.write_json_file(base, out_rel, doc)
     if assignment_page:
         print(f"[extract-prepare] assignment page: {len(doc['assign'])} to assign", file=sys.stderr)
