@@ -4,7 +4,7 @@
 
 ## [12.68.6] - 2026-11-23
 
-Patch release on the train-12 re-cut 701dfd14, carrying 10 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534.
+Patch release on the train-12 re-cut 4 280af4d4, carrying 12 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534, #1538, #1539.
 
 ### Changed
 
@@ -22,6 +22,8 @@ Patch release on the train-12 re-cut 701dfd14, carrying 10 PRs since 12.68.5: #1
 - No graph on a container seat hands the relayed read; re-vendor schema bundle 1.3.2 (#1526, #1511) (#1528)
 - Domain extraction asks the run's unresolved placeholders again instead of saying "nothing left to map"; a request never takes a unit off the page (#1533) (#1534)
 - build-guide catches up with core's floor schema: parser.count, the complete probe, bound {q} (#1529)
+- A re-asked placeholder can resolve, and the card recommends asking again while that moves the share (#1538)
+- A later page may add a business area the stored catalog lacks, so a forced pick can be fixed within the rework cap (#1539)
 
 ## [12.68.5] - 2026-11-22
 
