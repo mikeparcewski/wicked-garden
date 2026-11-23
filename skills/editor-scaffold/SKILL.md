@@ -152,8 +152,8 @@ wicked-garden run scripts/editor/install.py (--from-run | --dir <dir>) [--target
 wicked-garden run scripts/editor/install.py --uninstall <pack name> [--crew-url <origin>]
 ```
 
-Idempotent by the pack's `name`: stage into `~/.wicked/editors/<name>/current/` (a program-owned
-place; the copy it replaces is kept in `previous/`), then `POST /api/v1/editors` on the daemon,
+Idempotent by the pack's `name`: stage into `<root>/<name>/current/` (`$WICKED_EDITOR_INSTALL_ROOT`,
+else `$WICKED_HOME/editors`, else `~/.wicked/editors`: a program-owned place; the copy it replaces is kept in `previous/`), then `POST /api/v1/editors` on the daemon,
 which re-runs `pack check` **and the conformance run itself** before it records the editor in its
 registry. A refusal rolls the staged copy back and exits 1. `--target daemon` (the default)
 installs it on; `daemon-off` installs it turned off. `--dry-run` writes nothing and prints the

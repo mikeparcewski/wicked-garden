@@ -242,7 +242,8 @@ wicked-garden run scripts/editor/install.py --dir ./acme-terms-editor --crew-url
 ```
 
 The installer stages the manifest, entry, accepted declared images and README when present under
-`~/.wicked/editors/<name>/current/`. Crew re-runs pack check and conformance against the staged copy
+`<root>/<name>/current/`, where the root is `--install-root`, else `$WICKED_EDITOR_INSTALL_ROOT`, else
+`$WICKED_HOME/editors`, else `~/.wicked/editors`. Crew re-runs pack check and conformance against the staged copy
 before recording the editor; a refusal restores the previous installation. `--target daemon-off`
 installs it disabled. Manage it in studio Settings → Developer → Editor plugins. For a governed build,
 use Settings → Developer → Create an editor plugin: the `editor-plugin` workflow presents its install
