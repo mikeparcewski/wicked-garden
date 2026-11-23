@@ -46,6 +46,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on p
 from domain import _clients, _rule_extractor, business_domains, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
+# Source a first ask frames per unit, and what a placeholder asked again gets (wicked-garden#1536:
+# a program cut at the first cap shows the model its declarations and none of its logic).
+SOURCE_CAP = 4000
+REASK_SOURCE_CAP = 12000
+# How much of a placeholder's stored answer (its RISK requirement) a re-ask shows the model.
+MAX_PRIOR_ANSWER = 800
 # wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
 CODE_MISMATCH_ANN = "code_mismatch"
 # wicked-core's `CODE_MEETS`: the value a restatement writes over an earlier mismatch (estate's CLI
@@ -963,6 +969,17 @@ NOT_PRODUCT_REASON = ("not product code (a test, data or document file): recorde
                       "never a validated requirement")
 
 
+def below_threshold_reason(rule: dict) -> str:
+    """Why a valid rule stays a placeholder, said so the next ask of the unit can act on it
+    (wicked-garden#1536: re-asked units came back at 0.5-0.6 round after round, and the stored
+    reason said only "below confidence threshold"): the confidence it was stated at, the line,
+    and what the model said it could not see or confirm."""
+    why = (f"below confidence threshold: stated at {float(rule['confidence']):.2f}, a rule counts "
+           f"at {RESOLVE_THRESHOLD:.2f}")
+    unsure = _rule_extractor.unsure_text(rule)
+    return f"{why}; unsure: {unsure}" if unsure else why
+
+
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
                      seat: str | None = None, read_back=None,
@@ -991,8 +1008,8 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         shows = prior_mismatch or getattr(store, "mismatch_now", None)
         clear = bool(resolved and shows is not None and shows(sid))
         _write_node(estate, sid, name, rule, resolved,
-                    "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back,
-                    clear_mismatch=clear)
+                    below_threshold_reason(rule) if not resolved else "", seat=seat,
+                    read_back=read_back, clear_mismatch=clear)
         return "resolved" if resolved else "risk"
     if (rule or {}).get("statement"):
         _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
@@ -1027,13 +1044,22 @@ def read_worklist(base: Path, rel: str) -> dict:
     return doc
 
 
+def _source_cap(unit: dict) -> int:
+    """How much of a worklist unit's source the model sees: more for a placeholder asked again
+    (it carries its `prior_answer`), whose first ask may have been cut before its logic."""
+    prior = unit.get("prior_answer")
+    return REASK_SOURCE_CAP if isinstance(prior, str) and prior.strip() else SOURCE_CAP
+
+
 def _units_batch(units: list[dict], base_batch: int) -> int:
-    """`_density_batch` over the framed source the worklist already carries."""
+    """`_density_batch` over the framed source the worklist already carries; a batch of long
+    re-asked units packs fewer of them, so a prompt stays about the size of a first ask's."""
     if not units:
         return base_batch
     sample = units[: min(len(units), 12)]
-    avg = sum(len(str(u.get("source") or "")[:2000]) for u in sample) / len(sample)
-    mult = 1.6 if avg < 300 else (0.6 if avg > 1500 else 1.0)
+    avg = sum(len(str(u.get("source") or "")[:_source_cap(u)]) for u in sample) / len(sample)
+    mult = (1.6 if avg < 300 else 1.0 if avg <= 1500 else 0.6 if avg <= 4000
+            else 0.6 * 4000 / avg)
     return max(4, min(64, int(base_batch * mult)))
 
 
@@ -1068,6 +1094,9 @@ def to_entry(sid: str, rule: dict | None, domain_ids: set[str] | None = None) ->
     # Operator ruling 2026-11-06 (codex r1): an unmet requirement keeps its finding through the
     # file. A `code_meets: false` with no usable mismatch stays false with an empty mismatch, so
     # the host's validator refuses it (a placeholder), never reads it as a rule the code meets.
+    unsure = _rule_extractor.unsure_text(rule)
+    if unsure:
+        entry["unsure"] = unsure
     if rule.get("code_meets") is False:
         entry["code_meets"] = False
         entry["mismatch"] = _rule_extractor.code_mismatch(rule)
@@ -1086,6 +1115,7 @@ def to_entry(sid: str, rule: dict | None, domain_ids: set[str] | None = None) ->
     if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
         entry["statement"] = ""
         entry.pop("mismatch", None)
+        entry.pop("unsure", None)
         if entry.get("code_meets") is False:
             entry["mismatch"] = ""
     return entry
@@ -1169,9 +1199,13 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
             break
         take = take[:room]
         framed = [_rule_extractor.frame_context(
-            u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
+            u, str(u.get("source") or "")[:_source_cap(u)], cluster_label=u.get("cluster"),
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
         for f, u in zip(framed, take):
+            # A placeholder asked again (wicked-garden#1536): its stored answer and why it did not
+            # count, so the model fixes what it could not confirm instead of guessing again.
+            if isinstance(u.get("prior_answer"), str) and u["prior_answer"].strip():
+                f["prior_answer"] = u["prior_answer"][:MAX_PRIOR_ANSWER]
             # A mapped unit whose code changed since the map was built (wicked-garden#1425, codex
             # r2): the prompt says so and shows the earlier statement, as data.
             if u.get("changed_since_build") is True:

@@ -429,6 +429,32 @@ def _asked_text(asked_left: int, asked_once: int) -> str:
     return f"{n} placeholder{s} this run asked about, unresolved ({count(asked_once)} asked once)"
 
 
+# The longest choice label the engine shows whole (wicked-core `repeat.rs`: `one_line(label, 120)`).
+MAX_LABEL = 120
+
+
+def _lower_label(repo: str, last: dict[str, Any]) -> str:
+    """"Lower the minimum" says what the person gives up (wicked-garden#1536): the behaviours
+    the graph is then built without a requirement for. The repository is left out only when
+    the label would be cut."""
+    left = max(0, int(last["behaviours"]) - int(last["real"]))
+    tail = (f"and build the graph with {count(left)} behaviour{'s' if left != 1 else ''} left "
+            f"without a requirement")
+    label = f"Lower the minimum to {last['pct']}% for {repo} {tail}"
+    return label if len(label) <= MAX_LABEL else f"Lower the minimum to {last['pct']}% {tail}"
+
+
+def _again_can_help(points: list[dict[str, Any]], asked_once: int) -> bool:
+    """Can asking the placeholders again still move the share? Yes while some were asked only
+    once, and while the last page still resolved at least one of its units (wicked-garden#1536:
+    re-asks that resolved 11 and 14 units were followed by a card recommending to lower the
+    minimum). Only a page that resolved none of them leaves lowering as the recommendation."""
+    if asked_once > 0:
+        return True
+    y = page_yield(points)
+    return y is not None and y[0] > 0
+
+
 def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: int,
            max_minutes: int, left_to_map: int, changed_left: int = 0,
            assign_left: int = 0, assign_progress: bool = False,
@@ -441,7 +467,8 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     no real requirement, or when the grant's pages or minutes are spent; `continue` otherwise.
     `asked_left` counts the placeholders a page of this run asked about and left unresolved, of
     which `asked_once` were never asked again (wicked-garden#1533): when nothing unasked is left,
-    the ask offers to ask them again, recommended while some were asked only once."""
+    the ask offers to ask them again, recommended while asking again can still move the share
+    (`_again_can_help`, wicked-garden#1536)."""
     points = doc["points"]
     last = points[-1]
     page = last["page"]
@@ -478,8 +505,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
                          left_to_map=left_to_map + asked_left)
     # A target is a whole percentage 1..100 the real share so far must meet: below 1% nothing
     # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
-    lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
-                                      f"the graph"} if last["pct"] >= 1 else None)
+    lower = ({"id": "lower", "label": _lower_label(repo, last)} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {count(max_pages)} more pages"}
     again = ({"id": "again", "label": f"Ask the {count(asked_left)} placeholder"
                                       f"{'s' if asked_left != 1 else ''} again"}
@@ -505,7 +531,8 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             warn = (f"{head} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
                     f"read its review · {_asked_text(asked_left, asked_once)}")
             return {"next": "ask", "choices": choices,
-                    "recommended": "again" if asked_once > 0 else choices[1]["id"], "line": warn}
+                    "recommended": "again" if _again_can_help(points, asked_once)
+                    else choices[1]["id"], "line": warn}
         else:
             # Nothing left to ask (agy/codex r2 on #1375): still the operator's word, never a
             # silent "done"; going on hands the share to the coverage step.
@@ -522,7 +549,8 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             # still resolve steered the operator to lower the minimum. Say what is left and offer it.
             choices = [again, lower if lower is not None else FINISH]
             return {"next": "ask", "choices": choices,
-                    "recommended": "again" if asked_once > 0 else choices[1]["id"],
+                    "recommended": "again" if _again_can_help(points, asked_once)
+                    else choices[1]["id"],
                     "line": f"{head} · {_asked_text(asked_left, asked_once)}"}
         rest = (f"{head} · nothing left to map "
                 f"in the files the repository tracks")

@@ -99,7 +99,9 @@ def test_a_spent_budget_asks_map_more_or_lower_the_target(pages, minutes, spent)
     assert [c["id"] for c in d["choices"]] == ["continue", "lower"]
     assert f"budget reached ({spent};" in d["line"]
     low = generation.real_pct(30 + 10 * pages, 1000)
-    assert d["choices"][1]["label"] == f"Lower the minimum to {low}% for crew and build the graph"
+    left = 1000 - (30 + 10 * pages)
+    assert d["choices"][1]["label"] == (f"Lower the minimum to {low}% for crew and build the graph "
+                                        f"with {left} behaviours left without a requirement")
 
 
 def test_a_fresh_grant_restarts_the_budget():
@@ -507,7 +509,9 @@ def test_the_line_says_minimum_and_formats_counts_with_thousands_separators():
     # nothing left to ask: the gate asks, and its choice says "minimum" too
     ask = _decide(doc, now_min=7 * 15, left=0)
     assert ask["next"] == "ask" and "target" not in ask["line"], ask
-    assert [c["label"] for c in ask["choices"]] == ["Lower the minimum to 61% for crew and build the graph"]
+    assert [c["label"] for c in ask["choices"]] == [
+        "Lower the minimum to 61% for crew and build the graph with 2,201 behaviours left without "
+        "a requirement"]
     assert generation.count(2174) == "2,174" and generation.count(7) == "7"
 
 
