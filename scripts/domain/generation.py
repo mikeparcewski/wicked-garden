@@ -446,13 +446,14 @@ def _lower_label(repo: str, last: dict[str, Any]) -> str:
 
 def _again_can_help(points: list[dict[str, Any]], asked_once: int) -> bool:
     """Can asking the placeholders again still move the share? Yes while some were asked only
-    once, and while the last page still resolved at least one of its units (wicked-garden#1536:
-    re-asks that resolved 11 and 14 units were followed by a card recommending to lower the
-    minimum). Only a page that resolved none of them leaves lowering as the recommendation."""
+    once, and while the last page still added real requirements (wicked-garden#1536: re-asks
+    that resolved 11 and 14 units were followed by a card recommending to lower the minimum).
+    The share itself is read, not the page's yield, which also counts a changed mapped unit
+    that was real before the page (codex r1). Only a page that added none leaves lowering as the
+    recommendation."""
     if asked_once > 0:
         return True
-    y = page_yield(points)
-    return y is not None and y[0] > 0
+    return len(points) >= 2 and points[-1]["real"] > points[-2]["real"]
 
 
 def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: int,

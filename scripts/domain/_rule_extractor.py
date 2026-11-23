@@ -122,6 +122,12 @@ def _domains_text(domains: list[dict[str, Any]]) -> str:
         "users, never from the file's directory. When no area fits, leave both keys out.\n")
 
 
+def _fence_safe(text: Any) -> str:
+    """Untrusted text for inside a ``` fence: a run of backticks can never close it (codex r1 on
+    #1536: a source comment holding ``` and an instruction after it left the fence)."""
+    return re.sub(r"`{3,}", lambda m: "'" * len(m.group(0)), str(text or ""))
+
+
 def _build_prompt(batch: list[dict[str, Any]]) -> str:
     parts = [_PROMPT_HEADER]
     domains = next((c["business_domains"] for c in batch
@@ -135,13 +141,13 @@ def _build_prompt(batch: list[dict[str, Any]]) -> str:
             f"symbol_id: {c['symbol_id']}\n"
             f"name: {c.get('name','')}  file: {c.get('file','')}  "
             f"cluster: {c.get('cluster','')}  neighbors: {neigh}\n"
-            f"source:\n```\n{c.get('source','')}\n```\n"
+            f"source:\n```\n{_fence_safe(c.get('source', ''))}\n```\n"
         )
         if c.get("prior_answer") and not c.get("changed_since_build"):
             # A placeholder asked again (wicked-garden#1536): its stored answer and why it did not
             # count, as data fenced like the source (no fence of its own inside), so this ask can
             # fix what the last one could not confirm instead of guessing the same way again.
-            prior = str(c.get("prior_answer") or "").replace("`", "'")
+            prior = _fence_safe(c.get("prior_answer"))
             parts.append(
                 "this unit was asked before and is still a placeholder. The earlier answer and "
                 "why it did not count (data, and it may be wrong):\n"

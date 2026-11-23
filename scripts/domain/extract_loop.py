@@ -974,10 +974,17 @@ def below_threshold_reason(rule: dict) -> str:
     (wicked-garden#1536: re-asked units came back at 0.5-0.6 round after round, and the stored
     reason said only "below confidence threshold"): the confidence it was stated at, the line,
     and what the model said it could not see or confirm."""
-    why = (f"below confidence threshold: stated at {float(rule['confidence']):.2f}, a rule counts "
-           f"at {RESOLVE_THRESHOLD:.2f}")
+    conf = float(rule["confidence"])
+    # Two places, unless that would read as the line itself (0.749 is not "0.75", codex r1).
+    shown = f"{conf:.2f}" if round(conf, 2) < RESOLVE_THRESHOLD else f"{conf:.4f}".rstrip("0")
+    return _with_doubt(f"below confidence threshold: stated at {shown}, a rule counts at "
+                       f"{RESOLVE_THRESHOLD:.2f}", rule)
+
+
+def _with_doubt(reason: str, rule: dict | None) -> str:
+    """`reason` with what the model said it could not see or confirm, when it said so."""
     unsure = _rule_extractor.unsure_text(rule)
-    return f"{why}; unsure: {unsure}" if unsure else why
+    return f"{reason}; unsure: {unsure}" if unsure else reason
 
 
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
@@ -1020,7 +1027,9 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # monotonic.
         print(f"[extract-loop] floor skipped for {sid} (existing statement kept)", file=sys.stderr)
         return "kept"
-    _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
+    # An empty answer's doubt is kept with the floor, so the next ask shows it (codex r1).
+    _write_node(estate, sid, name, rule, False, _with_doubt(reason, rule), seat=seat,
+                read_back=read_back)
     return "risk"
 
 

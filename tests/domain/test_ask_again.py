@@ -160,6 +160,23 @@ def test_a_re_ask_that_resolved_none_recommends_lowering_and_says_what_it_gives_
                                         "graph with 263 behaviours left without a requirement")
 
 
+def test_a_page_whose_share_did_not_move_recommends_lowering_whatever_its_yield_says():
+    """codex r1: a page's yield also counts a changed mapped unit that was real before the page;
+    whether asking again helps is read from the share itself."""
+    pts = [{"page": 0, "at": 0, "pct": 74, "real": 520, "behaviours": 697, "placeholders": 177},
+           {"page": 1, "at": MIN, "took": MIN, "pct": 74, "real": 520, "behaviours": 697,
+            "placeholders": 177, "framed": 178, "page_real": 1}]
+    d = generation.decide({"points": pts, "grant": {"page": 0, "at": 0}}, repo="r", target=80,
+                          now=2 * MIN, max_pages=20, max_minutes=240, left_to_map=0,
+                          asked_left=177, asked_once=0)
+    assert [c["id"] for c in d["choices"]] == ["again", "lower"] and d["recommended"] == "lower"
+    moved = [pts[0], {**pts[1], "real": 521, "placeholders": 176}]
+    d = generation.decide({"points": moved, "grant": {"page": 0, "at": 0}}, repo="r", target=80,
+                          now=2 * MIN, max_pages=20, max_minutes=240, left_to_map=0,
+                          asked_left=176, asked_once=0)
+    assert d["recommended"] == "again"
+
+
 def test_the_lower_label_keeps_what_it_gives_up_inside_the_label_limit():
     last = {"pct": 74, "real": 520, "behaviours": 697}
     assert generation._lower_label("carddemo-t12r3", last) == (
