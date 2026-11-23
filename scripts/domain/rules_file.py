@@ -368,7 +368,13 @@ def remove_file(base: Path, rel: str) -> bool:
     was removed."""
     parts = _parts(rel)
     if not _FD_SAFE:
-        path = inside(base, rel)
+        # The directories on the way must not be links; the leaf may be one (removed, not
+        # followed), as on POSIX below (codex r2).
+        parent = inside(base, str(Path(*parts[:-1]))) if len(parts) > 1 else Path(base)
+        path = parent / parts[-1]
+        if path.is_symlink():
+            path.unlink()
+            return True
         if not path.exists():
             return False
         if not path.is_file():

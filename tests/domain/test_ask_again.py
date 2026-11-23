@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 
 from domain import generation, next_page  # noqa: E402
@@ -273,8 +275,14 @@ def test_again_asks_the_seat_afresh_never_hands_back_the_earlier_pages_answers(t
     assert report["applied"]["resolved"] == len(framed) - 1
 
 
-def test_removing_an_earlier_pages_rules_file_never_follows_a_planted_link(tmp_path):
+@pytest.mark.parametrize("fd_safe", [True, False])
+def test_removing_an_earlier_pages_rules_file_never_follows_a_planted_link(tmp_path, monkeypatch,
+                                                                           fd_safe):
+    """Both paths: descriptor-relative on POSIX, the path checks where there is none (Windows)."""
     from domain import rules_file
+    if fd_safe and not rules_file._FD_SAFE:
+        pytest.skip("no descriptor-relative I/O on this platform")
+    monkeypatch.setattr(rules_file, "_FD_SAFE", fd_safe)
     wt = tmp_path / "wt"
     outside = tmp_path / "outside.json"
     outside.write_text("{}")
