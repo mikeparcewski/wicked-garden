@@ -301,16 +301,27 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
     """What this page may write of its business domains (reqgraph Fix B), decided before any
     write: the catalog (the stored one, else the page's proposal when it is grounded in code the
     host can see), and the assignments that name a resolved requirement with no domain yet."""
-    plan: dict = {"catalog": None, "store": False, "state": "none", "assign": [],
+    plan: dict = {"catalog": None, "store": False, "extend": [], "state": "none", "assign": [],
                   "refused": [], "dropped": []}
     stored = business_domains.load_catalog(db)
     proposed = doc.get("business_domains")
     if stored:
         plan.update(catalog=stored, state="stored")
         if proposed is not None:
-            plan["refused"].append({"index": None, "symbol_id": None,
-                                    "why": "business_domains: the repository already has a "
-                                           "catalog; a page picks from it, never replaces it"})
+            # A later page may ADD areas the stored catalog lacks (wicked-garden#1537), grounded
+            # like a proposal; the stored domains are never renamed or replaced.
+            try:
+                added = business_domains.check_additions(
+                    stored, proposed, business_domains.directory_names(tracked))
+                kept, dropped = business_domains.check_catalog_evidence(
+                    added, tracked, business_domains.symbol_lookup(db),
+                    business_domains.repo_reader(repo_root),
+                    lambda f, kind: not business_domains.not_product(f, kind), min_kept=0)
+                plan.update(catalog=[*stored, *kept], dropped=dropped, extend=kept,
+                            state=f"stored, {len(kept)} added" if kept else "stored")
+            except business_domains.CatalogRefused as e:
+                plan["refused"].append({"index": None, "symbol_id": None,
+                                        "why": f"business_domains refused: {e}"})
     elif proposed is not None:
         try:
             business_domains.check_catalog_shape(proposed,
@@ -371,6 +382,19 @@ def _apply_domains(db: str, estate, domains: dict, picks: list[tuple[str, str, f
         elif {d["id"] for d in stored} != domains["ids"]:
             domains["state"] = "stored by another page"
         catalog = stored
+    elif domains["extend"]:
+        stored = business_domains.extend_catalog(
+            db, domains["extend"], (os.environ.get("WICKED_RUN_ID") or "").strip())
+        if not stored:
+            domains["state"] = ("stored; the areas this page adds were not stored (the catalog "
+                                "has no file to extend)")
+            catalog = [d for d in catalog if d not in domains["extend"]]
+        else:
+            lost = {d["id"] for d in domains["extend"]} - {d["id"] for d in stored}
+            if lost:
+                domains["state"] = (f"stored; not added (another page added an area of that "
+                                    f"name meanwhile, or the catalog is full): {sorted(lost)}")
+            catalog = stored
     by_id = {d["id"]: d for d in catalog}
 
     def write(sid: str, did: str, conf: float) -> bool:

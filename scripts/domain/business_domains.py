@@ -15,7 +15,8 @@ none of it:
     is more than a directory, and a domain named after a directory is refused (the failure this
     fixes). Bad evidence is dropped; fewer than three grounded domains refuses the catalog;
   * once a catalog is stored for the repository it is the one every later page picks from: a page
-    cannot rename or replace it (ids stay stable across pages and runs);
+    cannot rename or replace it (ids stay stable across pages and runs), but it may add an area the
+    catalog lacks, grounded like a proposal, up to 9 in all (`check_additions`, wicked-garden#1537);
   * a pick must name a catalog id; an assignment must name a resolved requirement in product code.
 
 The catalog is kept on the HOST beside the store (`<store dir>/domain-catalog/business-domains.json`,
@@ -109,15 +110,18 @@ def directory_names(tracked: Iterable[str]) -> set[str]:
     return out
 
 
-def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None) -> list[dict]:
-    """The catalog's closed shape: 3 to 9 domains, unique ids and names, a one-line purpose and
-    1 to 8 evidence items each. With `directory_slugs`, a domain named after a directory is
-    refused too. Raises CatalogRefused naming the first problem; returns the domains."""
+def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None, *,
+                        count: tuple[int, int] = (MIN_DOMAINS, MAX_DOMAINS),
+                        verb: str = "propose") -> list[dict]:
+    """The catalog's closed shape: 3 to 9 domains (`count`), unique ids and names, a one-line
+    purpose and 1 to 8 evidence items each. With `directory_slugs`, a domain named after a
+    directory is refused too. Raises CatalogRefused naming the first problem; returns the
+    domains."""
     if not isinstance(domains, list):
         raise CatalogRefused(f"business_domains is {type(domains).__name__}, expected a list")
-    if not MIN_DOMAINS <= len(domains) <= MAX_DOMAINS:
-        raise CatalogRefused(f"business_domains has {len(domains)} domain(s); propose "
-                             f"{MIN_DOMAINS} to {MAX_DOMAINS}")
+    if not count[0] <= len(domains) <= count[1]:
+        raise CatalogRefused(f"business_domains has {len(domains)} domain(s); {verb} "
+                             f"{count[0]} to {count[1]}")
     ids: set[str] = set()
     names: set[str] = set()
     for i, d in enumerate(domains):
@@ -180,14 +184,16 @@ def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None) -
 def check_catalog_evidence(domains: list[dict], tracked: set[str],
                            symbol_kind: Callable[[str, str], str | None],
                            read_file: Callable[[str], str | None],
-                           is_product: Callable[[str, str], bool]) -> tuple[list[dict], list[dict]]:
+                           is_product: Callable[[str, str], bool],
+                           min_kept: int = MIN_DOMAINS) -> tuple[list[dict], list[dict]]:
     """Keep evidence grounded in product code and domains with a surviving symbol anchor.
 
     A directory item must name a tracked directory or file. Every other item must name a
     tracked product file and a symbol the graph holds there or text that occurs in it
     (codex r1: a file name alone proves nothing). A failing item is dropped with its reason;
     a domain with no remaining symbol item is dropped. Return copies and every drop; the
-    whole catalog is refused only below MIN_DOMAINS.
+    whole catalog is refused only below `min_kept` (MIN_DOMAINS; 0 for added areas, each of
+    which stands or falls on its own).
 
     The host supplies tracked files as a set and checks symbols against its graph. The seat
     passes a worktree view for file membership and directories whose symbol lookup answers
@@ -234,7 +240,7 @@ def check_catalog_evidence(domains: list[dict], tracked: set[str],
         else:
             dropped.append({"domain": d["id"], "index": None,
                             "why": "no remaining evidence names a symbol the code graph holds"})
-    if len(kept) < MIN_DOMAINS:
+    if len(kept) < min_kept:
         details = "; ".join(f"{r['domain']} evidence[{r['index']}]: {r['why']}"
                             for r in dropped[:5])
         if len(dropped) > 5:
@@ -242,6 +248,31 @@ def check_catalog_evidence(domains: list[dict], tracked: set[str],
         raise CatalogRefused(f"only {len(kept)} business domains remain; need {MIN_DOMAINS}; "
                              f"dropped: {details}", dropped)
     return kept, dropped
+
+
+def check_additions(stored: list[dict], added: Any,
+                    directory_slugs: set[str] | None = None) -> list[dict]:
+    """The areas a later page adds to a stored catalog (wicked-garden#1537: a catalog proposed
+    from the batch programs had no area for sign-on, menus and user administration, so their
+    rules were forced into the nearest one and a review could only ask to strip the picks).
+    The stored domains stay as they are; each added one has a proposal's shape, a new id and a
+    new name, up to MAX_DOMAINS in all. Raises CatalogRefused naming the first problem."""
+    room = MAX_DOMAINS - len(stored)
+    if room <= 0:
+        raise CatalogRefused(f"business_domains: the repository's catalog already has "
+                             f"{len(stored)} domains, the most it may hold; pick from it")
+    check_catalog_shape(added, directory_slugs, count=(1, room),
+                        verb="add to the stored catalog")
+    ids = {d["id"] for d in stored}
+    names = {slug(d["name"]) for d in stored}
+    for i, d in enumerate(added):
+        if d["id"] in ids:
+            raise CatalogRefused(f"business_domains[{i}].id {d['id']!r} is already a domain of the "
+                                 "stored catalog; a page adds areas, never changes one")
+        if slug(d["name"]) in names:
+            raise CatalogRefused(f"business_domains[{i}].name {d['name']!r} repeats a domain of "
+                                 "the stored catalog")
+    return added
 
 
 def check_pick(domain: Any, confidence: Any, ids: set[str]) -> str | None:
@@ -365,6 +396,42 @@ def save_catalog(db: str, domains: list[dict], run_id: str = "") -> list[dict]:
         os.unlink(tmp)
 
 
+def extend_catalog(db: str, added: list[dict], run_id: str = "") -> list[dict]:
+    """Add `added` to the stored catalog file and return the catalog now stored ([] when there is
+    no readable catalog file to extend). An id or name another page added meanwhile keeps that
+    page's domain; past MAX_DOMAINS the rest are not added. Replaced in one rename."""
+    path = catalog_path(db)
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+        current = check_catalog_shape(doc.get("domains")) \
+            if isinstance(doc, dict) and doc.get("schema") == CATALOG_SCHEMA else None
+    except (OSError, ValueError):
+        current = None
+    if not current:
+        return []
+    ids, names = {d["id"] for d in current}, {slug(d["name"]) for d in current}
+    fresh = []
+    for d in added:
+        if d["id"] in ids or slug(d["name"]) in names or len(current) + len(fresh) >= MAX_DOMAINS:
+            continue
+        ids.add(d["id"])
+        names.add(slug(d["name"]))
+        fresh.append(d)
+    if not fresh:
+        return current
+    catalog = current + fresh
+    fd, tmp = tempfile.mkstemp(prefix=".catalog-", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({**doc, "domains": catalog, "extended": run_id}, f, ensure_ascii=False,
+                      indent=1)
+        os.replace(tmp, path)
+    except BaseException:
+        os.unlink(tmp)
+        raise
+    return catalog
+
+
 # --- the store, read-only ------------------------------------------------------------------------
 
 def _connect(db: str) -> sqlite3.Connection:
@@ -472,6 +539,8 @@ def worklist_block(db: str, tracked: set[str], threshold: float,
     block = {
         "propose": catalog is None,
         "catalog": catalog,
+        # How many areas a page may still add to the stored catalog (wicked-garden#1537).
+        "add": max(0, MAX_DOMAINS - len(catalog)) if catalog else 0,
         "min": MIN_DOMAINS,
         "max": MAX_DOMAINS,
         "evidence_kinds": sorted(EVIDENCE_KINDS),

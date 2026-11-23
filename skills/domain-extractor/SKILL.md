@@ -59,7 +59,12 @@ and only this:
 `propose: true`, propose the repository's business domains as the `wicked-garden-domain-modeler`
 skill's "Business domains" section says, and write them before anything else as the rules file
 `{"schema": "wicked-garden/domain-rules@1", "seat": "<your seat>", "business_domains": [...],
-"rules": []}`. When it carries a `catalog`, pick from it and propose nothing. Either way, give
+"rules": []}`. When it carries a `catalog`, pick from it. When rules on the page plainly serve a
+user-facing area the catalog has no domain for (sign-on, menus, user administration, an online
+inquiry screen), add that area rather than forcing them into the nearest one: write only the new
+area(s) as the file's `business_domains` list, grounded like a proposal, at most the block's `add`
+count; the stored domains never change. A review that says rules were forced into an area is
+fixed the same way: add the missing area and re-pick those rules. Either way, give
 each rule you state a `"domain": "<id>"` and `"domain_confidence": <0..1>` (leave both out when no
 area fits; a unit marked `changed_since_build` keeps the domain it had unless you pick one), and
 answer every entry of the worklist's `assign` list in the file's top-level

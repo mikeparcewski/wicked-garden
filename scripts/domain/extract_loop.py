@@ -1104,11 +1104,20 @@ def _domain_extras(base: Path, rules_rel: str) -> dict:
 
 
 def _page_domains(worklist: dict, extra: dict) -> list[dict] | None:
-    """The domains this page picks from: the worklist's stored catalog, else the proposal in the
-    rules file when it has the catalog's shape. None when there are none."""
+    """The domains this page picks from: the worklist's stored catalog with any areas the rules
+    file adds to it, else the proposal in the rules file when it has the catalog's shape. None
+    when there are none."""
     block = worklist.get("business_domains")
     if isinstance(block, dict) and isinstance(block.get("catalog"), list) and block["catalog"]:
-        return [d for d in block["catalog"] if isinstance(d, dict) and isinstance(d.get("id"), str)]
+        stored = [d for d in block["catalog"] if isinstance(d, dict) and isinstance(d.get("id"), str)]
+        try:
+            # Areas the seat added to the stored catalog (wicked-garden#1537) are picked from too.
+            added = business_domains.check_additions(
+                [d for d in stored if isinstance(d.get("name"), str)],
+                extra.get("business_domains")) if "business_domains" in extra else []
+        except business_domains.CatalogRefused:
+            added = []
+        return [*stored, *added]
     try:
         return business_domains.check_catalog_shape(extra.get("business_domains"))
     except business_domains.CatalogRefused:
@@ -1248,6 +1257,18 @@ class _WorktreeEvidence:
         return path is not None and path.is_dir()
 
 
+def _evidence_problems(proposed: list[dict], dropped: list[dict]) -> list[dict]:
+    """Each dropped evidence item (or domain) as a check problem naming where it is."""
+    positions = {d["id"]: i for i, d in enumerate(proposed)}
+    out = []
+    for item in dropped:
+        where = f"business_domains[{positions[item['domain']]}]"
+        if item["index"] is not None:
+            where += f".evidence[{item['index']}]"
+        out.append({"index": None, "symbol_id": None, "why": f"{where}: {item['why']}"})
+    return out
+
+
 def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -> list[dict]:
     """What the seat's business-domain answers get wrong against the worklist (reqgraph Fix B):
     the seat's own check of what the host will check again. One `{index, symbol_id, why}` each."""
@@ -1257,13 +1278,25 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
     problems: list[dict] = []
     proposed = doc.get("business_domains")
     domains = None
+    dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
     if isinstance(block.get("catalog"), list) and block["catalog"]:
         domains = block["catalog"]
         if proposed is not None:
-            problems.append({"index": None, "symbol_id": None,
-                             "why": "business_domains: this repository already has a catalog "
-                                    "(the worklist's business_domains.catalog); pick from it, "
-                                    "do not propose another"})
+            # Areas added to the stored catalog (wicked-garden#1537): only new ones, grounded.
+            try:
+                added = business_domains.check_additions(
+                    [d for d in domains if isinstance(d, dict) and isinstance(d.get("id"), str)
+                     and isinstance(d.get("name"), str)], proposed, dirs)
+                added, dropped = business_domains.check_catalog_evidence(
+                    added, _WorktreeEvidence(base), lambda file, symbol: "",
+                    business_domains.repo_reader(str(base)),
+                    lambda file, kind: not business_domains.not_product(file, kind), min_kept=0)
+                domains = [*domains, *added]
+                problems += _evidence_problems(proposed, dropped)
+            except business_domains.CatalogRefused as e:
+                problems.append({"index": None, "symbol_id": None,
+                                 "why": f"{e} (the worklist's business_domains.catalog is stored: "
+                                        "list only areas it lacks)"})
     elif proposed is None:
         if worklist.get("units") or worklist.get("assign"):
             problems.append({"index": None, "symbol_id": None,
@@ -1271,7 +1304,6 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
                                     "business domains (business_domains.propose); propose them "
                                     "as the wicked-garden-domain-modeler skill says"})
     else:
-        dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
         try:
             domains = business_domains.check_catalog_shape(proposed, dirs)
             # Symbol presence is not checked in the seat; the host checks it against the store.
@@ -1279,13 +1311,7 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
                 domains, _WorktreeEvidence(base), lambda file, symbol: "",
                 business_domains.repo_reader(str(base)),
                 lambda file, kind: not business_domains.not_product(file, kind))
-            positions = {d["id"]: i for i, d in enumerate(proposed)}
-            for item in dropped:
-                where = f"business_domains[{positions[item['domain']]}]"
-                if item["index"] is not None:
-                    where += f".evidence[{item['index']}]"
-                problems.append({"index": None, "symbol_id": None,
-                                 "why": f"{where}: {item['why']}"})
+            problems += _evidence_problems(proposed, dropped)
         except business_domains.CatalogRefused as e:
             problems.append({"index": None, "symbol_id": None, "why": str(e)})
     ids = {d["id"] for d in domains or [] if isinstance(d, dict) and isinstance(d.get("id"), str)}

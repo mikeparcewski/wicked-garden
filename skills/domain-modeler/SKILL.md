@@ -57,8 +57,9 @@ name.
    (`main`, CLI commands and their verbs, workers and schedulers), HTTP or RPC routes and their
    handlers, the nouns in public APIs and data models, and what the README or docs say the
    product is for.
-   Cover every entry-point group the code shows, including scheduled and housekeeping jobs
-   (cron/scheduler jobs, maintenance, notices).
+   Cover every entry-point group the code shows, whatever the job's request names: scheduled
+   and housekeeping jobs (cron/scheduler jobs, maintenance, notices), and the online side too
+   (screens and interactive transactions, sign-on, menus, user administration).
 2. Propose **3 to 9** domains. Each is `{"id": "<lowercase-slug>", "name": "<2 to 5 words>",
    "purpose": "<one line: what this area does for its users>", "evidence": [...]}`. Name the
    area a product owner would recognise ("Credential management", "Workflow scheduling",
@@ -80,7 +81,10 @@ name.
 from what the rule does for the product's users, with the file's directory as one piece of
 evidence. High (0.8 or more) when the rule plainly serves that area; lower when two areas
 compete. A multi-purpose module's symbols can land in different domains. When no area fits,
-leave the rule without a domain rather than forcing one.
+leave the rule without a domain rather than forcing one, or, when the code shows a user-facing
+area the stored catalog lacks, **add** it: a later page's `business_domains` lists only the new
+area(s), each grounded like a proposal, up to 9 domains in all (the worklist's
+`business_domains.add`); the stored ones are never renamed or replaced.
 
 In a domain-extraction run all of this goes into the rules file the extractor writes
 (`.wicked/domain/rules.json`): the catalog as its top-level `business_domains` list (only when
