@@ -362,6 +362,36 @@ def read_json_file(base: Path, rel: str, *, limit: int = MAX_RULES_BYTES) -> Any
         return _decode(rel, f.read(limit + 1), limit)
 
 
+def remove_file(base: Path, rel: str) -> bool:
+    """Remove `rel` under `base` when it is there (a regular file, or a link, which is removed
+    itself, never followed); refuse a directory on the way or at the leaf. True when something
+    was removed."""
+    parts = _parts(rel)
+    if not _FD_SAFE:
+        path = inside(base, rel)
+        if not path.exists():
+            return False
+        if not path.is_file():
+            raise RulesFileRefused(f"{rel!r} exists and is not a regular file")
+        path.unlink()
+        return True
+    try:
+        dfd = _open_dirs(base, rel, parts[:-1], create=False)
+    except FileNotFoundError:
+        return False
+    try:
+        try:
+            st = os.stat(parts[-1], dir_fd=dfd, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        if stat.S_ISDIR(st.st_mode):
+            raise RulesFileRefused(f"{rel!r} exists and is not a regular file")
+        os.unlink(parts[-1], dir_fd=dfd)
+        return True
+    finally:
+        os.close(dfd)
+
+
 def write_json_file(base: Path, rel: str, doc: Any) -> None:
     """Write `doc` to `rel` under `base` atomically: a fresh temp file in the checked directory,
     renamed over the target. Creates missing directories; refuses symlinks and non-directories

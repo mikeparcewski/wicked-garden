@@ -79,8 +79,8 @@ def test_every_unit_asked_once_offers_to_ask_the_placeholders_again(tmp_path, ca
     # a second ask is likely to help: it is the recommendation, not lowering the minimum
     assert d["recommended"] == "again"
     assert "nothing left to map" not in d["line"], d["line"]
-    assert ("every unit in the files the repository tracks was asked once; 263 placeholders not "
-            "resolved yet, and asking again can raise the share") in d["line"], d["line"]
+    assert ("263 placeholders this run asked about once, unresolved: asking again can help"
+            in d["line"]), d["line"]
     assert "real requirements 0% → 62%" in d["line"]
 
 
@@ -110,7 +110,7 @@ def test_placeholders_asked_again_and_still_unresolved_recommend_no_third_ask(tm
     assert d["next"] == "ask"
     assert [c["id"] for c in d["choices"]] == ["again", "lower"]
     assert d["recommended"] == "lower", "every one of them was asked twice"
-    assert "162 placeholders asked again and still not resolved" in d["line"], d["line"]
+    assert "162 placeholders asked again and still unresolved" in d["line"], d["line"]
     assert "real requirements 0% → 62% → 76%" in d["line"]
     assert set(HELD2) <= generation.visited(generation.load(db, "run-1"))
 
@@ -130,9 +130,39 @@ def test_a_near_empty_second_ask_still_says_what_is_left_and_offers_it(tmp_path,
     d = _next(db, repo, RUN3, 180, WICKED_REPEAT_PASS=3)
     assert d["next"] == "ask"
     assert [c["id"] for c in d["choices"]] == ["again", "lower"] and d["recommended"] == "lower"
-    assert "the last page resolved under 1 in 20 of its units" in d["line"], d["line"]
-    assert "154 placeholders asked again and still not resolved" in d["line"], d["line"]
+    assert d["line"].endswith("the last page resolved under 1 in 20 of its units: read its review"
+                              " · 154 placeholders asked again and still unresolved"), d["line"]
     assert "nothing is left to map" not in d["line"]
+
+
+def test_a_minimum_the_placeholders_asked_again_can_reach_is_not_out_of_reach():
+    """codex r1: 450 of 1,000 real, 200 units never asked and 350 asked placeholders: resolving
+    the 200 and 150 of the reopened 350 reaches 80%, so the line gives no "out of reach"."""
+    doc = {"points": [{"page": 0, "at": 0, "pct": 30, "real": 300, "behaviours": 1000,
+                       "placeholders": 0},
+                      {"page": 1, "at": 10 * MIN, "took": 10 * MIN, "pct": 45, "real": 450,
+                       "behaviours": 1000, "placeholders": 350}],
+           "grant": {"page": 0, "at": 0}}
+    d = generation.decide(doc, repo="r", target=80, now=11 * MIN, max_pages=20, max_minutes=240,
+                          left_to_map=200, asked_left=350, asked_once=350)
+    assert d["next"] == "continue" and "out of reach" not in d["line"], d["line"]
+    short = generation.decide(doc, repo="r", target=80, now=11 * MIN, max_pages=20,
+                              max_minutes=240, left_to_map=200)
+    assert "minimum out of reach in this run" in short["line"], "without them it is"
+
+
+def test_the_low_yield_ask_keeps_its_review_instruction_inside_the_line_limit():
+    """codex r1: a 404-character line was clipped by wicked-core (repeat.rs MAX_LINE_CHARS 400)
+    through "read its review"; the instruction now comes before the placeholder count."""
+    pts = [{"page": i, "at": i * MIN, "took": MIN, "pct": p, "real": p * 92, "behaviours": 9200,
+            "placeholders": 9200} for i, p in enumerate([50, 51, 52, 53, 54])]
+    pts.append({"page": 5, "at": 5 * MIN, "took": MIN, "pct": 54, "real": 54 * 92,
+                "behaviours": 9200, "placeholders": 9200, "framed": 500, "page_real": 0})
+    d = generation.decide({"points": pts, "grant": {"page": 0, "at": 0}}, repo="r" * 64,
+                          target=80, now=6 * MIN, max_pages=20, max_minutes=240, left_to_map=0,
+                          asked_left=9200, asked_once=9200)
+    assert "read its review" in d["line"][:399], d["line"]
+    assert all(len(c["label"]) <= 120 for c in d["choices"])
 
 
 def test_lowering_after_an_ask_still_ends_the_mapping(tmp_path, capsys):
@@ -175,3 +205,87 @@ def test_the_extractor_states_every_worklist_unit_whatever_the_request_names():
         assert ("A screen, step or I/O unit that decides something (what is shown or protected "
                 "under which condition, which input is refused, what a failed open or read "
                 "stops) states that rule") in text
+
+
+def test_again_asks_the_seat_afresh_never_hands_back_the_earlier_pages_answers(tmp_path,
+                                                                                monkeypatch):
+    """codex r1 on #1533: after "again", the earlier page's rules file still held an empty entry
+    for every reopened unit, and the harness resumes after any entry the worklist holds, so the
+    second ask made no model call and re-applied the old empty answers. Through the real routes
+    (prepare, the seat's harness, apply, next) a new page now starts with no rules file."""
+    from domain import _clients, _rule_extractor, apply_rules, extract_loop, prepare_worklist
+    from domain import rules_file
+    from tests.domain.test_extraction_files import (_STAR, _Core, _Estate, _git_repo, _rule,
+                                                    _star, _write_rules, _wt)
+
+    class _HeldCore(_Core):
+        """Coverage as wicked-core reports it: a [RISK] requirement is a placeholder."""
+        def _doc(self):
+            def node(s):
+                return {"symbol_id": s, "name": s.split("::")[-1], "file": self.nodes[s],
+                        "kind": "Function"}
+            req = {s: self.estate.writes.get(s, {}).get("req") for s in self.nodes}
+            left = [node(s) for s in self.nodes if req[s] is None]
+            held = [node(s) for s in self.nodes if req[s] is not None and not req[s][1]]
+            n, real = len(self.nodes), len(self.nodes) - len(left) - len(held)
+            return {"coverage": (n - len(left)) / n, "behavior_bearing": n, "resolved": real,
+                    "risk_flagged": len(held), "unaccounted": len(left), "not_product": 0,
+                    "unaccounted_nodes": left, "placeholder_nodes": held}
+
+        def requirements_target(self, db, set_pct=None):
+            return 80, "daemon"
+
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    db, repo, wt, estate = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path), _Estate()
+    core = _HeldCore(estate, {s: "f.py" for s in _STAR})
+    page1 = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500,
+                                     estate=estate, core=core)
+    framed = [u["symbol_id"] for u in page1["units"]]
+    assert sorted(framed) == sorted(_STAR)
+    # page 1: the seat states one rule and leaves the rest empty; apply writes placeholders
+    _write_rules(wt, "claude", [_rule(framed[0])] + [{"symbol_id": s, "statement": "",
+                                                      "confidence": 0.0} for s in framed[1:]])
+    apply_rules.apply(db, repo, wt, rules_file.RULES_REL, "coverage-report.json",
+                      estate=estate, core=core)
+    env = {"WICKED_RUN_ID": "run-1", "WICKED_REPEAT_PASS": "1"}
+    d = next_page.run(db, repo, core=core, env=env, now=60 * MIN, worktree=wt)
+    assert [c["id"] for c in d["choices"]][0] == "again", d
+    d = next_page.run(db, repo, core=core, env={**env, "WICKED_REPEAT_CHOICE": "again"},
+                      now=61 * MIN, worktree=wt)
+    assert d["next"] == "continue", d
+    # page 2 frames the reopened placeholders, and the seat's harness asks its model about each
+    page2 = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500,
+                                     estate=estate, core=core)
+    assert sorted(u["symbol_id"] for u in page2["units"]) == sorted(framed[1:])
+    asked = []
+
+    def model(batch, argv, **kw):
+        asked.extend(c["symbol_id"] for c in batch)
+        return [_rule(c["symbol_id"]) for c in batch]
+
+    monkeypatch.setattr(_rule_extractor, "extract_rules", model)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["m"])
+    assert extract_loop.run_files(wt, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=8, dry_run=False) == 0
+    assert sorted(asked) == sorted(framed[1:]), "every reopened unit is asked, none replayed"
+    report = apply_rules.apply(db, repo, wt, rules_file.RULES_REL, "coverage-report.json",
+                               estate=estate, core=core)
+    assert report["applied"]["resolved"] == len(framed) - 1
+
+
+def test_removing_an_earlier_pages_rules_file_never_follows_a_planted_link(tmp_path):
+    from domain import rules_file
+    wt = tmp_path / "wt"
+    outside = tmp_path / "outside.json"
+    outside.write_text("{}")
+    assert rules_file.remove_file(wt, rules_file.RULES_REL) is False  # nothing there yet
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    (wt / rules_file.RULES_REL).symlink_to(outside)
+    assert rules_file.remove_file(wt, rules_file.RULES_REL) is True
+    assert outside.read_text() == "{}" and not (wt / rules_file.RULES_REL).is_symlink()
+    (wt / rules_file.RULES_REL).mkdir()
+    try:
+        rules_file.remove_file(wt, rules_file.RULES_REL)
+        raise AssertionError("a directory at the leaf is refused")
+    except rules_file.RulesFileRefused:
+        pass
