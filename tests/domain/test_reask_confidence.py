@@ -18,6 +18,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "scripts"))
 
 from domain import (_clients, _rule_extractor, extract_loop, prepare_worklist,  # noqa: E402
@@ -172,17 +174,21 @@ def test_the_reason_never_rounds_a_miss_up_to_the_line():
     """codex r1: 0.749 stays a placeholder, so its reason must not read "stated at 0.75"."""
     assert "stated at 0.749, a rule counts at 0.75" in extract_loop.below_threshold_reason(
         {**RULES[STEP], "confidence": 0.749})
+    assert "stated at 0.74999, a rule" in extract_loop.below_threshold_reason(
+        {**RULES[STEP], "confidence": 0.74999})
     assert "stated at 0.65," in extract_loop.below_threshold_reason(RULES[STEP])
 
 
-def test_an_empty_first_answer_keeps_its_doubt_for_the_next_ask():
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_an_empty_first_answer_keeps_its_doubt_for_the_next_ask(blank):
     """codex r1: the empty-statement floor of a unit with nothing stored carries the model's
-    `unsure` too, so the re-ask shows why it could not be stated."""
+    `unsure` too, so the re-ask shows why it could not be stated (a blank one too, codex r2)."""
     empty = next(r for r in FX["rules"] if not r["statement"].strip())
     estate = _Estate()
     assert extract_loop.decide_and_write(
         estate, None, empty["symbol_id"], "1000-INITIALIZE",
-        {**empty, "unsure": "the paragraph only opens files; what a failed open does is in 9999"},
+        {**empty, "statement": blank,
+         "unsure": "the paragraph only opens files; what a failed open does is in 9999"},
         {empty["symbol_id"]}, {}, {}, seat="extract-loop:claude") == "risk"
     assert estate.writes[empty["symbol_id"]]["req"][0] == (
         "[RISK] 1000-INITIALIZE: empty statement (model could not state a rule); unsure: the "

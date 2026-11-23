@@ -180,7 +180,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         replace=True, author=seat)
         estate.set_requirement(sid, requirement=stmt, validated=True, validated_by=seat)
     else:
-        stmt = (rule or {}).get("statement") or ""
+        stmt = str((rule or {}).get("statement") or "").strip()
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")
         raw_conf = (rule or {}).get("confidence", 0.0)
         try:
@@ -976,7 +976,7 @@ def below_threshold_reason(rule: dict) -> str:
     and what the model said it could not see or confirm."""
     conf = float(rule["confidence"])
     # Two places, unless that would read as the line itself (0.749 is not "0.75", codex r1).
-    shown = f"{conf:.2f}" if round(conf, 2) < RESOLVE_THRESHOLD else f"{conf:.4f}".rstrip("0")
+    shown = f"{conf:.2f}" if round(conf, 2) < RESOLVE_THRESHOLD else repr(conf)
     return _with_doubt(f"below confidence threshold: stated at {shown}, a rule counts at "
                        f"{RESOLVE_THRESHOLD:.2f}", rule)
 
@@ -1018,7 +1018,7 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
                     below_threshold_reason(rule) if not resolved else "", seat=seat,
                     read_back=read_back, clear_mismatch=clear)
         return "resolved" if resolved else "risk"
-    if (rule or {}).get("statement"):
+    if str((rule or {}).get("statement") or "").strip():
         _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
         return "risk"
     if _has_statement(store, sid):
