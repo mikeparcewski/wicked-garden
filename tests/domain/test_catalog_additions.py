@@ -15,7 +15,8 @@ import json
 from pathlib import Path
 
 from domain import _rule_extractor, business_domains, extract_loop, prepare_worklist, rules_file
-from tests.domain.test_business_domains import _apply, _domain_of, _fixture, _write
+from tests.domain.test_business_domains import (_annotations_table, _apply, _domain_of, _fixture,
+                                               _write)
 from tests.domain.test_extraction_files import _rule, _wt
 
 STORED = json.loads((Path(__file__).resolve().parent / "fixtures" /
@@ -142,3 +143,52 @@ def test_the_seats_check_names_an_addition_that_changes_a_stored_area(tmp_path, 
     assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 1
     err = capsys.readouterr().err
     assert "repeats a domain of the stored catalog" in err and "list only areas it lacks" in err
+
+
+def test_a_catalog_rebuilt_from_the_store_offers_no_additions_and_apply_says_why(tmp_path,
+                                                                                 capsys):
+    """codex r1: with no catalog file, load_catalog rebuilds the areas from the store's
+    annotations (no evidence to keep), so a page is offered no additions, and one it writes
+    anyway is refused with the reason before any pick to it is written."""
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    value = business_domains.annotation_value(STORED[0])
+    _annotations_table(db, [("s::b", business_domains.ANN_TYPE, value, 0.8,
+                             business_domains.ANN_KEY)])
+    assert [d["id"] for d in business_domains.load_catalog(db)] == ["transaction-posting"]
+    block, _ = business_domains.worklist_block(db, set(), extract_loop.RESOLVE_THRESHOLD,
+                                               business_domains.not_product)
+    assert block["add"] == 0 and block["catalog"]
+    _write(wt, [{**_rule("s::route"), "domain": "access-and-administration",
+                 "domain_confidence": 0.85}], business_domains=[ACCESS])
+    report = _apply(wt, db, repo, estate, core)
+    whys = " | ".join(r["why"] for r in report["business_domains"]["refused"])
+    assert "takes no added area" in whys, whys
+    assert _domain_of(estate, "s::route") is None
+    assert report["applied"]["resolved"] == 1, "the rule itself still applies"
+
+
+def test_the_seat_is_offered_no_addition_when_the_host_offers_no_room(tmp_path, capsys):
+    wt = _wt(tmp_path)
+    _worklist(wt)
+    doc = rules_file.read_json_file(wt, rules_file.WORKLIST_REL)
+    doc["business_domains"]["add"] = 0
+    rules_file.write_json_file(wt, rules_file.WORKLIST_REL, doc)
+    _write(wt, [{**_rule("s::u0"), "domain": "access-and-administration",
+                 "domain_confidence": 0.8}], business_domains=[ACCESS])
+    assert extract_loop._page_domains(doc, {"business_domains": [ACCESS]}) == STORED
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 1
+    assert "takes no added area" in capsys.readouterr().err
+
+
+def test_an_assignment_may_name_an_added_area(tmp_path):
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    business_domains.save_catalog(db, STORED)
+    # s::b: a requirement an earlier page resolved, with no area yet (the backfill)
+    _annotations_table(db, [("s::b", "business_rule", "a user must sign on first", 0.9)])
+    _write(wt, [_rule("s::route")], business_domains=[ACCESS],
+           assignments=[{"symbol_id": "s::b", "domain": "access-and-administration",
+                         "confidence": 0.8}])
+    report = _apply(wt, db, repo, estate, core)
+    bd = report["business_domains"]
+    assert bd["catalog"] == "stored, 1 added" and bd["assigned"] == 1, bd
+    assert _domain_of(estate, "s::b") == ("access-and-administration", 0.8)

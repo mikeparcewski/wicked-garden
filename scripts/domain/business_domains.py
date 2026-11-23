@@ -251,16 +251,21 @@ def check_catalog_evidence(domains: list[dict], tracked: set[str],
 
 
 def check_additions(stored: list[dict], added: Any,
-                    directory_slugs: set[str] | None = None) -> list[dict]:
+                    directory_slugs: set[str] | None = None, room: int | None = None) -> list[dict]:
     """The areas a later page adds to a stored catalog (wicked-garden#1537: a catalog proposed
     from the batch programs had no area for sign-on, menus and user administration, so their
     rules were forced into the nearest one and a review could only ask to strip the picks).
     The stored domains stay as they are; each added one has a proposal's shape, a new id and a
     new name, up to MAX_DOMAINS in all. Raises CatalogRefused naming the first problem."""
-    room = MAX_DOMAINS - len(stored)
-    if room <= 0:
+    if room is None:
+        room = MAX_DOMAINS - len(stored)
+    if len(stored) >= MAX_DOMAINS:
         raise CatalogRefused(f"business_domains: the repository's catalog already has "
                              f"{len(stored)} domains, the most it may hold; pick from it")
+    if room <= 0:
+        raise CatalogRefused("business_domains: this repository's catalog takes no added area "
+                             "(it was rebuilt from the code graph, with no catalog file to "
+                             "extend); pick from it")
     check_catalog_shape(added, directory_slugs, count=(1, room),
                         verb="add to the stored catalog")
     ids = {d["id"] for d in stored}
@@ -356,15 +361,31 @@ def catalog_path(db: str) -> Path:
     return Path(db).resolve().parent / DIR_NAME / FILE_NAME
 
 
-def load_catalog(db: str) -> list[dict] | None:
-    """The repository's stored catalog, else one rebuilt from the store's annotations (the file is
-    the record; the annotations are what the graph reads), else None."""
+def catalog_file(db: str) -> list[dict] | None:
+    """The catalog the host's file holds, or None (no file, unreadable, or outside its shape)."""
     try:
         doc = json.loads(catalog_path(db).read_text(encoding="utf-8"))
         if isinstance(doc, dict) and doc.get("schema") == CATALOG_SCHEMA:
             return check_catalog_shape(doc.get("domains"))
     except (OSError, ValueError):
         pass
+    return None
+
+
+def room_to_add(db: str) -> int:
+    """How many areas a page may add (wicked-garden#1537): the room left in the catalog FILE. A
+    catalog rebuilt from the store's annotations has no evidence to keep, so it takes none
+    (codex r1: prepare offered additions that apply could not store)."""
+    stored = catalog_file(db)
+    return max(0, MAX_DOMAINS - len(stored)) if stored else 0
+
+
+def load_catalog(db: str) -> list[dict] | None:
+    """The repository's stored catalog, else one rebuilt from the store's annotations (the file is
+    the record; the annotations are what the graph reads), else None."""
+    stored = catalog_file(db)
+    if stored is not None:
+        return stored
     found: dict[str, dict] = {}
     for _sid, value, _conf in _store_rows(db, ANN_TYPE):
         try:
@@ -401,13 +422,12 @@ def extend_catalog(db: str, added: list[dict], run_id: str = "") -> list[dict]:
     no readable catalog file to extend). An id or name another page added meanwhile keeps that
     page's domain; past MAX_DOMAINS the rest are not added. Replaced in one rename."""
     path = catalog_path(db)
+    current = catalog_file(db)
+    if not current:
+        return []
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
-        current = check_catalog_shape(doc.get("domains")) \
-            if isinstance(doc, dict) and doc.get("schema") == CATALOG_SCHEMA else None
     except (OSError, ValueError):
-        current = None
-    if not current:
         return []
     ids, names = {d["id"] for d in current}, {slug(d["name"]) for d in current}
     fresh = []
@@ -540,7 +560,7 @@ def worklist_block(db: str, tracked: set[str], threshold: float,
         "propose": catalog is None,
         "catalog": catalog,
         # How many areas a page may still add to the stored catalog (wicked-garden#1537).
-        "add": max(0, MAX_DOMAINS - len(catalog)) if catalog else 0,
+        "add": room_to_add(db) if catalog else 0,
         "min": MIN_DOMAINS,
         "max": MAX_DOMAINS,
         "evidence_kinds": sorted(EVIDENCE_KINDS),

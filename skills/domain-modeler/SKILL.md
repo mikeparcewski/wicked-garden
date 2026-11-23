@@ -87,8 +87,8 @@ area(s), each grounded like a proposal, up to 9 domains in all (the worklist's
 `business_domains.add`); the stored ones are never renamed or replaced.
 
 In a domain-extraction run all of this goes into the rules file the extractor writes
-(`.wicked/domain/rules.json`): the catalog as its top-level `business_domains` list (only when
-proposing), each rule entry's `"domain": "<id>"` and `"domain_confidence": <0..1>`, and, for the
+(`.wicked/domain/rules.json`): the top-level `business_domains` list (the whole catalog when
+proposing; only the new areas when adding to a stored one), each rule entry's `"domain": "<id>"` and `"domain_confidence": <0..1>`, and, for the
 worklist's `assign` list (requirements an earlier page resolved before there was a catalog), a
 top-level `"assignments": [{"symbol_id": "<verbatim>", "domain": "<id>", "confidence": <0..1>}]`.
 The host's apply step stores the catalog beside the code graph and writes each pick on its code

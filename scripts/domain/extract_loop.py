@@ -1103,6 +1103,13 @@ def _domain_extras(base: Path, rules_rel: str) -> dict:
     return {k: doc[k] for k in ("business_domains", "assignments") if k in doc}
 
 
+def _room(block: dict) -> int:
+    """How many areas the host said this page may add (`business_domains.add`; none from an
+    older host, which stores no added area)."""
+    add = block.get("add")
+    return add if isinstance(add, int) and not isinstance(add, bool) and add > 0 else 0
+
+
 def _page_domains(worklist: dict, extra: dict) -> list[dict] | None:
     """The domains this page picks from: the worklist's stored catalog with any areas the rules
     file adds to it, else the proposal in the rules file when it has the catalog's shape. None
@@ -1114,7 +1121,8 @@ def _page_domains(worklist: dict, extra: dict) -> list[dict] | None:
             # Areas the seat added to the stored catalog (wicked-garden#1537) are picked from too.
             added = business_domains.check_additions(
                 [d for d in stored if isinstance(d.get("name"), str)],
-                extra.get("business_domains")) if "business_domains" in extra else []
+                extra.get("business_domains"), room=_room(block)) \
+                if "business_domains" in extra else []
         except business_domains.CatalogRefused:
             added = []
         return [*stored, *added]
@@ -1286,7 +1294,7 @@ def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -
             try:
                 added = business_domains.check_additions(
                     [d for d in domains if isinstance(d, dict) and isinstance(d.get("id"), str)
-                     and isinstance(d.get("name"), str)], proposed, dirs)
+                     and isinstance(d.get("name"), str)], proposed, dirs, room=_room(block))
                 added, dropped = business_domains.check_catalog_evidence(
                     added, _WorktreeEvidence(base), lambda file, symbol: "",
                     business_domains.repo_reader(str(base)),

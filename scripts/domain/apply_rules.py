@@ -312,7 +312,8 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
             # like a proposal; the stored domains are never renamed or replaced.
             try:
                 added = business_domains.check_additions(
-                    stored, proposed, business_domains.directory_names(tracked))
+                    stored, proposed, business_domains.directory_names(tracked),
+                    room=business_domains.room_to_add(db))
                 kept, dropped = business_domains.check_catalog_evidence(
                     added, tracked, business_domains.symbol_lookup(db),
                     business_domains.repo_reader(repo_root),
