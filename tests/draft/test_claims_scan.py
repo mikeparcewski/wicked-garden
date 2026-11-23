@@ -777,3 +777,100 @@ def test_a_stopword_rich_line_does_not_beat_the_cited_content_word(tmp_path: Pat
         [str(repo)])
     assert all(f.kind != "cite-off" for f in findings)
     assert stats["cited_lines"] == 1
+
+
+# ── #1530: a citation never leaves the --repo folders ─────────────────────────────────────────
+
+def _escape_fixture(tmp_path: Path) -> tuple[Path, Path]:
+    """``repo/`` is the one --repo folder; ``outside.md`` sits beside it and carries the claim's
+    words, so a scan that follows the citation out would VERIFY it (the defect)."""
+    repo = tmp_path / "repo"
+    (repo / "sub").mkdir(parents=True)
+    (repo / "sub" / "file.md").write_text("intro\nmore\nThroughput reached 42 requests per second\n",
+                                          encoding="utf-8")
+    outside = tmp_path / "outside.md"
+    outside.write_text("Throughput reached 42 requests per second\n", encoding="utf-8")
+    return repo, outside
+
+
+def test_parent_relative_citation_is_escaped(tmp_path: Path):
+    repo, _ = _escape_fixture(tmp_path)
+    html = '<body><p data-source="../outside.md:1">Throughput reached 42 requests per second</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert [(f.kind, f.text) for f in findings] == [("escaped-source", "../outside.md:1")]
+    assert stats["cited_lines"] == 0
+
+
+def test_absolute_citation_is_escaped(tmp_path: Path):
+    repo, outside = _escape_fixture(tmp_path)
+    html = f'<body><p data-source="{outside}:1">Throughput reached 42 requests per second</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert [f.kind for f in findings] == ["escaped-source"]
+    assert stats["cited_lines"] == 0
+
+
+def test_absolute_path_inside_the_repo_is_still_escaped(tmp_path: Path):
+    """A citation is repo-relative: an absolute spelling is refused even when it lands inside."""
+    repo, _ = _escape_fixture(tmp_path)
+    html = (f'<body><p data-source="{repo / "sub" / "file.md"}:3">Throughput reached 42 requests per second</p>'
+            '</body>')
+    assert _kinds(html, [str(repo)]) == ["escaped-source"]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_outward_symlink_citation_is_escaped(tmp_path: Path):
+    repo, outside = _escape_fixture(tmp_path)
+    try:
+        (repo / "link.md").symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    html = '<body><p data-source="link.md:1">Throughput reached 42 requests per second</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert [(f.kind, f.text) for f in findings] == [("escaped-source", "link.md:1")]
+    assert stats["cited_lines"] == 0
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_outward_symlink_does_not_source_a_url(tmp_path: Path):
+    """The URL check reads only the folder's own files: a link out of it is not one of them."""
+    repo, outside = _escape_fixture(tmp_path)
+    outside.write_text("docs at https://outside.example.com/x\n", encoding="utf-8")
+    try:
+        (repo / "link.md").symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    html = '<body><p data-source="sub/file.md">See https://outside.example.com/x</p></body>'
+    assert _kinds(html, [str(repo)]) == ["unsourced-url"]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_symlink_inside_the_repo_still_verifies(tmp_path: Path):
+    repo, _ = _escape_fixture(tmp_path)
+    try:
+        (repo / "alias.md").symlink_to(repo / "sub" / "file.md")
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    html = '<body><p data-source="alias.md:3">Throughput reached 42 requests per second</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert findings == []
+    assert stats["cited_lines"] == 1
+
+
+def test_ordinary_sub_path_citation_still_verifies(tmp_path: Path):
+    repo, _ = _escape_fixture(tmp_path)
+    html = ('<body><p data-source="sub/file.md:3">Throughput reached 42 requests per second</p>'
+            '<p data-source="sub/../sub/file.md:3">Throughput reached 42 requests per second</p></body>')
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert findings == []
+    assert stats["cited_lines"] == 2
+
+
+def test_escaped_citation_fails_the_cli(tmp_path: Path):
+    repo, _ = _escape_fixture(tmp_path)
+    doc = tmp_path / "doc.html"
+    doc.write_text('<body><p data-source="../outside.md:1">Throughput reached 42 requests per second</p></body>',
+                   encoding="utf-8")
+    res = subprocess.run([sys.executable, str(SCRIPT), str(doc), "--repo", str(repo), "--json"],
+                         capture_output=True, text=True, check=False)
+    assert res.returncode == 1
+    assert json.loads(res.stdout)["by_kind"] == {"escaped-source": 1}
