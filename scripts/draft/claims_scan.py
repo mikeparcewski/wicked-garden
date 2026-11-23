@@ -305,16 +305,24 @@ def _repo_files(repos: list[str]) -> list[Path]:
             continue
         real_root = root.resolve()
         for dirpath, dirnames, filenames in os.walk(root):
+            # A link out of the folder is not the folder's content (#1530): a directory that resolves
+            # outside it (a Windows junction os.walk descends into) is pruned, and so is a file link.
+            try:
+                inside = Path(dirpath).resolve().is_relative_to(real_root)
+            except (OSError, RuntimeError):
+                inside = False
+            if not inside:
+                dirnames[:] = []
+                continue
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
             for fn in filenames:
                 p = Path(dirpath) / fn
                 try:
-                    # a link that leads out of the folder is not the folder's content (#1530)
                     if p.is_symlink() and not p.resolve().is_relative_to(real_root):
                         continue
                     if p.stat().st_size <= 2_000_000:
                         files.append(p)
-                except OSError:
+                except (OSError, RuntimeError):  # a link loop is RuntimeError before Python 3.13
                     continue
     return files
 
@@ -322,23 +330,33 @@ def _repo_files(repos: list[str]) -> list[Path]:
 _DRIVE_RE = re.compile(r"^[A-Za-z]:")
 
 
-def _confined(repo: str, rel_path: str) -> Path | None:
-    """The path ``rel_path`` names inside ``repo``, resolved, or ``None`` when it is not inside it (#1530).
+def _absolute_spelling(rel_path: str) -> bool:
+    """A citation is repo-relative by convention: an absolute spelling (``/etc/hosts``, ``C:\\x``)
+    joined onto a folder would REPLACE it, so it is refused outright (#1530)."""
+    return (not rel_path or Path(rel_path).is_absolute() or rel_path[0] in "/\\"
+            or bool(_DRIVE_RE.match(rel_path)))
 
-    A citation is repo-relative by convention, so an absolute path (``/etc/hosts``, ``C:\\x``) is
-    refused outright: joined onto the folder it would REPLACE it. Anything else is resolved — every
-    ``..`` and every link followed — and accepted only when the result is still under the resolved
-    folder, so ``../notes.json`` and a link in the folder that points out of it are refused alike.
-    """
-    if (not rel_path or Path(rel_path).is_absolute() or rel_path[0] in "/\\"
-            or _DRIVE_RE.match(rel_path)):
-        return None
+
+def _resolve_in(repo: str, rel_path: str) -> tuple[str, Path | None]:
+    """Where ``rel_path`` leads from ``repo``, every ``..`` and every link followed (#1530):
+    ``("in", path)`` under the resolved folder, ``("out", None)`` outside it (an absolute spelling,
+    a ``..`` that climbs out, a link that leads out), ``("bad", None)`` when it cannot be resolved
+    (a link loop, a NUL byte) — unresolvable is not an escape."""
+    if _absolute_spelling(rel_path):
+        return "out", None
     try:
         root = Path(repo).resolve()
         p = (root / rel_path).resolve()
-    except (OSError, RuntimeError, ValueError):  # a link loop, a NUL byte
-        return None
-    return p if p.is_relative_to(root) else None
+    except (OSError, RuntimeError, ValueError):
+        return "bad", None
+    return ("in", p) if p.is_relative_to(root) else ("out", None)
+
+
+def _confined(repo: str, rel_path: str) -> Path | None:
+    """The path ``rel_path`` names inside ``repo``, resolved, or ``None`` when it does not stay inside
+    it — so ``../notes.json`` and a link in the folder that points out of it are never read."""
+    where, p = _resolve_in(repo, rel_path)
+    return p if where == "in" else None
 
 
 def _source_path(rel: str) -> str:
@@ -347,10 +365,18 @@ def _source_path(rel: str) -> str:
     return m.group(1) if m else rel
 
 
-def _escapes_repos(rel: str, repos: list[str]) -> bool:
-    """True when the cited path is inside none of the folders (an absolute or climbing path)."""
+def _source_status(rel: str, repos: list[str]) -> str:
+    """``found`` when the cited path exists inside one of the folders; else ``escaped`` when it leads
+    out of one (``escaped-source``), else ``missing`` (``dangling-source``). A folder the path is
+    merely absent from never turns an escape into a missing file."""
     rel_path = _source_path(rel)
-    return all(_confined(repo, rel_path) is None for repo in repos)
+    escaped = False
+    for repo in repos:
+        where, p = _resolve_in(repo, rel_path)
+        if where == "in" and p is not None and p.exists():
+            return "found"
+        escaped = escaped or where == "out"
+    return "escaped" if escaped else "missing"
 
 
 def _path_exists_in_repos(rel: str, repos: list[str]) -> bool:
@@ -411,11 +437,12 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         for s in sources:
             if repos and s not in checked_sources:
                 checked_sources.add(s)
-                if _escapes_repos(s, repos):
+                status = _source_status(s, repos)
+                if status == "escaped":
                     add("escaped-source", el, s,
                         "data-source points outside the folders the document is checked against (an absolute "
                         "path, a '..' or a link that leads out) — cite a file inside the project, by its path from the project root")
-                elif not _path_exists_in_repos(s, repos):
+                elif status == "missing":
                     add("dangling-source", el, s, "data-source names a path that does not exist under --repo")
         # cite-off: every carrier of a line citation — el, its inline wrappers, its block — is
         # verified against ITS OWN text (THE RULE, #1184; the block carrier covers #1181-A)

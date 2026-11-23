@@ -874,3 +874,92 @@ def test_escaped_citation_fails_the_cli(tmp_path: Path):
                          capture_output=True, text=True, check=False)
     assert res.returncode == 1
     assert json.loads(res.stdout)["by_kind"] == {"escaped-source": 1}
+
+
+def _reads(monkeypatch) -> list[Path]:
+    """Every file the scan reads, resolved — the boundary is "never read outside", not only "never pass"."""
+    seen: list[Path] = []
+    orig = Path.read_text
+
+    def spy(self, *args, **kwargs):
+        seen.append(self.resolve())
+        return orig(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", spy)
+    return seen
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_escaping_citations_never_read_the_outside_file(tmp_path: Path, monkeypatch):
+    repo, outside = _escape_fixture(tmp_path)
+    try:
+        (repo / "link.md").symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    outside.write_text("Throughput reached 42 requests per second, see https://outside.example.com/x\n",
+                       encoding="utf-8")
+    seen = _reads(monkeypatch)
+    html = ('<body><p data-source="../outside.md:1">Throughput reached 42 requests per second</p>'
+            f'<p data-source="{outside}:1">Throughput reached 42 requests per second</p>'
+            '<p data-source="link.md:1">Throughput reached 42 requests per second</p>'
+            '<p data-source="sub/file.md">See https://outside.example.com/x</p></body>')
+    kinds = _kinds(html, [str(repo)])
+    assert kinds == ["escaped-source", "escaped-source", "escaped-source", "unsourced-url"]
+    assert outside.resolve() not in seen
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_an_outward_link_stays_escaped_beside_a_second_folder(tmp_path: Path):
+    """A second --repo folder the path is merely absent from never turns an escape into a missing file."""
+    repo, outside = _escape_fixture(tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    try:
+        (repo / "link.md").symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    html = ('<body><p data-source="link.md:1">Throughput reached 42 requests per second</p>'
+            '<p data-source="nowhere.md:1">Throughput reached 42 requests per second</p></body>')
+    findings, _ = cs.scan_document(html, [str(repo), str(other)])
+    assert sorted((f.kind, f.text) for f in findings) == [("dangling-source", "nowhere.md:1"),
+                                                          ("escaped-source", "link.md:1")]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_a_link_loop_is_missing_not_a_crash(tmp_path: Path):
+    repo, _ = _escape_fixture(tmp_path)
+    try:
+        (repo / "loop.md").symlink_to(repo / "loop.md")
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    html = ('<body><p data-source="loop.md:1">Throughput reached 42 requests per second</p>'
+            '<p data-source="sub/file.md">See https://example.com/x</p></body>')
+    assert _kinds(html, [str(repo)]) == ["dangling-source", "unsourced-url"]
+
+
+@pytest.mark.skipif(not hasattr(os, "symlink"), reason="no symlinks on this platform")
+def test_a_directory_that_leads_out_is_not_walked(tmp_path: Path, monkeypatch):
+    """Windows' os.walk descends a directory junction; the walk prunes a directory that resolves
+    outside the folder. Simulated here by walking with followlinks=True."""
+    repo, _ = _escape_fixture(tmp_path)
+    away = tmp_path / "away"
+    away.mkdir()
+    (away / "evidence.md").write_text("docs at https://outside.example.com/x\n", encoding="utf-8")
+    try:
+        (repo / "linked").symlink_to(away, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks need privileges on this host")
+    orig_walk = os.walk
+    monkeypatch.setattr(cs.os, "walk", lambda top, **kw: orig_walk(top, followlinks=True))
+    seen = _reads(monkeypatch)
+    html = '<body><p data-source="sub/file.md">See https://outside.example.com/x</p></body>'
+    assert _kinds(html, [str(repo)]) == ["unsourced-url"]
+    assert (away / "evidence.md").resolve() not in seen
+
+
+@pytest.mark.parametrize("spelling", ["C:\\outside.md:1", "C:/outside.md:1", "c:outside.md:1", "\\outside.md:1",
+                                      "\\\\server\\share\\outside.md:1"])
+def test_windows_absolute_spellings_are_escaped_on_every_platform(tmp_path: Path, spelling):
+    repo, _ = _escape_fixture(tmp_path)
+    html = f'<body><p data-source="{spelling}">Throughput reached 42 requests per second</p></body>'
+    assert _kinds(html, [str(repo)]) == ["escaped-source"]
