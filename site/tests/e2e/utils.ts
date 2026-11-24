@@ -31,6 +31,26 @@ export async function expectRevealed(target: Locator): Promise<void> {
 }
 
 /**
+ * Wait until the section stage (.sx-stage) around `target` has finished its arrival entrance.
+ * section-enter.ts holds a stage at translateY(14px) scale(.98) until the visitor first reaches it,
+ * then transitions it to none (.7s after a .16s delay). A box read inside a stage before that ends
+ * is a scaled box, so a before/after size check would compare two points of the transition. Passes
+ * at once for a target outside any stage.
+ */
+export async function expectStageSettled(target: Locator): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        target.evaluate((el) => {
+          const stage = el.closest('.sx-stage');
+          return !stage || (stage.getAnimations().length === 0 && getComputedStyle(stage).transform === 'none');
+        }),
+      { timeout: 10_000, message: 'the section stage should finish its entrance before the target is measured' },
+    )
+    .toBe(true);
+}
+
+/**
  * Click `chip` (a CopyChip) until its transient "copied" feedback shows.
  * The feedback auto-clears after 1.4s, so the click + assertion are retried
  * as a unit instead of racing a fixed observation window.
