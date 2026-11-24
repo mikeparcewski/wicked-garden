@@ -136,13 +136,16 @@ def load(repo):
 def flines(repo, f):
     k = f
     if k not in repo._lines:
+        # Build the list, then publish it: the checker's threads share this cache, and a list published before its
+        # trailing "" is dropped lets another thread render one line past the end of the file.
         try:
             with open(os.path.join(repo.root, f), "rb") as fh:
-                repo._lines[k] = fh.read().decode("utf-8", "replace").split("\n")
-            if repo._lines[k] and repo._lines[k][-1] == "":
-                repo._lines[k].pop()
+                L = fh.read().decode("utf-8", "replace").split("\n")
+            if L and L[-1] == "":
+                L.pop()
         except OSError:
-            repo._lines[k] = None
+            L = None
+        repo._lines[k] = L
     return repo._lines[k]
 
 

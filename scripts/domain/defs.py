@@ -2,43 +2,66 @@
 
 Ported from the J6 v3 proof (``proof-v3/frozen/defs.py``). Two changes, both paths: the tree is the run's
 (:func:`set_root`), and ``COPY X`` resolves to ``<program dir>/../cpy/X.cpy`` (the proof's fixed ``app/cpy``),
-else to the one ``X.cpy`` in the tree (any case). The definition rules are unchanged.
+else to the one ``X.cpy`` in the tree (any case), never to a BMS symbolic map (:func:`copybook_path`). The
+definition rules are unchanged.
 """
 import os, re
 SRC = None
 _fl = {}
 _cpy = None
+_resets = []
+
+
+def on_reset(clear):
+    """Register a cache, keyed by path in the current tree, that :func:`set_root` must clear."""
+    _resets.append(clear)
 
 
 def set_root(root):
-    """Point the lookup at the run's tree (and forget the previous tree's text)."""
+    """Point the lookup at the run's tree (and forget the previous tree's text and every cache over it)."""
     global SRC, _cpy
     SRC = root
     _fl.clear()
     _cpy = None
+    for clear in _resets:
+        clear()
 
 
 def _copybook_index():
+    """``({NAME: [copybook paths]}, {NAME of every BMS mapset})`` over the tree, names upper-cased."""
     global _cpy
     if _cpy is None:
-        idx = {}
+        idx, maps = {}, set()
         for dp, dn, fn in os.walk(SRC):
             dn[:] = sorted(d for d in dn if d not in (".git", "node_modules"))
             for f in sorted(fn):
                 stem, e = os.path.splitext(f)
                 if e.lower() == ".cpy":
                     idx.setdefault(stem.upper(), []).append(os.path.relpath(os.path.join(dp, f), SRC))
-        _cpy = idx
+                elif e.lower() == ".bms":
+                    maps.add(stem.upper())
+        _cpy = (idx, maps)
     return _cpy
 
 
+def copybook_by_name(name):
+    """The one ``name.cpy`` in the tree (any case), or None (none, or more than one)."""
+    hits = _copybook_index()[0].get(name.upper(), [])
+    return hits[0] if len(hits) == 1 else None
+
+
 def copybook_path(f, name):
-    """Where ``COPY name`` in program ``f`` resolves, or None."""
+    """Where ``COPY name`` in program ``f`` resolves, or None.
+
+    A symbolic map generated from a BMS mapset in the tree (``name.bms``) is screen I/O, not program data, and is
+    not resolved: the J6 v3 checker was calibrated without map fields (the proof's fixed ``app/cpy`` held none), and
+    resolving them adds every screen field to the WRITERS of the group the map follows."""
+    if name.upper() in _copybook_index()[1]:
+        return None
     near = os.path.normpath(os.path.join(os.path.dirname(f), "..", "cpy", f"{name}.cpy"))
     if flines(near):
         return near
-    hits = _copybook_index().get(name.upper(), [])
-    return hits[0] if len(hits) == 1 else None
+    return copybook_by_name(name)
 
 
 def flines(f):

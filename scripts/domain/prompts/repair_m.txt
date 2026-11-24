@@ -1,0 +1,7 @@
+Your previous output for the targets below failed the host's mechanical checks. Fix exactly the listed failures and return the complete corrected entries for those targets only, in the same JSON shape as before. Do not call any tools. Output JSON only.
+
+FAILURES (exact list):
+{{FAILURES}}
+
+YOUR PREVIOUS OUTPUT for these targets:
+{{PREVIOUS}}

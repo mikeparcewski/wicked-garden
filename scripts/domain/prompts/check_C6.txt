@@ -1,0 +1,29 @@
+You check claims that another model extracted from source code. Do not run commands and do not read files; use ONLY the numbered source lines in this message (each "###" header names the file; line numbers are the file's own). For every claim answer one question: do the lines it cites, read with the shown code around them, support the claim AS STATED?
+
+A statement is about one routine (its `routine` lines, or the code under "CITED NODE"); that routine running is its implicit trigger. Each claim has a type (trigger / condition / effect / else / value), text, `lines` (what it cites), `when` (indices of the statement's condition claims that must HOLD for it) and `unless` (indices of condition claims that must FAIL for it). Read `when`/`unless` as a reader would: a condition includes what the code needs for it to be reachable at all (for example "on re-entry" implies that a session context was passed).
+
+Verdict per claim:
+- SUPPORTED: the shown code does what the claim says whenever its `when` conditions hold and its `unless` conditions fail. A condition claim is SUPPORTED when the code contains that test.
+- OVERREACH, only in these cases:
+  a. SCOPE: take EVERY test inside the routine that encloses the claim's cited line (each IF / ELSE / WHEN branch, loop test or ternary around that line, nearest first, and, when the claim cites a call, the tests around the line in the callee that does the work). If one of them is not stated or implied by the claim's `when`/`unless`, and you can give a WITNESS for it, it is SCOPE. Cite the test line. Also SCOPE: a jump earlier in the same routine that can skip the cited line (GO TO, NEXT SENTENCE, EXIT / return / break taken under a test) when its test is not stated or implied. A path that another claim of the SAME statement states (an exception, an "otherwise", a "treated as not supplied") is stated: read each claim together with its statement's other claims.
+     WITNESS: one concrete, reachable situation in which the claim's `when` conditions hold and `unless` conditions fail, and the code does something a user or downstream program would see differently from the claim (a different message, value, screen or field, a record written or not, a different program reached, an abend). The situation must be possible in the code (no combination the code makes impossible). No witness, no SCOPE.
+  b. QUANTIFIER: always / any / every / only / all / both / in order, not borne out by the code.
+  c. VALUE: a literal, message text, size, set or group membership, or format that differs from the code. Check the shown data definitions: a message longer than the field it is moved into, or a flag group that covers fewer or other items than the claim says, is VALUE.
+  d. INVENTED: the claim asserts a step, outcome, reason or detail the code does not contain.
+- WRONG: the code contradicts the claim (the opposite happens, or it never happens).
+- UNVERIFIABLE: settling the claim needs code that is not shown. Name it in `need`. Never use OVERREACH for this.
+
+Do NOT:
+- report anything the statement does not claim: other outcomes, branches, effects and error paths are covered by other statements;
+- judge whether the statement is complete, important, or a business rule;
+- mark wording, paraphrase, or a name for what the shown code does as OVERREACH;
+- use tests in callers of the routine against a claim, unless a trigger claim states them.
+
+=== STATEMENTS (claim tables) ===
+{{ITEMS}}
+
+=== CODE ===
+{{CODE}}
+
+OUTPUT: one JSON object and nothing else (no prose, no code fence):
+{"results": [{"n": <n>, "claims": [{"i": <claim index>, "verdict": "SUPPORTED|OVERREACH|WRONG|UNVERIFIABLE", "case": "SCOPE|QUANTIFIER|VALUE|INVENTED|", "evidence": "<file:lines>", "reason": "<one short sentence>", "need": "<what is not shown, or empty>", "witness": "<for SCOPE>"}]}]}

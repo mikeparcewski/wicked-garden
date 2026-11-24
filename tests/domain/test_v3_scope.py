@@ -111,6 +111,20 @@ def test_copy_resolves_beside_the_program_else_to_the_one_copybook_of_that_name(
     assert defs.copybooks("src/cbl/P.cbl") == ["src/cpy/NEAR.cpy", "lib/shared/FAR.CPY"]
 
 
+def test_a_bms_symbolic_map_is_not_resolved_as_a_copybook(tmp_path):
+    (tmp_path / "app/cbl").mkdir(parents=True)
+    (tmp_path / "app/cpy").mkdir()
+    (tmp_path / "app/cpy-bms").mkdir()
+    (tmp_path / "app/bms").mkdir()
+    (tmp_path / "app/cpy/REC.cpy").write_text("       01  REC PIC X.\n")
+    (tmp_path / "app/cpy-bms/SCRN01.CPY").write_text("       01  SCRN01I.\n           02  FLDI PIC X.\n")
+    (tmp_path / "app/bms/SCRN01.bms").write_text("SCRN01 DFHMSD TYPE=MAP\n")
+    (tmp_path / "app/cbl/P.cbl").write_text("       COPY REC.\n       COPY SCRN01.\n")
+    defs.set_root(str(tmp_path))
+    # the map's fields are screen I/O: the J6 v3 checker was calibrated without them
+    assert defs.copybooks("app/cbl/P.cbl") == ["app/cpy/REC.cpy"]
+
+
 def test_the_language_split_replaces_the_proofs_repository_split():
     assert lookup.lang_of("app/cbl/X.cbl") == "cobol"
     assert lookup.lang_of("app/jcl/X.jcl") == "cobol"

@@ -1,0 +1,30 @@
+You are the second, independent checker of claims that another model extracted from source code. A first checker read each statement below and flagged some of its claims for SCOPE: a test or jump it says can change what the claim states, with a WITNESS. For EACH flagged claim, decide whether the finding stands. Do not run commands and do not read files; use ONLY the numbered source lines in this message (each "###" header names the file; line numbers are the file's own).
+
+Each item gives the statement's claim table (type, text, `lines` it cites, `when` = condition claims that must HOLD, `unless` = condition claims that must FAIL), its routine, and the first checker's findings: claim index `i`, verdict, case (SCOPE / QUANTIFIER / VALUE / INVENTED, or none for WRONG), evidence lines, reason and, for SCOPE, a WITNESS (a concrete situation in which the claim's `when` holds, its `unless` fails, and the code does something different from the claim). A finding may give more than one witness (WITNESS 1 | WITNESS 2); it STANDS if any of them is reachable.
+
+Besides the code the first checker saw, you see what it did not: the PROGRAM ENTRY (where a run of the program starts), the PATH TO THE ROUTINE (every line that performs or calls it, back to the entry), and the WRITERS of each data name the findings depend on (every line that sets it, its condition names or its enclosing groups). The facts line states how the platform starts a run.
+
+Decide each finding:
+- STANDS: the finding is right. For SCOPE, the witness is reachable: some path from the PROGRAM ENTRY to the routine produces every value the witness needs at the moment the routine runs. A value may come from input the program receives (a screen, a key pressed, a record read, a passed COMMAREA or argument) when the entry code lets it through, and from any writer line on the path. Unusual but possible situations count: an empty file, an edge value, an I/O error in the step the claim describes.
+- REJECTED, only for one of these reasons, and you must cite the lines that show it:
+  - UNREACHABLE: NO witness for this finding is reachable, not only the one given. The finding is the test it cites and the line that test can skip or change; before you reject, look for any other reachable situation (other input, other file content, an earlier record, another path) in which the claim's `when` holds, its `unless` fails and that same test changes what the user or a downstream program sees. If you find one, the finding STANDS (give it in `reason`). Reject only when the needed values cannot occur together on any path from the PROGRAM ENTRY when the routine runs. For example: every writer that sets one needed value also sets a conflicting one; the routine is only reached after a line that rules the witness out; the platform facts make the needed value impossible at that point. Name the needed value and the lines that rule it out.
+  - MISREAD: the cited code does not say what the finding says (for example, the claim quotes a flag or condition name and the finding reads it as message text; the test the finding cites does not enclose or precede the claim's line; the value the finding gives is not what the shown definitions give).
+  - STATED: the path the finding names is already stated by the claim's `when` / `unless`, or by another claim of the same statement.
+- UNSURE: the shown code cannot settle it either way.
+
+Rules:
+- Judge only the finding. Do not add new findings and do not judge whether the statement is complete or important.
+- A witness is not unreachable because it is rare, or because it needs a particular user input, file content or failure. It is unreachable only when the code (and the platform facts) make it impossible.
+- Never reject a finding because a caller's test would avoid it, unless you trace that every path to the routine passes that test (cite the PATH lines).
+
+=== FACTS ===
+{{FACTS}}
+
+=== FLAGGED STATEMENTS ===
+{{ITEMS}}
+
+=== CODE ===
+{{CODE}}
+
+OUTPUT: one JSON object and nothing else (no prose, no code fence):
+{"results": [{"n": <n>, "findings": [{"i": <claim index>, "decision": "STANDS|REJECTED|UNSURE", "basis": "REACHABLE|UNREACHABLE|MISREAD|STATED|", "lines": "<file:N-M that show it>", "reason": "<one short sentence; for UNREACHABLE name the needed value that cannot occur>"}]}]}
