@@ -122,7 +122,8 @@ def _scaffold_directory(name: str, lang: str, out: Path, rest: bool = False) -> 
             "envNames": ["MCP_SERVER_BEARER"],  # the bearer every HTTP request carries (REST and MCP)
             "run": f'MCP_TRANSPORT=httpStream node "{server}"',  # with {env_name} and MCP_SERVER_BEARER set
             "openapi": f"{base}/openapi.json",
-            # Smoke the REST surface beside MCP: the document, then one tool call, both with the bearer.
+            # A fresh-scaffold smoke of the REST surface: the document, then the example `echo`
+            # (generated tools replace it: then POST one of yours), both with the bearer.
             "smoke": [
                 f'curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER" {base}/openapi.json',
                 f'curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER" -H "content-type: application/json"'

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: __YEAR__ the __SERVER_NAME__ authors
 import { SpanStatusCode } from "@opentelemetry/api";
-import { UserError, type FastMCP, type Tool, type ToolParameters } from "fastmcp";
+import { UserError, type Context, type FastMCP, type Tool, type ToolParameters } from "fastmcp";
 import { z } from "zod";
 import { requireSession, type Session } from "../auth.js";
 import type { ServerConfig } from "../config.js";
@@ -33,6 +33,9 @@ export class RateLimited extends UserError {
   }
 }
 
+/** A REST call past the tool's `timeoutMs` (fastmcp enforces the same limit on MCP calls). */
+export class TimedOut extends UserError {}
+
 /** The surface a call came in on, stamped on its span. */
 export type Surface = "mcp" | "rest";
 
@@ -40,6 +43,9 @@ export type Surface = "mcp" | "rest";
 export type Validated =
   | { value: unknown; issues?: undefined }
   | { issues: ReadonlyArray<{ message: string; path?: ReadonlyArray<PropertyKey | { key: PropertyKey }> }> };
+
+/** A Standard Schema, as fastmcp takes for `parameters` and `outputSchema`. */
+export type StandardSchema = { "~standard": { validate: (value: unknown) => Validated | Promise<Validated> } };
 
 /**
  * One registered tool, as the REST surface (`src/http-api.ts`) sees it: the same definition and
@@ -50,50 +56,58 @@ export interface CatalogEntry {
   name: string;
   description: string;
   annotations: Record<string, unknown> | undefined;
-  /** The JSON Schema of the arguments (the OpenAPI request body). */
-  inputSchema: Record<string, unknown>;
+  /** The JSON Schema of the arguments (the OpenAPI request body), built on first use. */
+  inputSchema: () => Record<string, unknown>;
+  /** The tool's `outputSchema`: a result that is not content becomes `structuredContent`. */
+  outputSchema: StandardSchema | undefined;
+  /** Validate the arguments as fastmcp does: `args ?? {}` against `parameters`; none: undefined. */
   validate: (args: unknown) => Promise<Validated>;
   canAccess: (session: Session | undefined) => boolean;
+  /** Run the wrapped tool with a REST context; its signal aborts at the tool's `timeoutMs`. */
   invoke: (args: unknown, requestId: string) => Promise<unknown>;
 }
 
-const catalog: CatalogEntry[] = [];
+// One catalog per server, by tool name: registering a name again replaces it, as fastmcp's
+// addTool does, and two servers in one process never see each other's tools.
+const catalogs = new WeakMap<FastMCP<Session>, Map<string, CatalogEntry>>();
 
-/** Every tool defineTool registered, in registration order. */
-export function toolCatalog(): readonly CatalogEntry[] {
-  return catalog;
+/** Every tool defineTool registered on `server`, in registration order. */
+export function toolCatalog(server: FastMCP<Session>): readonly CatalogEntry[] {
+  return [...(catalogs.get(server)?.values() ?? [])];
 }
 
-/** Forget the catalog (tests that build more than one server in a process). */
-export function resetCatalog(): void {
-  catalog.length = 0;
-}
-
-type StandardSchema = { "~standard": { validate: (value: unknown) => Validated | Promise<Validated> } };
-
+/** The arguments' JSON Schema as a client sends them (zod's input side); never throws. */
 function jsonSchemaOf(parameters: unknown): Record<string, unknown> {
-  if (parameters instanceof z.ZodType) return z.toJSONSchema(parameters) as Record<string, unknown>;
+  if (parameters instanceof z.ZodType) {
+    try {
+      return z.toJSONSchema(parameters, { io: "input", unrepresentable: "any" }) as Record<string, unknown>;
+    } catch {
+      return { type: "object" };
+    }
+  }
   return { type: "object" };
 }
 
 /** The principal of a REST call: the same bearer the httpStream MCP endpoint takes. */
 export const REST_SESSION: Session = { principal: "bearer" };
 
-/** The context a REST call hands the tool: fastmcp's fields, with no MCP session behind them. */
-function restContext(requestId: string) {
-  const log = {
-    debug: (message: string) => getLogger().debug(message),
-    error: (message: string) => getLogger().error(message),
-    info: (message: string) => getLogger().info(message),
-    warn: (message: string) => getLogger().warn(message),
-  };
+/** The context a REST call hands the tool: every fastmcp field, with no MCP client behind it. */
+function restContext(requestId: string, signal: AbortSignal): Context<Session> {
   return {
     client: { version: undefined },
-    log,
+    elicit: async () => {
+      throw new UserError("elicitation needs an MCP client: this call came over REST");
+    },
+    log: {
+      debug: (message: string) => getLogger().debug(message),
+      error: (message: string) => getLogger().error(message),
+      info: (message: string) => getLogger().info(message),
+      warn: (message: string) => getLogger().warn(message),
+    },
     reportProgress: async () => undefined,
     requestId,
     session: REST_SESSION,
-    sessionId: undefined,
+    signal,
     streamContent: async () => undefined,
   };
 }
@@ -102,8 +116,8 @@ function restContext(requestId: string) {
  * Register one tool with the server's contract: a `mcp.tool.call` span, a request-scoped child
  * logger, the three instruments, the per-tool rate limit, and `canAccess: requireSession`.
  * A UserError reaches the caller as a tool error; anything else is logged and rethrown.
- * The tool also joins the catalog the REST surface serves (garden#1339); `jsonSchema` is its
- * argument schema when `parameters` is not a zod schema (a generated tool's tools.json entry).
+ * The tool also joins `server`'s catalog, which the REST surface serves (garden#1339); `jsonSchema`
+ * is its argument schema when `parameters` is not a zod schema (a generated tool's tools.json entry).
  */
 export function defineTool<P extends ToolParameters>(
   server: FastMCP<Session>,
@@ -154,13 +168,39 @@ export function defineTool<P extends ToolParameters>(
     execute: (args, context) => call(args, context, "mcp"),
   });
   const parameters = tool.parameters as unknown as StandardSchema | undefined;
-  catalog.push({
+  let inputSchema: Record<string, unknown> | undefined;
+  const entry: CatalogEntry = {
     name: tool.name,
     description: tool.description ?? tool.name,
     annotations: tool.annotations as unknown as Record<string, unknown> | undefined,
-    inputSchema: jsonSchema ?? jsonSchemaOf(tool.parameters),
-    validate: async (args) => (parameters === undefined ? { value: args } : await parameters["~standard"].validate(args)),
+    inputSchema: () => (inputSchema ??= jsonSchema ?? jsonSchemaOf(tool.parameters)),
+    outputSchema: tool.outputSchema as unknown as StandardSchema | undefined,
+    validate: async (args) => (parameters === undefined ? { value: undefined } : await parameters["~standard"].validate(args ?? {})),
     canAccess,
-    invoke: (args, requestId) => call(args as Args, restContext(requestId) as unknown as Ctx, "rest"),
-  });
+    invoke: async (args, requestId) => {
+      const timeout = new AbortController();
+      const run = call(args as Args, restContext(requestId, timeout.signal), "rest");
+      if (tool.timeoutMs === undefined) return run;
+      run.catch(() => undefined); // a late failure after the timeout answered is already logged
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        return await Promise.race([
+          run,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+              const err = new TimedOut(`Tool '${tool.name}' timed out after ${tool.timeoutMs}ms.`);
+              timeout.abort(err);
+              reject(err);
+            }, tool.timeoutMs);
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
+  const tools = catalogs.get(server) ?? new Map<string, CatalogEntry>();
+  tools.delete(tool.name); // a re-registered name moves to the end, with its new definition
+  tools.set(tool.name, entry);
+  catalogs.set(server, tools);
 }

@@ -207,7 +207,7 @@ describe("REST surface (rest.enabled, garden#1339)", () => {
         body: JSON.stringify({ text: "parity" }),
       });
       expect(rest.status).toBe(200);
-      expect(((await rest.json()) as { content: unknown[] }).content).toEqual(mcp.get(2).result.content);
+      expect(await rest.json()).toEqual(mcp.get(2).result); // the whole result, not only its content
       const unauthenticated = await fetch(`http://127.0.0.1:${port}/api/tools/echo`, { method: "POST", body: "{}" });
       expect(unauthenticated.status).toBe(401);
       const mcpNoBearer = await fetch(`http://127.0.0.1:${port}/mcp`, {

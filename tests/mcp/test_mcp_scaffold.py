@@ -330,46 +330,55 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _rest_smoke(out: Path) -> None:
-    """The `--rest` journey on the BUILT server: the config as `--rest` stamps it, run under
-    MCP_TRANSPORT=httpStream, then the report's two smoke calls (document, one tool)."""
+def _rest_journey(npm: str, built: Path, out: Path) -> None:
+    """The `--rest` journey (garden#1339): scaffold with --rest, build and run the project's own
+    suite, then the report's run line on a free port and its two smoke calls (document, tool).
+    It reuses `built`'s node_modules: the two projects differ only in mcp-server.config.json."""
+    import time
     import urllib.error
     import urllib.request
-    import time
 
-    config_path = out / "mcp-server.config.json"
-    committed = config_path.read_text(encoding="utf-8")
-    config = json.loads(committed)
-    config["rest"]["enabled"] = True
-    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    made = _scaffold_ts(out, "acme-notes", "--rest")
+    assert made.returncode == 0, made.stderr
+    report = json.loads(made.stdout)["rest"]
+    try:
+        os.symlink(built / "node_modules", out / "node_modules", target_is_directory=True)
+    except OSError:
+        shutil.copytree(built / "node_modules", out / "node_modules", symlinks=True)
+    for step in (["run", "build"], ["test"]):
+        done = subprocess.run([npm, *step], cwd=out, capture_output=True, text=True, timeout=600,
+                              env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
+        assert done.returncode == 0, (step, done.stdout[-4000:], done.stderr[-4000:])
+    assert report["run"].startswith("MCP_TRANSPORT=httpStream node ")
     port, bearer = _free_port(), "e2e-rest-bearer"  # ggignore: a made-up local test bearer
     child = subprocess.Popen(["node", str(out / "dist" / "server.js")], stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, env={
                                  **os.environ, "ACME_NOTES_TOKEN": "dummy", "MCP_TRANSPORT": "httpStream",
                                  "MCP_PORT": str(port), "MCP_SERVER_BEARER": bearer})
-    base = f"http://127.0.0.1:{port}/api"
+    openapi = report["openapi"].replace(":8080/", f":{port}/")
+    base = openapi.rsplit("/", 1)[0]
     auth = {"Authorization": f"Bearer {bearer}"}
     try:
         doc = None
         for _ in range(120):
             try:
-                with urllib.request.urlopen(urllib.request.Request(f"{base}/openapi.json", headers=auth), timeout=5) as r:
+                with urllib.request.urlopen(urllib.request.Request(openapi, headers=auth), timeout=5) as r:
                     doc = json.loads(r.read())
                 break
             except (urllib.error.URLError, ConnectionError):
                 time.sleep(0.25)
         assert doc is not None and doc["openapi"] == "3.1.0" and "/tools/echo" in doc["paths"]
+        assert report["smoke"][1].endswith(" http://127.0.0.1:8080/api/tools/echo")
         call = urllib.request.Request(f"{base}/tools/echo", data=b'{"text":"hi"}', method="POST",
                                       headers={**auth, "content-type": "application/json"})
         with urllib.request.urlopen(call, timeout=10) as r:
-            assert json.loads(r.read()) == {"content": [{"type": "text", "text": "hi"}], "isError": False}
+            assert json.loads(r.read()) == {"content": [{"type": "text", "text": "hi"}]}
         with pytest.raises(urllib.error.HTTPError) as refused:
-            urllib.request.urlopen(urllib.request.Request(f"{base}/openapi.json"), timeout=5)
+            urllib.request.urlopen(urllib.request.Request(openapi), timeout=5)
         assert refused.value.code == 401
     finally:
         child.kill()
         child.wait(timeout=10)
-        config_path.write_text(committed, encoding="utf-8")
 
 
 def test_probe_passes_only_the_named_variable_and_reports_it_by_name(tmp_path, monkeypatch):
@@ -425,7 +434,7 @@ def test_typescript_template_installs_builds_tests_and_probes(tmp_path):
     probed = json.loads(proc.stdout)
     assert probed["ok"] is True, probed
     assert {t["name"]: t["class"] for t in probed["tools"]} == {"echo": "read"}
-    _rest_smoke(out)  # garden#1339: the same built server, REST on, under httpStream
+    _rest_journey(npm, out, tmp_path / "acme-rest")  # garden#1339: scaffold --rest, build, test, run, smoke
 
     # Branch A (garden#1249): with a generated tools.json the BUILT server must still start and
     # list exactly the generated tools — a raw JSON Schema handed to fastmcp kills it at startup.

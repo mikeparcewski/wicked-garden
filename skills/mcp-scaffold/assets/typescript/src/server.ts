@@ -35,7 +35,7 @@ async function main(): Promise<void> {
   // The REST surface (rest.enabled): the same tools, on fastmcp's own HTTP app, behind the same
   // bearer. Only httpStream has an HTTP server; a stdio launch says so in its start line.
   const rest = !config.rest.enabled ? "off" : config.transport === "httpStream" ? config.rest.basePath : "off (stdio has no HTTP server)";
-  if (config.rest.enabled && config.transport === "httpStream") mountRestApi(server.getApp(), config, toolCatalog);
+  if (config.rest.enabled && config.transport === "httpStream") mountRestApi(server.getApp(), config, () => toolCatalog(server));
   root.withMetadata({ generated, transport: config.transport, rest }).info("starting");
 
   const stop = async () => {

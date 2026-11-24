@@ -59,9 +59,10 @@ wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescrip
   tool as `POST /api/tools/<name>` plus an OpenAPI 3.1 document at `GET /api/openapi.json`,
   from the same tool definitions, behind the same `MCP_SERVER_BEARER`. It sets `rest.enabled`
   and keeps the stdio transport, so the server still installs for MCP clients; REST is served
-  under `MCP_TRANSPORT=httpStream`. The report's `rest` block holds that run command and the
-  smoke: after the step 4 probe, run both `smoke` lines and check the tool's answer is the
-  probe's.
+  under `MCP_TRANSPORT=httpStream`. The report's `rest` block holds that run command and a
+  fresh-scaffold smoke (the document, then `echo`). Once your own tools replace `echo`, smoke one
+  of them: POST its arguments to `/api/tools/<name>` and check the answer is the one an MCP
+  `tools/call` with the same arguments gives.
 - **Manual alternative:** copy `assets/typescript/` (renaming `gitignore` → `.gitignore` and
   `env.example` → `.env.example`), `assets/node/server.mjs` or `assets/python/server.py` into
   `<dir>`, replacing every `__SERVER_NAME__` with the server name, `__SERVER_ENV__` with its
