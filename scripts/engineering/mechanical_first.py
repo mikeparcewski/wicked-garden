@@ -35,8 +35,12 @@ HEADER = "mechanical-first:"
 # code. A decision quoted as code in either form is not a decision.
 REJECTION_RE = re.compile(r"^ {0,3}mechanical-first: rejected — (?P<reason>.*?)\s*$")
 REJECTION_ATTEMPT_RE = re.compile(r"^ {0,3}mechanical-first\s*:\s*rejected\b", re.IGNORECASE)
+UNFENCED_HEADER_RE = re.compile(r"^ {0,3}mechanical-first\s*:\s*$")
+# A list item or block quote holds its own fences: its markers are stripped before a fence match.
+CONTAINER_RE = re.compile(r"^(?: {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+| {0,3}>[ \t]?)+")
 OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 INDENTED_RE = re.compile(r"^(?: {4}|\t)")
+LINE_END_RE = re.compile(r"\r\n|\r|\n")  # CommonMark line endings only (not U+2028 and kin)
 MAX_DIGITS = 9
 KEY_RE = re.compile(r"^\s*(?P<key>[a-z_]+)\s*:\s?(?P<value>.*?)\s*$")
 
@@ -46,21 +50,22 @@ TRIGGERS: dict[str, str] = {
     "upgrade": r"\bupgrad(?:e|es|ed|ing)\b",
     "bump": r"\bbump(?:s|ed|ing)?\b(?!\s+into\b)",
     # a version move needs a version shape: v1 to v2, version 2 to 3, 2.1 to 3.0, or an arrow
-    "version-move": (r"\bv\d+(?:\.\d+)*\s*(?:→|->|to)\s*v?\d+|\bversion\s+\d+(?:\.\d+)*\s*(?:→|->|to)\s*v?\d+"
+    "version-move": (r"\bv\d+(?:\.\d+)*\s*(?:→|->|to)\s*(?:v|version\s+)?\d+"
+                     r"|\bversion\s+\d+(?:\.\d+)*\s*(?:→|->|to)\s*(?:v|version\s+)?\d+"
                      r"|\b\d+\.\d+(?:\.\d+)*\s*(?:→|->|to)\s*v?\d+|\b\d+(?:\.\d+)*\s*(?:→|->)\s*v?\d+"),
     "migrate": r"\bmigrat(?:e|es|ed|ing|ion)\b",
     "deprecated": r"\bdeprecat(?:ed|ion|ions)\b",
     "rename": (r"\brenam(?:e|es|ed|ing)\b.*\b(?:everywhere|across|all)\b|\bapi rename\b"
                r"|\brenam(?:e|es|ed|ing)\b(?:\s+\S+){0,4}?\s+(?:api|function|method|class|module|package|symbol|endpoint)s?\b"),
     # a library by name (not "this", "the" or an operator) or by the word library/package/...
-    "replace-library": (r"\breplac(?:e|es|ed|ing)\s+(?!(?:this|that|these|those|it|the|a|an)\b)[a-z][\w.@/-]*\s+with\b"
+    "replace-library": (r"\breplac(?:e|es|ed|ing)\s+(?!(?:this|that|these|those|it|the|a|an)\b)`?@?[a-z][\w.@/-]*`?\s+with\b"
                         r"|\breplac(?:e|es|ed|ing)\b(?:\s+\S+){0,3}?\s+(?:library|package|dependency|framework|sdk|client)\s+with\b"
-                        r"|\bmove off\b|\bswitch from\b"),
-    "lint-rollout": (r"\b(?:lint|format(?:ting)?|eslint|ruff|clippy)\s+rules?\b"
+                        r"|\bmove off\b"),
+    "lint-rollout": (r"\b(?:lint|format(?:ting)?|eslint|ruff|clippy)[\s-]+rules?\b"
                      r"|\b(?:roll(?:s|ed|ing)?\s+out|adopt(?:s|ed|ing)?|enabl(?:e|es|ed|ing))\b.{0,40}?"
                      r"\b(?:lint(?:er|ing)?|eslint|ruff|clippy|prettier|black|formatter|biome)\b"),
     "modernize": r"\bmoderni[sz](?:e|es|ed|ing|ation)\b",
-    "port": r"\bport(?:s|ed|ing)?\b\s+(?:this|the|our|a|an)?\s*(?:module|app|service|codebase|library)\b",
+    "port": r"\bport(?:s|ed|ing)?\b\s+(?:this|the|our|a|an)?\s*(?:module|app|application|service|codebase|library)\b",
     # "more than about 10 similar sites": a two-digit-or-more count of sites, or dozens/hundreds
     "repeated-sites": (r"\b(?:\d{2,}|dozens of|hundreds of)\s+(?:similar|identical|matching|repeated)?\s*"
                        r"(?:sites|call\s?sites|places|occurrences|usages|files)\b"),
@@ -72,13 +77,21 @@ def _decisions(text: str) -> tuple[list[dict], list[str]]:
     is an error, never silently skipped."""
     forms: list[dict] = []
     errors: list[str] = []
-    lines = text.splitlines()
+    lines = LINE_END_RE.split(text)
     i = 0
     while i < len(lines):
         line = lines[i]
-        fence = None if INDENTED_RE.match(line) else OPEN_RE.match(line)
+        bare = CONTAINER_RE.sub("", line, count=1)
+        fence = None if INDENTED_RE.match(line) else OPEN_RE.match(bare)
         if fence and fence.group("run")[0] == "`" and "`" in fence.group("info"):
-            fence = None                # a backtick info string may not hold a backtick
+            # not a fence but an inline code span: it runs to the next line holding the same
+            # backtick run, and everything up to there is code, never a decision
+            run = fence.group("run")
+            j = i + 1
+            while j < len(lines) and run not in lines[j]:
+                j += 1
+            i = j + 1
+            continue
         if fence is None:
             m = None if INDENTED_RE.match(line) else REJECTION_RE.match(line)
             if m:
@@ -88,14 +101,16 @@ def _decisions(text: str) -> tuple[list[dict], list[str]]:
                     errors.append(f"line {i + 1}: the rejection has no reason")
             elif not INDENTED_RE.match(line) and REJECTION_ATTEMPT_RE.match(line):
                 errors.append(f"line {i + 1}: a rejection reads exactly `mechanical-first: rejected — <reason>` "
-                              f"(an em dash, —), not {line.strip()[:60]!r}")
+                              f"(a space after the colon, then an em dash, —), not {line.strip()[:60]!r}")
+            elif not INDENTED_RE.match(line) and UNFENCED_HEADER_RE.match(line):
+                errors.append(f"line {i + 1}: a decision block is fenced (``` or ~~~): this one is not")
             i += 1
             continue
         run = fence.group("run")
-        closer = re.compile(rf"^ {{0,3}}{re.escape(run[0])}{{{len(run)},}}\s*$")
+        closer = re.compile(rf"^ {{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$")
         body: list[tuple[int, str]] = []
         j = i + 1
-        while j < len(lines) and not closer.match(lines[j]):
+        while j < len(lines) and not closer.match(CONTAINER_RE.sub("", lines[j], count=1)):
             body.append((j + 1, lines[j]))
             j += 1
         i = j + 1
@@ -103,7 +118,7 @@ def _decisions(text: str) -> tuple[list[dict], list[str]]:
         first = content[0][1].strip() if content else ""
         if first == HEADER:
             forms.append(_block(content, errors))
-        elif first.startswith(HEADER) and not first[len(HEADER):].strip().lower().startswith("rejected"):
+        elif first.startswith(HEADER) and not re.match(r"rejected\b(?!_)", first[len(HEADER):].strip(), re.IGNORECASE):
             errors.append(f"line {content[0][0]}: a decision block starts with exactly `mechanical-first:` "
                           f"on its own line, not {first[:60]!r}")
         # else: some other code block, or a rejection quoted as code

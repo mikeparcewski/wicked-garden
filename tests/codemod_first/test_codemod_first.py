@@ -164,7 +164,7 @@ mechanical-first:
     ("mechanical-first: rejected — ", "no reason"),
     ("mechanical-first: rejected - 3 sites", "em dash"),   # the em dash is the contract, and it says so
     (BLOCK.format(count=1, residue=0) + "\n\nmechanical-first: rejected — tiny", "exactly one"),
-    (BLOCK.format(count=12, residue=1).replace("```\n", "", 1).replace("\n```", ""), "no mechanical-first decision"),
+    (BLOCK.format(count=12, residue=1).replace("```\n", "", 1).replace("\n```", ""), "is fenced"),
 ])
 def test_a_malformed_decision_fails_and_says_why(text, needle):
     report = _mf().check(text)
@@ -223,6 +223,33 @@ def test_a_quoted_rejection_in_a_fence_beside_a_decision_is_still_only_a_quote()
     assert _mf().check(VALID + "\n\n```\n" + REJECTION + "\n```")["ok"]
 
 
+@pytest.mark.parametrize("text", [
+    # a fence inside a list item or a block quote is still a fence
+    "- ```text\n  " + REJECTION + "\n  ```",
+    "1. ```\n   " + REJECTION + "\n   ```",
+    "> ```\n> " + REJECTION + "\n> ```",
+    # a closer may end in spaces or tabs only: a no-break space keeps the fence open
+    "```\n```\u00a0\n" + REJECTION + "\n```",
+    # only LF, CRLF and CR end a line (U+2028 does not)
+    "```\nx```\u2028" + REJECTION + "\n```",
+    # a backtick run with a backtick after it opens an inline code span, not plain text
+    "``` x`\n" + REJECTION + "\n```",
+], ids=["list-fence", "ordered-list-fence", "quote-fence", "nbsp-closer", "u2028", "code-span"])
+def test_a_rejection_quoted_in_other_markdown_code_contexts_is_not_a_decision(text):
+    report = _mf().check(text)
+    assert not report["ok"] and report["form"] is None, report
+
+
+@pytest.mark.parametrize("extra, needle", [
+    (VALID.replace("```\n", "", 1).replace("\n```", ""), "fenced"),
+    (VALID.replace("mechanical-first:", "mechanical-first: rejected_typo"), "exactly `mechanical-first:`"),
+])
+def test_an_unfenced_or_misnamed_block_beside_a_valid_decision_is_an_error(extra, needle):
+    for valid in (VALID, REJECTION):
+        report = _mf().check(valid + "\n\n" + extra)
+        assert not report["ok"] and any(needle in e for e in report["errors"]), (valid, report)
+
+
 def test_an_oversized_number_is_a_report_not_a_crash():
     report = _mf().check(BLOCK.format(count="9" * 5000, residue=1))
     assert not report["ok"] and any("too large" in e for e in report["errors"]), report["errors"]
@@ -240,6 +267,11 @@ def test_an_oversized_number_is_a_report_not_a_crash():
     "move from Node 18 → 22",
     "go from version 2.1 to 3.0",
     "roll out the new eslint config",
+    "replace `moment` with `date-fns`",
+    "replace @angular/http with @angular/common/http",
+    "move from version 2 to version 3",
+    "the lint-rule rollout across services",
+    "port the application to Go",
 ])
 def test_applies_catches_the_documented_request_shapes(request_text):
     assert _mf().applies(request_text)["applies"], request_text
@@ -253,6 +285,7 @@ def test_applies_catches_the_documented_request_shapes(request_text):
     "we bumped into a crash in the report",
     "replace this line with that one",
     "see version 2 of the doc",
+    "Add a setting to switch from light to dark mode",
 ])
 def test_applies_stays_quiet_on_ordinary_fixes_and_features(request_text):
     assert not _mf().applies(request_text)["applies"], (request_text, _mf().applies(request_text))

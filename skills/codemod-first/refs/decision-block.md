@@ -67,10 +67,11 @@ example `mechanical-first: rejected — 3 sites, each semantically different`.
 - a rejection with no reason, or with anything but an em dash (`—`) after `rejected`;
 - more than one decision.
 
-A decision quoted as code is not a decision: a rejection inside a fence, or indented 4 spaces or
-a tab (an indented code block), does not count. Count sites from structured matches, not from
+A decision quoted as code is not a decision: a rejection inside a fence (a list item's or a
+block quote's included), inside an inline code span, or indented 4 spaces or a tab (an indented
+code block), does not count. Count sites from structured matches, not from
 printed lines: a tool's human output can split one match over several lines or merge two.
 
 Check it: `wicked-garden run scripts/engineering/mechanical_first.py check <file>` (or `-` for
-stdin) prints `{"ok": …, "form": "block" | "rejected" | null, "errors": [...]}` and exits 0 when
+stdin) prints `{"ok": …, "form": "block" | "rejected" | null, "errors": [...], "block": {…} | null}` and exits 0 when
 the text holds a valid form, 1 when it does not, 2 on a usage error.
