@@ -10,12 +10,15 @@ closed, with a reason, when a governed unit has neither a pinned store nor the c
 A real HTTP server on loopback plays the broker (stdlib `http.server`); no estate binary runs.
 """
 
+import io
 import json
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -41,6 +44,7 @@ def _clean(monkeypatch):
     _estate_client.set_governed(False)
     _estate_client.set_db(None)
     yield
+    _estate_client._set_broker_refusal(None)  # never leaks into the next test's output
     _estate_client.set_dispatch(original)
     _estate_client.set_readonly(False)
     _estate_client.set_governed(False)
@@ -154,7 +158,7 @@ def test_a_broker_refusal_is_empty_and_says_why(monkeypatch, broker):
         "outcome": "denied", "subject": subject, "callId": "c", "ruleIds": ["estate:no-code-graph"], "denied": True,
         "reason": "this run has no code graph", "remedy": "continue without graph lookups"})
     assert _estate_client.call("RankHotspots", {"limit": 20}) is None
-    assert "no code graph" in _estate_client._last_broker_refusal
+    assert "no code graph" in _estate_client._get_broker_refusal()
     res = _estate_client.propose("memory", {"content": "x"}, {"project": "p"})
     assert res["ok"] is False and res["code"] is None and "broker denied" in res["reason"]
 
@@ -172,8 +176,118 @@ def test_an_unreachable_broker_degrades_with_a_reason(monkeypatch):
     _container_seat(monkeypatch, "http://127.0.0.1:9")  # discard port: nothing listens
     _no_local_spawn(monkeypatch)
     assert _estate_client.call("SearchEntity", {"name": "x"}) is None
-    assert "did not answer" in (_estate_client._last_broker_refusal or "")
+    assert "did not answer" in (_estate_client._get_broker_refusal() or "")
     assert _estate_client.propose("memory", {"content": "x"}, {"project": "p"})["code"] is None
+
+
+@pytest.fixture()
+def dead_relay(monkeypatch):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    _no_local_spawn(monkeypatch)
+
+    def unreachable(*args, **kwargs):
+        raise _estate_client.urllib.error.URLError("relay offline")
+
+    monkeypatch.setattr(_estate_client.urllib.request, "urlopen", unreachable)
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_unreachable_relay_graph_consumers_raise(dead_relay, method):
+    with pytest.raises(_estate_client.EstateUnavailable, match="did not answer"):
+        getattr(_estate_client, method)("x")
+    assert _estate_client.last_failure() == {
+        "kind": "unavailable", "reason": _estate_client._get_broker_refusal()}
+
+
+@pytest.mark.parametrize("action", ["search", "context"])
+def test_cli_unreachable_relay_graph_consumers_fail(dead_relay, capsys, action):
+    code = _estate_client.main([action, '{"query":"x"}'])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1
+    assert out["ok"] is False
+    assert "did not answer" in out["reason"]
+
+
+def test_cli_unreachable_relay_call_keeps_its_empty_contract(dead_relay, capsys):
+    assert _estate_client.main(["call", '{"tool":"SearchEntity"}']) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["result"] is None
+    assert "did not answer" in out["broker_refusal"]
+
+
+def test_unreachable_relay_without_a_reason_records_generic_failure(dead_relay, monkeypatch):
+    monkeypatch.setattr(_estate_client, "_broker_post", lambda *args: (None, None, None))
+    with pytest.raises(_estate_client.EstateUnavailable, match="no handshake"):
+        _estate_client.search("x")
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+
+
+def test_overlapping_relay_failures_keep_each_threads_reason(monkeypatch):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    _no_local_spawn(monkeypatch)
+    first_refused = threading.Barrier(2, timeout=5)
+    second_refused = threading.Barrier(2, timeout=5)
+    broker_dispatch = _estate_client._broker_dispatch
+    reasons = {"first": "relay failure X", "second": "relay failure Y"}
+
+    def post(url, body, timeout):
+        return None, None, reasons[body["args"]["name"]]
+
+    def overlapping_dispatch(requests, *, db, timeout):
+        name = requests[-1]["params"]["arguments"]["name"]
+        # Hold A before _rpc reads its refusal until B has reset/set its own reason Y.
+        if name == "second":
+            first_refused.wait()
+        responses = broker_dispatch(requests, db=db, timeout=timeout)
+        if name == "first":
+            first_refused.wait()
+        second_refused.wait()
+        return responses
+
+    monkeypatch.setattr(_estate_client, "_broker_post", post)
+    monkeypatch.setattr(_estate_client, "_broker_dispatch", overlapping_dispatch)
+
+    def read(name):
+        result = _estate_client.call("SearchEntity", {"name": name})
+        return result, _estate_client.last_failure(), _estate_client._get_broker_refusal()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(read, "first")
+        second = pool.submit(read, "second")
+        outcomes = {"first": first.result(timeout=10), "second": second.result(timeout=10)}
+
+    for name, reason in reasons.items():
+        assert outcomes[name] == (None, {"kind": "unavailable", "reason": reason}, reason)
+
+
+@pytest.mark.parametrize("tool", ["SearchEntity", "rules.recall"])
+def test_unresolved_relay_names_the_runs_graph(monkeypatch, tool):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")
+    if tool == "rules.recall":
+        # On a pinned host seat this tool still relays: the tool must select the transport.
+        monkeypatch.delenv(_estate_client.BROKER_ENV)
+        monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+    blocks = _estate_client.flag_unresolved(
+        {"result": {"resolved": False}, "diagnostics": []}, tool=tool)
+    line, = blocks["diagnostics"]
+    assert "Store searched: the run's own graph (answered by crew's broker)" in line
+    assert ":memory:" not in line
+    assert "--db" not in line
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_unresolved_relay_names_the_runs_graph(monkeypatch, capsys, all_pages):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    monkeypatch.setattr(_estate_client, "_broker_post", lambda *args: (200, {
+        "outcome": "ok", "result": {"content": [
+            {"type": "text", "text": '{"resolved":false}'}]}}, None))
+    assert _estate_client.main(["call", json.dumps({
+        "tool": "BlastRadius", "all_pages": all_pages})]) == 0
+    out = json.loads(capsys.readouterr().out)
+    line, = out["diagnostics"]
+    assert "Store searched: the run's own graph (answered by crew's broker)" in line
+    assert "--db" not in line
 
 
 def test_an_unpinned_governed_unit_with_the_channel_relays_even_without_the_marker(monkeypatch, broker):
@@ -221,6 +335,46 @@ def test_a_pinned_host_seat_relays_the_visible_filtered_knowledge_reads(monkeypa
         assert tool in _estate_client.BROKER_TOOLS
     assert _estate_client.use_broker_for("SearchEntity") is False
     assert _estate_client.transport_name() == "local"
+
+
+def test_a_pinned_host_seat_pulls_the_rules_in_force_from_crew(monkeypatch, broker):
+    """ctx-pull: a host seat's local store is the run's code graph, which holds no steering rules, so
+    `rules.recall` in a governed unit goes to crew, which answers the set the rule judge reads."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/run/code-graph.db")
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    _no_local_spawn(monkeypatch)
+    assert _estate_client.use_broker() is False  # a host seat: everything else stays local
+    rules = {"rules": [{"id": "POL-2500", "statement": "the whole statement"}], "returned": 1, "total": 1,
+             "missing": ["nope"], "source": "considerRules"}
+    broker.answer = lambda subject, args: (200, {"outcome": "ok", "subject": subject, "callId": "c", "ruleIds": [],
+                                                 "result": {"content": [{"type": "text", "text": json.dumps(rules)}], "isError": False}})
+    assert _estate_client.RULES_TOOL in _estate_client.CREW_ANSWERED_TOOLS
+    assert _estate_client.transport_name("rules.recall") == "broker"
+    assert _estate_client.call("rules.recall", {"ids": ["POL-2500", "nope"]}) == rules
+    assert broker.seen[-1][1]["subject"] == "mcp:estate/rules.recall"
+    assert broker.seen[-1][1]["args"] == {"ids": ["POL-2500", "nope"]}
+    assert _estate_client.transport_name("SearchEntity") == "local"
+
+
+def test_a_governed_seat_without_the_channel_never_reads_rules_from_its_local_store(monkeypatch, capsys):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/run/code-graph.db")
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    _no_local_spawn(monkeypatch)
+    assert _estate_client.call("rules.recall", {"ids": ["POL-2500"]}) is None
+    assert "only crew answers rules.recall" in (_estate_client._get_broker_refusal() or "")
+    code = _estate_client.main(["--readonly", "call", json.dumps({"tool": "rules.recall", "arguments": {"ids": ["POL-2500"]}})])
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert code == 0 and out["result"] is None and "no broker channel" in out["broker_refusal"]
+
+
+def test_outside_a_run_rules_recall_stays_local(monkeypatch, broker):
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    assert _estate_client.use_broker_for("rules.recall") is False
 
 
 def test_outside_a_run_the_visible_reads_stay_local(monkeypatch, broker):
@@ -271,3 +425,72 @@ def test_the_cli_reports_the_relay_and_why_a_call_came_back_empty(broker, tmp_pa
         [sys.executable, str(SCRIPT), "--readonly", "call", '{"tool":"memory.capture","arguments":{}}'],
         env=env, cwd=tmp_path, capture_output=True, text=True, check=True).stdout)
     assert out["result"] is None and "not relayed" in out["broker_refusal"]
+
+
+def test_cli_relay_tool_errors_keep_their_failure_output(monkeypatch, capsys):
+    _container_seat(monkeypatch, "http://127.0.0.1:1")
+    monkeypatch.setattr(_estate_client, "_broker_post", lambda *args: (200, {
+        "outcome": "ok", "result": {"isError": True, "content": [
+            {"type": "text", "text": "tool failed"},
+            {"type": "text", "text": "CLAMPED: limit=200"},
+        ]}}, None))
+    assert _estate_client.main(["call", '{"tool":"SearchEntity"}']) == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "error": "tool failed", "diagnostics": ["CLAMPED: limit=200"]}
+
+
+def test_persistent_start_reports_stderr_tempfile_failure(monkeypatch):
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+
+    def cannot_capture(**kwargs):
+        raise OSError("temporary storage full")
+
+    monkeypatch.setattr(_estate_client.tempfile, "TemporaryFile", cannot_capture)
+    persistent = _estate_client._PersistentBroker()
+    assert persistent._start(None) is False
+    assert _estate_client.last_failure() == {
+        "kind": "unavailable",
+        "reason": "estate did not start: cannot capture estate stderr: temporary storage full",
+    }
+
+
+def test_persistent_start_failure_survives_unreadable_stderr():
+    class UnreadableStderr(io.StringIO):
+        def read(self, *args):
+            raise OSError("stderr file unreadable")
+
+    stderr = UnreadableStderr()
+    proc = SimpleNamespace(kill=lambda: None, wait=lambda **kwargs: None)
+    persistent = _estate_client._PersistentBroker()
+    _estate_client._set_failure(None)
+    persistent._start_failed(proc, stderr)
+    assert stderr.closed
+    assert _estate_client.last_failure() == {
+        "kind": "unavailable",
+        "reason": "estate did not start: no handshake (binary missing, timed out, or exited)",
+    }
+
+
+def test_persistent_failed_retry_closes_process_and_stderr(monkeypatch):
+    persistent = _estate_client._PersistentBroker()
+    sessions = []
+
+    def start(db):
+        proc = SimpleNamespace(stdin=io.StringIO(), poll=lambda: None, wait=lambda **kwargs: None)
+        stderr = io.StringIO()
+        sessions.append((proc, stderr))
+        persistent._proc = proc
+        persistent._stderr = stderr
+        persistent._init_resp = {"id": 1, "result": {"serverInfo": {"name": "wicked-estate"}}}
+        return True
+
+    monkeypatch.setattr(persistent, "_start", start)
+    monkeypatch.setattr(persistent, "_exchange", lambda *args, **kwargs: None)
+    try:
+        assert persistent([{"id": 2, "method": "tools/call"}], db=None, timeout=1) == {}
+        assert persistent._failed is True
+        assert len(sessions) == 2
+        assert all(proc.stdin.closed and stderr.closed for proc, stderr in sessions)
+        assert persistent._proc is None and persistent._stderr is None
+    finally:
+        persistent._close()

@@ -24,7 +24,7 @@
     {
       "allowed_skills": [],
       "assigned_cli": "claude",
-      "assigned_invocation": "claude -p --plugin-dir /Users/michael.parcewski/.claude/plugins/wicked-garden {PROMPT}",
+      "assigned_invocation": "claude -p --plugin-dir ~/.claude/plugins/wicked-garden {PROMPT}",
       "collection_scope": "wicked-agent/d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd/shared",
       "conformance_ref": "3a151ecfe8fefd0039d6d3d68807b92fffcd740d302a0a575537980f168396b6",
       "council_task_ref": null,

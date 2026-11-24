@@ -49,6 +49,10 @@ wicked-garden run \
   scripts/jam/detect_clis.py --probe --json
 ```
 
+Run this detection first. If it reports `seat`, do not call or look for other
+CLIs. Give one model's evaluation, disclose `seat.reason` in the summary instead
+of naming CLIs as missing, and stop before the quorum and fallback steps.
+
 This returns:
 ```json
 {

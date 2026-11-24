@@ -112,6 +112,7 @@ class _Estate:
     """The store's write surface, with estate's replace-by-key semantics."""
     def __init__(self):
         self.writes = {}
+        self.anns = {}
     def read_clusters(self):
         return []
     def list_nodes(self):
@@ -122,11 +123,22 @@ class _Estate:
         return f"def {sid}(): ..."
     def annotate(self, symbol_id, **kw):
         self.writes.setdefault(symbol_id, {})["ann"] = kw
+        anns = self.anns.setdefault(symbol_id, [])
+        if kw.get("replace", True):
+            anns[:] = [a for a in anns if (a["type"], a["key"]) != (kw["type"], kw["key"])]
+        anns.append(kw)
     def set_requirement(self, symbol_id, requirement, validated, validated_by="extract-loop"):
         self.writes.setdefault(symbol_id, {})["req"] = (requirement, validated, validated_by)
+    def write_batch(self, rows):
+        for row in rows:
+            fields = {k: v for k, v in row.items() if k not in {"op", "symbol"}}
+            if row["op"] == "annotate":
+                self.annotate(row["symbol"], **fields)
+            else:
+                self.set_requirement(row["symbol"], **fields)
+        return {"rows": len(rows)}
     def read_annotations(self, symbol_id):
-        ann = self.writes.get(symbol_id, {}).get("ann")
-        return [{"key": ann["key"]}] if ann else []
+        return list(self.anns.get(symbol_id, []))
 
 
 class _Core:
@@ -206,6 +218,155 @@ def test_apply_writes_conforming_rules_as_the_seat_and_reports_coverage(tmp_path
     assert json.loads((wt / "coverage-report.json").read_text())["resolved"] == 2
     report_file = json.loads((wt / apply_rules.REPORT_REL).read_text())
     assert (report_file["refused_count"], report_file["declared_seat"]) == (0, "codex")
+
+
+def test_a_catalog_stored_between_plan_and_save_wins_over_picks_and_assignments(tmp_path,
+                                                                            monkeypatch):
+    from domain import business_domains
+    from tests.domain.test_business_domains import (
+        _annotations_table, _catalog, _domain_of, _fixture, _write)
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    _annotations_table(db, [("s::b", "business_rule", "refund never exceeds the charge", 0.9)])
+    page = _catalog()
+    winner = [{**d, "id": d["id"] + "-first"} if i < 2 else
+              {**d, "purpose": "Reports the revenue the first page recorded."}
+              for i, d in enumerate(page)]
+    save = business_domains.save_catalog
+
+    def another_page_first(db, domains, run_id=""):
+        save(db, winner, "other-page")
+        return save(db, domains, run_id)
+
+    monkeypatch.setattr(business_domains, "save_catalog", another_page_first)
+    _write(wt, [{**_rule("s::core"), "domain": "payments", "domain_confidence": 0.8},
+                {**_rule("s::a"), "domain": "reporting", "domain_confidence": 0.8}],
+           business_domains=page,
+           assignments=[{"symbol_id": "s::b", "domain": "accounts", "confidence": 0.9}])
+    report = _apply(wt, db, repo, estate, core)
+    assert business_domains.load_catalog(db) == winner
+    bd = report["business_domains"]
+    assert bd["catalog"] == "stored by another page"
+    assert bd["picked"] == 1 and bd["assigned"] == 0
+    assert _domain_of(estate, "s::core") is None and _domain_of(estate, "s::b") is None
+    assert _domain_of(estate, "s::a") == ("reporting", 0.8)
+    value = estate.anns["s::a"][(business_domains.ANN_TYPE, business_domains.ANN_KEY)]["value"]
+    assert json.loads(value)["purpose"] == winner[2]["purpose"]
+    assert bd["refused_count"] == 2
+    assert all("catalog another page stored first (written without one)" in r["why"]
+               for r in bd["refused"])
+
+
+def _assignment_fixture(tmp_path):
+    from tests.domain.test_business_domains import _annotations_table, _fixture
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    for sid in _STAR:
+        estate.writes[sid] = {"req": ("amount must be positive", True, "extract-loop")}
+    _annotations_table(db, [(sid, "business_rule", "amount must be positive", 0.9)
+                            for sid in ("s::a", "s::b", "s::c")])
+    return db, repo, wt, estate, core
+
+
+def test_prepare_without_units_publishes_and_records_three_assignments(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500,
+                                   estate=estate, core=core)
+    assert doc["units"] == []
+    assert [a["symbol_id"] for a in doc["assign"]] == ["s::a", "s::b", "s::c"]
+    record = generation.load(db, "run-1")
+    assert record["assign_framed"] == 3 and generation.assign_framed(record) == 3
+
+
+def test_apply_assignment_page_writes_catalog_and_assignments_and_refuses_rules(tmp_path,
+                                                                             monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _domain_of, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [_rule("s::core"), "malformed rule"], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8},
+                        {"symbol_id": "s::b", "domain": "accounts", "confidence": 0.7},
+                        {"symbol_id": "s::i1", "domain": "accounts", "confidence": 0.7}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["assignment_page"] is True
+    assert report["business_domains"]["assigned"] == 2
+    assert report["business_domains"]["refused_count"] == 1
+    assert _domain_of(estate, "s::a") == ("payments", 0.8)
+    assert _domain_of(estate, "s::b") == ("accounts", 0.7)
+    assert estate.writes["s::core"]["req"] == ("amount must be positive", True, "extract-loop")
+    assert report["refused_count"] == 2
+    assert all(r["why"] == "this page framed no units: only assignments (and a catalog proposal) apply"
+               for r in report["refused"])
+    assert report["line"] == "assigned 2 business domain(s) on a page that framed no units"
+    assert json.loads((wt / apply_rules.REPORT_REL).read_text())["assignment_page"] is True
+    assert json.loads((wt / "coverage-report.json").read_text())["resolved"] == len(_STAR)
+
+
+def test_assignment_page_without_a_rules_file_reports_no_assignments(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    before = json.dumps(estate.writes, sort_keys=True)
+    report = _apply(wt, db, repo, estate, core)
+    assert report["assignment_page"] is True and report["business_domains"]["assigned"] == 0
+    assert report["line"] == "the extract step wrote no assignments"
+    assert json.dumps(estate.writes, sort_keys=True) == before
+    assert not (wt / rules_file.RULES_REL).exists()
+
+
+def test_assignment_page_refuses_a_null_rules_document(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    rules_file.write_json_file(wt, rules_file.RULES_REL, None)
+    with pytest.raises(rules_file.RulesFileRefused, match="expected a JSON object"):
+        _apply(wt, db, repo, estate, core)
+
+
+@pytest.mark.parametrize("upstream,author", [
+    ("extract=codex,critique=claude", "extract-loop:codex"),
+    ("critique=claude,extract=pi", "extract-loop:pi"),
+    ("extract=bad token", "extract-loop"),
+    ("extract=", "extract-loop"),
+    ("notextract=codex", "extract-loop"),
+    (None, "extract-loop"),
+])
+def test_apply_authors_rules_from_the_engine_upstream_extract_seat(tmp_path, monkeypatch,
+                                                                 upstream, author):
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _Core(estate, {s: "f.py" for s in _STAR})
+    if upstream is None:
+        monkeypatch.delenv("WICKED_UPSTREAM_AGENTS", raising=False)
+    else:
+        monkeypatch.setenv("WICKED_UPSTREAM_AGENTS", upstream)
+    _write_rules(wt, "claimed-seat", [_rule("s::core")])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["author"] == author and report["declared_seat"] == "claimed-seat"
+    ann = estate.writes["s::core"]["ann"]
+    assert ann["author"] == author and ann["key"] == extract_loop.rule_key("s::core", author)
+    assert estate.writes["s::core"]["req"][2] == author
+
+
+def test_empty_page_reports_the_engine_upstream_author(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_UPSTREAM_AGENTS", "extract=codex,critique=claude")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    assert _apply(wt, db, repo, estate, core)["author"] == "extract-loop:codex"
+
+
+def test_assignment_page_authors_domains_from_the_engine_upstream_seat(tmp_path, monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_UPSTREAM_AGENTS", "extract=codex")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(), assignments=[
+        {"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["author"] == "extract-loop:codex"
+    assert estate.writes["s::a"]["ann"]["author"] == "extract-loop:codex"
 
 
 def test_apply_refuses_a_bad_file_and_writes_nothing(tmp_path):
@@ -364,9 +525,8 @@ _CORE = (_bin("WICKED_CORE_BIN", "wicked-core") if "WICKED_CORE_BIN" in os.envir
          else (os.environ.get("WICKED_CORE_EXE") or "").strip() or shutil.which("wicked-core"))
 
 
-@pytest.mark.skipif(_ESTATE is None or _CORE is None,
-                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
-def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
+def _real_page(tmp_path, monkeypatch):
+    """A page framed and extracted on the real binaries, ready for extract-apply."""
     repo = Path(_git_repo(tmp_path, tracked=()))
     (repo / "math.js").write_text(
         "export function sum(xs) { let t = 0; for (const x of xs) t += x; return t; }\n"
@@ -383,13 +543,75 @@ def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
     monkeypatch.setenv("WICKED_RUN_AGENT", "claude")
     assert extract_loop.main(["--worklist", rules_file.WORKLIST_REL, "--rules-out",
                               rules_file.RULES_REL, "--dry-run"]) == 0
+    return db, repo, wt
+
+
+def _estate_commands(monkeypatch):
+    """The estate subcommands the host runs from here on."""
+    seen, real = [], _clients._invoke
+    # The host resolves the binary to its real path; _ESTATE may be a bare name or a symlink.
+    estate = os.path.realpath(shutil.which(_ESTATE) or _ESTATE)
+
+    def invoke(argv):
+        if os.path.realpath(argv[0]) == estate:
+            seen.append(argv[1])
+        return real(argv)
+
+    monkeypatch.setattr(_clients, "_invoke", invoke)
+    return seen
+
+
+def _annotation_rows(db):
+    import sqlite3
+    con = sqlite3.connect(db)
+    try:
+        return con.execute("SELECT count(*) FROM annotations").fetchone()[0]
+    finally:
+        con.close()
+
+
+@pytest.mark.skipif(_ESTATE is None or _CORE is None,
+                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
+def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
+    db, repo, wt = _real_page(tmp_path, monkeypatch)
+    estate_commands = _estate_commands(monkeypatch)
     assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 0
+    # The whole page is one estate transaction: no write runs as a process of its own.
+    assert estate_commands.count("write-batch") == 1
+    assert not {"annotate", "semantics"} & set(estate_commands)
     cov = json.loads((wt / "coverage-report.json").read_text())
     assert cov["unaccounted"] == 0 and cov["resolved"] >= 2
     out = tmp_path / "rg.json"
     subprocess.run([_CORE, "domain-graph", "--db", db, "--out", str(out)], check=True,
                    capture_output=True)
     assert json.loads(out.read_text())["metadata"]["coverage"]["real_pct"] == 100
+
+
+@pytest.mark.skipif(_ESTATE is None or _CORE is None,
+                    reason="wicked-estate and/or wicked-core not installed — real-binary lane")
+def test_real_binaries_one_refused_row_refuses_the_whole_page(tmp_path, monkeypatch, capsys):
+    db, repo, wt = _real_page(tmp_path, monkeypatch)
+    before = _annotation_rows(db)
+    real_flush = _clients.PageWrites.flush
+
+    def flush_with_a_gone_node(self, read_back):
+        # Queued after the page's good rows: a node that is not in the graph (estate refuses it).
+        self.annotate("ts-javascript . . . math/gone().", "business_rule", "k", "v")
+        return real_flush(self, read_back)
+
+    monkeypatch.setattr(_clients.PageWrites, "flush", flush_with_a_gone_node)
+    assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 1
+    err = capsys.readouterr().err
+    assert "[extract-apply] FAILED: " in err and "after writing" not in err
+    assert "not a node in this graph" in err and "nothing was written" in err
+    assert _annotation_rows(db) == before  # the page's good rows did not land either
+    assert not (wt / "coverage-report.json").exists()
+
+    # The same page applies cleanly once the bad row is gone.
+    monkeypatch.setattr(_clients.PageWrites, "flush", real_flush)
+    assert apply_rules.main(["--db", db, "--repo-root", str(repo)]) == 0
+    assert _annotation_rows(db) > before
+    assert json.loads((wt / "coverage-report.json").read_text())["unaccounted"] == 0
 
 
 def test_the_host_uses_the_engines_core_cli(monkeypatch):
@@ -959,19 +1181,20 @@ def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------
 
-def test_a_write_that_fails_halfway_through_a_rule_says_so(tmp_path, monkeypatch, capsys):
+def test_a_batch_failure_is_reported_without_partial_writes(tmp_path, monkeypatch, capsys):
     db, repo, wt, estate, core = _apply_env(tmp_path)
     _write_rules(wt, "", [_rule("s::core")])
 
-    def semantics_times_out(*a, **k):
+    def batch_times_out(*a, **k):
         raise RuntimeError("wicked-estate exceeded 120s")
-    estate.set_requirement = semantics_times_out  # the annotation lands, the requirement does not
+    estate.write_batch = batch_times_out
     monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
     monkeypatch.setattr(_clients, "host_core_client", lambda: core)
     monkeypatch.chdir(wt)
     assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1
     err = capsys.readouterr().err
-    assert "FAILED after writing" in err and "s::core may be partly written" in err
+    assert "FAILED: wicked-estate exceeded 120s" in err
+    assert "partly written" not in err and estate.writes == {}
 
 
 def test_prepare_reads_a_store_whose_path_has_uri_characters(tmp_path):
@@ -1286,6 +1509,45 @@ def test_the_extractor_never_asks_for_a_rule_from_a_plain_field_list():
     assert "a plain list of fields describes code" in prompt
 
 
+def _extractor_texts():
+    skill = Path(__file__).resolve().parents[2] / "skills" / "domain-extractor" / "SKILL.md"
+    # wrap-independent (agy #1376)
+    return (" ".join(skill.read_text(encoding="utf-8").split()),
+            " ".join(_rule_extractor._PROMPT_HEADER.split()))
+
+
+def test_the_extractor_states_what_the_body_enforces_never_what_a_comment_says():
+    """Public measurement, Significant-Gravitas/AutoGPT at 9cb76f9: statements taken from comments
+    failed review. `ensure_embeddings_coverage` (scheduler.py:2462, 2467) documents batches of 10
+    while its body calls backfill_missing_embeddings(batch_size=100) (:2512).
+    `AutoModManager#moderate_graph_execution_outputs` (automod/manager.py:189, 220) accepts a
+    timeout it never applies and bypasses moderation on a timeout. Three rules were stated from
+    abstract methods whose body is only a docstring and "...". Both instruction paths now say the
+    statement comes from the body."""
+    for text in _extractor_texts():
+        assert "State what the unit's body enforces: its values, limits, defaults, and what it does with each parameter" in text
+        assert ("The statement comes from what the body does; a comment, docstring or parameter name "
+                "that disagrees with the body never sets it") in text
+        assert "AutoGPT" not in text and "ensure_embeddings_coverage" not in text
+    assert "what its body enforces now" in " ".join(_rule_extractor._build_prompt(
+        [{"symbol_id": "s::a", "source": "x", "changed_since_build": True,
+          "prior_statement": "old"}]).split())
+
+
+def test_a_mismatch_needs_a_test_or_a_caller_never_a_comment_alone():
+    for text in _extractor_texts():
+        assert "code_meets false only when a test or a caller shows the intended behaviour" in text
+        assert "a comment alone is never enough" in text
+        assert "its doc comment" not in text
+        assert "a doc comment, a test or a caller" not in text
+
+
+def test_an_abstract_method_or_stub_takes_an_empty_statement():
+    for text in _extractor_texts():
+        assert ("An abstract method or stub (a body of only a docstring, ..., pass, or raise "
+                "NotImplementedError) takes an empty statement") in text
+
+
 def test_the_seats_reviewed_confidence_decides_never_its_community():
     """wicked-crew run 29bbbfb1, page 3: 230 grounded rules at 0.80-0.84 resolved only 42, because
     a unit with no Louvain community took a 0.85 penalty (0.84 x 0.85 < 0.75). A community boost
@@ -1303,3 +1565,507 @@ def test_the_seats_reviewed_confidence_decides_never_its_community():
         == "resolved"
     assert extract_loop.decide_and_write(estate, None, "s::crowd", "crowd", unsure, ids,
                                          community, sizes) == "risk"
+
+
+def test_a_rules_file_entry_may_say_the_code_does_not_meet_its_requirement():
+    """Operator ruling 2026-11-06: `code_meets` (a boolean) and `mismatch` (one line) are part of
+    the schema; anything else in them is refused."""
+    entry = {**_rule("s::sum"), "code_meets": False, "mismatch": "skips the first element"}
+    assert rules_file.check_rule_entry(entry) is None
+    assert "code_meets" in rules_file.check_rule_entry({**entry, "code_meets": "false"})
+    assert "mismatch" in rules_file.check_rule_entry({**entry, "mismatch": 3})
+    assert "limit" in rules_file.check_rule_entry({**entry, "mismatch": "x" * 301})
+    assert "control" in rules_file.check_rule_entry({**entry, "mismatch": "a\x07b"})
+    assert "starts with" in rules_file.check_rule_entry({**entry, "mismatch": "--value x"})
+
+
+def test_the_direct_store_reads_whether_a_unit_shows_a_code_mismatch_now(tmp_path):
+    """The newest non-blank `code_mismatch` decides (ts, then row id); `CODE_MEETS` is no finding,
+    and a newer blank never hides a real one."""
+    import sqlite3
+    db = tmp_path / "estate.db"
+    con = sqlite3.connect(db)
+    con.executescript(
+        "CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT UNIQUE);"
+        "CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);"
+        "CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);"
+        "CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, node_sym INTEGER, "
+        "key TEXT, value TEXT, ts INTEGER, type TEXT);"
+        "INSERT INTO symbols VALUES (1, 's::sum'), (2, 's::mean'), (3, 's::clamp'), (4, 's::max');"
+        "INSERT INTO annotations (node_sym, key, value, ts, type) VALUES "
+        "(1, 'R:mismatch', 'skips the first', 100, 'code_mismatch'),"
+        "(2, 'R:mismatch', 'skips the first', 100, 'code_mismatch'),"
+        f"(2, 'R:mismatch', '{extract_loop.CODE_MEETS}', 100, 'code_mismatch'),"
+        "(3, 'R', 'clamp bounds n', 100, 'business_rule'),"
+        "(4, 'R:mismatch', 'off by one', 100, 'code_mismatch'),"
+        "(4, 'Q:mismatch', '  ', 200, 'code_mismatch');")
+    con.commit()
+    con.close()
+    store = extract_loop._DirectStore(str(db))
+    assert store.mismatch_now("s::sum") is True
+    assert store.mismatch_now("s::mean") is False, "the later row (same second) is CODE_MEETS"
+    assert store.mismatch_now("s::clamp") is False
+    assert store.mismatch_now("s::max") is True, "a newer blank never hides it"
+    assert store.mismatch_now("s::unknown") is False
+
+
+def test_the_rules_file_refuses_the_hosts_clearing_value_as_a_mismatch():
+    entry = {**_rule("s::sum"), "code_meets": False, "mismatch": " Code meets  IT "}
+    assert "reserved" in rules_file.check_rule_entry(entry)
+
+
+# --- e2e-1105 F42: re-mapping a map that is already current -------------------------------------
+
+_BUILT = "8cc32aabde358bf81042ed116623a51c0ef03a96"
+
+
+def _current_map(tmp_path):
+    """The star store with every behaviour a real requirement and a map built at the commit the
+    store is indexed at (rig run 7389da9a: "code unchanged since the map was built")."""
+    import sqlite3
+    from domain import refresh
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    c = sqlite3.connect(db)
+    c.execute("INSERT INTO symbols VALUES (99, ?)", (refresh.BUILD_SYMBOL,))
+    c.execute("INSERT INTO nodes VALUES (99, 'requirements graph', 'requirements-graph/build', ?, "
+              "NULL)", (json.dumps({"metadata": {"code_commit": _BUILT}}),))
+    c.execute("INSERT INTO meta VALUES ('repo_commit', ?)", (_BUILT,))
+    c.commit()
+    c.close()
+    estate = _Estate()
+    for s in _STAR:
+        estate.writes[s] = {"req": (f"{s} must hold", True, "extract-loop"), "ann": {"key": "k"}}
+    return db, repo, wt, estate, _TargetCore(estate, {s: "f.py" for s in _STAR})
+
+
+class _TargetCore(_RealCore):
+    def requirements_target(self, db, set_pct=None):
+        return 80, "daemon"
+
+
+def test_a_re_map_of_a_current_map_finishes_instead_of_failing(tmp_path, monkeypatch, capsys):
+    """F42: prepare framed an empty page, the extract step rightly wrote no rules file, and apply
+    refused ("left no rules file") into a "step failed" gate. Apply reads the HOST's record of the
+    page: an empty page finishes, writes no rule and no rules file, publishes the reports the
+    later steps read, and says the map is current; extract-next then ends the generation."""
+    from domain import next_page
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate,
+                                   core=core)
+    assert doc["units"] == [] and doc["unmapped"] == 0 and doc["changed_since_build"] == 0
+    before = json.dumps(estate.writes, sort_keys=True)
+    capsys.readouterr()
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True and report["map_current"] is True
+    assert report["rules_file_ignored"] is False
+    assert report["line"] == ("map already current at 8cc32aabde35; nothing to extract (this "
+                              "page framed no units)")
+    assert json.dumps(estate.writes, sort_keys=True) == before, "no rule was written"
+    assert not (wt / rules_file.RULES_REL).exists(), "no rules file was faked"
+    assert json.loads((wt / "coverage-report.json").read_text())["resolved"] == len(_STAR)
+    on_disk = json.loads((wt / apply_rules.REPORT_REL).read_text())
+    assert on_disk["nothing_to_extract"] is True and on_disk["refused_count"] == 0
+    assert "map already current at 8cc32aabde35" in capsys.readouterr().err
+    # The rest of the loop: extract-next closes the empty page and the generation is done.
+    d = next_page.run(db, repo, core=core, env={"WICKED_RUN_ID": "run-1"})
+    assert d["next"] == "done", d
+    assert generation.page_in_flight(generation.load(db, "run-1")) is None
+
+
+def test_apply_main_exits_0_on_an_empty_page_with_no_rules_file(tmp_path, monkeypatch, capsys):
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: core)
+    monkeypatch.chdir(wt)
+    assert apply_rules.main(["--db", db, "--repo-root", repo]) == 0
+    assert "nothing to extract" in capsys.readouterr().err
+
+
+def test_an_extractor_that_skips_a_page_with_units_still_fails_closed(tmp_path, monkeypatch):
+    """The threat: an extract step that skips its work must not pass. A page that framed units and
+    left no rules file is refused, even when the seat rewrote the worklist in its worktree to look
+    empty: apply reads the host's record, never the seat-writable worklist."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate,
+                                   core=core)
+    assert len(doc["units"]) == 4
+    rules_file.write_json_file(wt, rules_file.WORKLIST_REL, {**doc, "units": [], "unmapped": 0})
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+    assert estate.writes == {}
+    assert not (wt / "coverage-report.json").exists()
+    assert not (wt / apply_rules.REPORT_REL).exists()
+
+
+def test_a_closed_page_reworked_with_no_rules_file_still_fails_closed(tmp_path, monkeypatch):
+    """A coverage send-back reworks extract AFTER extract-next closed the page: no page is in
+    flight, so a rework that deletes its rules file is refused, never read as an empty page."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule(s) for s in first])
+    _apply(wt, db, repo, estate, core)
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    assert generation.page_in_flight(generation.load(db, "run-1")) is None
+    (wt / rules_file.RULES_REL).unlink()
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+
+
+def _two_pages(tmp_path, monkeypatch):
+    """Page 1 framed 4 units, the seat stated them, apply wrote them and extract-next closed the
+    page; page 2 is prepared. Returns (db, repo, wt, estate, core, page-1 ids, page-2 worklist)."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule(s) for s in first])
+    assert _apply(wt, db, repo, estate, core)["applied"]["resolved"] == 4
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    second = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 2, estate=estate,
+                                      core=core)
+    return db, repo, wt, estate, core, first, second
+
+
+def test_a_send_back_restates_a_unit_an_earlier_page_framed(tmp_path, monkeypatch, capsys):
+    """wicked-garden#1535 (train 12, CardDemo runs 94fa39f3 and 96bda11b): the coverage review
+    FAILed on a rule an earlier page stored and sent the run back to extract; the seat stated the
+    fix, but `--check-rules` refused it as "not a unit of the worklist", and the harness's resume
+    dropped it, so every round looped to the rework cap. The worklist now lists the units off the
+    page the host still takes a rule for, and the restatement passes the check, survives a resume
+    and is applied. Falsifier: drop `off_page_ids` from prepare (or from the check) and the
+    check refuses the restatement."""
+    db, repo, wt, estate, core, first, second = _two_pages(tmp_path, monkeypatch)
+    page2 = [u["symbol_id"] for u in second["units"]]
+    assert page2 and not set(first) & set(page2)
+    # Exactly the units an earlier page asked: never this page's, never the frontier a later page
+    # frames (2 of the 8 are still unmapped and on no page yet).
+    assert set(second[extract_loop.OFF_PAGE_KEY]) == set(first)
+    assert len(page2) == 2
+    # The new page starts with no rules file, so a plain harness run states only this page.
+    assert not (wt / rules_file.RULES_REL).exists()
+    assert extract_loop.run_files(wt, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 0
+    _, fresh, _ = rules_file.check_rules_doc(rules_file.read_json_file(wt, rules_file.RULES_REL))
+    assert [e["symbol_id"] for e in fresh] == page2
+    fixed = _rule(first[0], statement="A closed account accepts no new charges.")
+    _write_rules(wt, "codex", [*[_rule(s) for s in page2], fixed])
+    monkeypatch.chdir(wt)
+    check = ["--check-rules", rules_file.RULES_REL, "--worklist", rules_file.WORKLIST_REL]
+    capsys.readouterr()
+    extract_loop.main(check)  # the fixture's page also asks for business domains: not this test's
+    err = capsys.readouterr().err
+    assert "not a unit" not in err and "1 entr(ies) restate units off this page" in err, err
+    # The seat runs the harness again on the send-back: it keeps the restatement.
+    assert extract_loop.run_files(wt, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 0
+    _, kept, _ = rules_file.check_rules_doc(rules_file.read_json_file(wt, rules_file.RULES_REL))
+    assert fixed in kept
+    report = _apply(wt, db, repo, estate, core)
+    assert first[0] not in {r["symbol_id"] for r in report["refused"]}, report["refused"]
+    assert report["reworked"] == 1
+    assert estate.writes[first[0]]["req"][0] == "A closed account accepts no new charges."
+
+
+def test_an_earlier_pages_unit_gone_from_the_store_is_not_offered(tmp_path, monkeypatch):
+    """codex+agy r1 on #1552: the host restates only a unit the store still has, in a file git
+    tracks; one an earlier page asked that has left the store is not listed, so the seat's check
+    never passes what apply then refuses."""
+    import sqlite3
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    generation.record_answered(db, "run-1", first)
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    c = sqlite3.connect(db)
+    c.execute("DELETE FROM nodes WHERE symbol = (SELECT sid FROM symbols WHERE sym = ?)",
+              (first[0],))
+    c.commit()
+    c.close()
+    second = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 2, estate=estate,
+                                      core=core)
+    assert set(second[extract_loop.OFF_PAGE_KEY]) == set(first[1:])
+
+
+def test_check_rules_refuses_a_unit_neither_on_the_page_nor_off_it_and_says_why(tmp_path,
+                                                                               monkeypatch,
+                                                                               capsys):
+    """A real requirement this run never asked cannot be restated by it: the check says so, so the
+    seat reports it instead of looping (wicked-garden#1535, wicked-garden#1433)."""
+    _worklist(tmp_path, n=1)
+    doc = rules_file.read_json_file(tmp_path, rules_file.WORKLIST_REL)
+    rules_file.write_json_file(tmp_path, rules_file.WORKLIST_REL,
+                               {**doc, extract_loop.OFF_PAGE_KEY: ["s::earlier"]})
+    monkeypatch.chdir(tmp_path)
+    check = ["--check-rules", rules_file.RULES_REL, "--worklist", rules_file.WORKLIST_REL]
+    _write_rules(tmp_path, "", [_rule("s::0"), _rule("s::earlier")])
+    assert extract_loop.main(check) == 0
+    assert "1 entr(ies) restate units off this page" in capsys.readouterr().err
+    _write_rules(tmp_path, "", [_rule("s::0"), _rule("s::resolved-long-ago")])
+    assert extract_loop.main(check) == 1
+    assert "this page cannot restate it" in capsys.readouterr().err
+
+
+def test_a_worklist_whose_off_page_list_is_not_ids_is_refused(tmp_path):
+    _worklist(tmp_path, n=1)
+    doc = rules_file.read_json_file(tmp_path, rules_file.WORKLIST_REL)
+    rules_file.write_json_file(tmp_path, rules_file.WORKLIST_REL,
+                               {**doc, extract_loop.OFF_PAGE_KEY: [{"symbol_id": "s::x"}]})
+    with pytest.raises(rules_file.RulesFileRefused, match="off_page_ids"):
+        extract_loop.read_worklist(tmp_path, rules_file.WORKLIST_REL)
+
+
+def test_no_rules_file_outside_a_run_or_without_a_record_still_fails_closed(tmp_path,
+                                                                           monkeypatch):
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-never-prepared")
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_an_empty_page_with_work_left_says_so_instead_of_current(tmp_path, monkeypatch):
+    """An empty page is not always a current map: units left that an earlier page of this run
+    already asked are named, never called current."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
+    generation.record_answered(db, "run-1", first)  # all asked, none stated
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    assert prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                    core=core)["units"] == []
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True
+    assert "already current" not in report["line"]
+    assert report["line"].startswith(f"nothing to extract: this page framed no units "
+                                     f"({len(_STAR)} unmapped, 0 placeholder(s) left")
+
+
+def test_an_empty_page_never_applies_a_rules_file_left_in_the_worktree(tmp_path, monkeypatch):
+    """codex r1: an earlier page's rules file left in the worktree is not this page's answer. On
+    a page the host framed empty, apply writes nothing, whatever file the worktree holds."""
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write_rules(wt, "codex", [_rule(s, "a different statement") for s in _STAR])
+    before = json.dumps(estate.writes, sort_keys=True)
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True and report["rules_file_ignored"] is True
+    assert report["line"].endswith(f"the {rules_file.RULES_REL} left in the worktree was not "
+                                   "applied")
+    assert json.dumps(estate.writes, sort_keys=True) == before
+
+
+def test_a_record_closed_by_the_older_code_never_reads_as_an_empty_page(tmp_path, monkeypatch):
+    """codex r1: the older close_page left `pending: []` with no marker. A rework after such a
+    close that deletes its rules file is refused, never read as an empty page in flight."""
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    rec = generation.load(db, "run-1")
+    rec.pop(generation.PAGE_OPEN)  # exactly what a record written before the marker holds
+    generation.save(db, "run-1", rec)
+    assert rec["pending"] == [] and generation.page_in_flight(rec) is None
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_full_coverage_without_a_build_commit_is_never_called_current(tmp_path, monkeypatch):
+    """codex r1: every behaviour a real requirement says nothing about whether the requirements
+    match the code. Without a recorded build commit the line says so instead of "current"."""
+    import sqlite3
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    c = sqlite3.connect(db)
+    c.execute("DELETE FROM nodes WHERE symbol = 99")
+    c.commit()
+    c.close()
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    assert prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate,
+                                    core=core)["units"] == []
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True and report["map_current"] is False
+    assert "already current" not in report["line"]
+    assert "no commit the map was built from" in report["line"], report["line"]
+
+
+def _catalog_check_worktree(tmp_path, extra_evidence):
+    from tests.domain.test_business_domains import _catalog
+    wt = _wt(tmp_path)
+    (wt / "f.py").write_text("x = 1\n", encoding="utf-8")
+    (wt / "pay").mkdir()
+    catalog = _catalog()
+    catalog.append({**catalog[2], "id": "maintenance", "name": "Scheduled maintenance"})
+    catalog[0]["evidence"].append(extra_evidence)
+    rules_file.write_json_file(wt, rules_file.WORKLIST_REL, {
+        "schema": rules_file.WORKLIST_SCHEMA, "units": [], "assign": [],
+        "business_domains": {"catalog": None, "propose": True}})
+    rules_file.write_json_file(wt, rules_file.RULES_REL,
+                               rules_file.rules_doc("codex", [], {"business_domains": catalog}))
+    return wt
+
+
+def test_check_rules_names_catalog_evidence_text_missing_from_the_worktree(tmp_path, capsys):
+    wt = _catalog_check_worktree(tmp_path, {
+        "kind": "cli-verb", "file": "f.py", "text": "backfill apply"})
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 1
+    err = capsys.readouterr().err
+    assert "business_domains[0].evidence[2]" in err
+    assert "backfill apply" in err and "does not occur" in err
+
+
+@pytest.mark.parametrize("kind,file", [
+    ("entry-point", "missing.py"), ("entry-point", "link.py"),
+    ("entry-point", "../outside.py"), ("directory", "missing-dir"),
+])
+def test_check_rules_refuses_catalog_evidence_outside_plain_worktree_files(tmp_path, capsys,
+                                                                         kind, file):
+    wt = _catalog_check_worktree(tmp_path, {"kind": kind, "file": file, "symbol": "core"})
+    outside = tmp_path / "outside.py"
+    outside.write_text("x = 1\n", encoding="utf-8")
+    (wt / "link.py").symlink_to(outside)
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 1
+    assert "business_domains[0].evidence[2]" in capsys.readouterr().err
+
+
+def test_check_rules_checks_local_evidence_without_git_or_symbol_store(tmp_path, monkeypatch):
+    wt = _catalog_check_worktree(tmp_path, {
+        "kind": "entry-point", "file": "f.py", "symbol": "only-the-host-knows"})
+    def no_git(*args, **kwargs):
+        raise AssertionError("the seat must not ask git or the host store")
+    monkeypatch.setattr(rules_file, "tracked_files", no_git)
+    assert extract_loop.check_rules(wt, rules_file.RULES_REL, rules_file.WORKLIST_REL) == 0
+
+
+def test_apply_batches_all_rules_and_domain_picks_once(tmp_path, monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _fixture, _write
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    _write(wt, [{**_rule(sid), "domain": "payments", "domain_confidence": 0.8}
+                for sid in ("s::core", "s::a")], business_domains=_catalog())
+    batches = []
+
+    def batch(rows):
+        batches.append(list(rows))
+        for row in rows:
+            sid = row["symbol"]
+            if row["op"] == "annotate":
+                ann = {k: v for k, v in row.items() if k not in ("op", "symbol")}
+                estate.writes.setdefault(sid, {})["ann"] = ann
+                estate.anns.setdefault(sid, {})[(row["type"], row["key"])] = ann
+            else:
+                estate.writes.setdefault(sid, {})["req"] = (
+                    row["requirement"], row["validated"], row["validated_by"])
+        return {"rows": len(rows), "annotations": 4, "replaced": 0, "semantics": 2}
+
+    monkeypatch.setattr(estate, "write_batch", batch, raising=False)
+    monkeypatch.setattr(estate, "annotate", lambda *a, **k: pytest.fail("per-write annotate"))
+    monkeypatch.setattr(estate, "set_requirement", lambda *a, **k: pytest.fail("per-write semantics"))
+    report = _apply(wt, db, repo, estate, core)
+    assert len(batches) == 1 and len(batches[0]) == 6
+    assert [r["op"] for r in batches[0]].count("semantics") == 2
+    assert sum(r.get("type") == "business_domain" for r in batches[0]) == 2
+    assert report["applied"] == {"resolved": 2, "risk": 0, "kept": 0}
+    assert report["business_domains"]["picked"] == 2
+    assert report["coverage"]["resolved"] == 2
+
+
+def test_apply_read_back_miss_after_batch_is_applied_then_failed(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    batches, answered = [], []
+    monkeypatch.setattr(estate, "write_batch", lambda rows: batches.append(list(rows)), raising=False)
+    monkeypatch.setattr(estate, "read_annotations", lambda sid: [])
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 rule.*write not durable"):
+        _apply(wt, db, repo, estate, core)
+    assert len(batches) == 1 and answered == [["s::core"]]
+
+
+def test_apply_with_an_unknown_batch_outcome_never_says_nothing_was_written(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    answered = []
+
+    def lost_reply(rows):
+        raise _clients.BatchOutcomeUnknown("wicked-estate exceeded 120s")
+
+    monkeypatch.setattr(estate, "write_batch", lost_reply, raising=False)
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(RuntimeError, match="may be in the store") as raised:
+        _apply(wt, db, repo, estate, core)
+    assert "nothing was written" not in str(raised.value) and answered == []
+    assert not (wt / "coverage-report.json").exists()
+
+
+def test_assignment_page_read_back_miss_after_the_batch_is_applied_then_failed(tmp_path,
+                                                                               monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    monkeypatch.setattr(estate, "read_annotations", lambda sid: [])
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 business domain.*write not durable"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_assignment_page_report_refused_after_the_batch_is_applied_then_failed(tmp_path,
+                                                                               monkeypatch):
+    from tests.domain.test_business_domains import _catalog, _write
+    db, repo, wt, estate, core = _assignment_fixture(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write(wt, [], business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8}])
+    real = rules_file.write_json_file
+
+    def refuse_the_report(base, rel, doc):
+        if rel == apply_rules.REPORT_REL:
+            raise rules_file.RulesFileRefused("a link was planted at the report")
+        return real(base, rel, doc)
+
+    monkeypatch.setattr(rules_file, "write_json_file", refuse_the_report)
+    with pytest.raises(apply_rules.AppliedThenFailed, match="1 business domain.*planted"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_apply_batch_failure_records_no_answered_units(tmp_path, monkeypatch):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    answered = []
+
+    def refuse(rows):
+        raise rules_file.RulesFileRefused("batch refused row 2")
+
+    monkeypatch.setattr(estate, "write_batch", refuse, raising=False)
+    monkeypatch.setattr(apply_rules, "_record_answered", lambda db, ids: answered.append(list(ids)))
+    with pytest.raises(RuntimeError, match="nothing was written to the store, then: batch refused row 2"):
+        _apply(wt, db, repo, estate, core)
+    assert answered == [] and estate.writes == {}

@@ -97,15 +97,157 @@ Manifest `spec: 2` keeps every spec-1 field and adds two arrays. A spec-1 pack s
 wicked-studio and first-party blocks are core presets. Example (garden's own spec-2 fixture):
 [`tests/fixtures/packs/acme-terms/`](../tests/fixtures/packs/acme-terms/).
 
-**Building an editor-only pack.** The `wicked-garden-editor-scaffold` skill writes one
-(`scripts/editor/scaffold.py`), from a template that already speaks `wicked.editor/1`; `scripts/editor/pin.py`
-re-pins the entry hash after each edit; `scripts/editor/conformance.py` runs the plugin's conformance
-cases in headless Chromium inside studio's own conformance host page; and `scripts/editor/install.py`
-stages the pack under `~/.wicked/editors/<name>/current/` and installs it into a wicked-crew daemon,
-which re-runs `pack check` and the conformance cases itself before it records the editor (fail closed:
-no headless browser is a refusal). A pack that also ships skills or blocks is not installable yet: their
-own approval step is still to come. The governed route is the `editor-plugin` workflow (studio
-Settings → Developer → Create an editor plugin).
+### Author an editor: the terms checker
+
+[`acme-terms`](../tests/fixtures/packs/acme-terms/) is a complete example: a terms-check domain with
+both its router and checker skills, a block that produces a document, and an editor for `document`
+and `rfp-response` artifacts. Its editor reads the content, lists banned-term hits, contributes checks,
+and points at the sentence you select. **Replace everywhere** replaces the terms in one saved version.
+The sample keeps its skills and block so authors can see how these parts fit together.
+
+Start in a new directory with the same scaffold used to build the sample:
+
+```bash
+wicked-garden run scripts/editor/scaffold.py --vendor acme --id acme-terms --title "Terms checker" --kinds document,rfp-response --permissions artifact.read,selection.chip,artifact.write,checks.contribute --out ./terms-editor
+```
+
+This writes `wicked-pack.json`, `editors/acme-terms/index.html`, and a README. The scaffold speaks
+`wicked.editor/2` and `/1` to an older host. It supplies the handshake, MessagePort request/reply
+handling, ping, size changes, theme, key forwarding and typing behavior. Keep that plumbing; replace
+the viewer's `render()` and the sections marked `YOUR EDITOR`. Keep the manifest's `surfaces` and the
+entry's `SURFACES` declaration in agreement when changing the card, options or full-screen UI.
+
+In the sample's [entry](../tests/fixtures/packs/acme-terms/editors/acme-terms/index.html), follow the
+read, render, point and save paths:
+
+1. Request `artifact.read` after the handshake and retain the returned content and version. Render the
+   document text as well as the hits so a document with no banned terms still shows what it opened.
+   Use DOM nodes and `textContent` for artifact text; parsing HTML must not execute its scripts.
+2. Find the banned terms and send `checks.contribute` for the hits. Build the list from the content
+   the host supplied, with anchors back to its sentences.
+3. With `selection.chip` granted, send `selection.set` with the selected sentence's anchor. The host
+   turns that selection into a composer chip; the permission is named `selection.chip`.
+4. Mark the **Replace everywhere** button `data-wicked-save` so conformance can exercise the actual
+   save control. Its `addEventListener` handler builds the replacement content and makes one
+   `version.write` request against the read version, using the `artifact.write` permission. One click
+   saves one version; the control is disabled when there are no terms to replace. Keep typing
+   separate from this action, and report a refused save visibly.
+
+#### The policy crew serves
+
+The entry is one self-contained HTML file with inline style and script. Crew inserts its WebRTC guard
+prelude into each executable inline script and serves a third-party editor with a `script-src` that
+contains exactly the hashes of those prefixed scripts. A second, inline-only policy prevents loading
+an external script even when it has a matching integrity hash. Both policies apply together. Crew
+refuses more than 200 inline scripts; this sample uses **one**.
+
+Use `addEventListener` for controls. Inline `on*` event handlers, `javascript:` URLs, script text built
+at run time, `eval` and `new Function` cannot run under this policy. Keep all executable script text in
+the shipped entry. The frame has `connect-src 'none'`, `frame-src 'none'`, `child-src 'none'`, no workers,
+no form submissions and no base URL changes. It cannot load a child frame from a URL or contact the
+network. Images in the editor must use `data:` or `blob:`; fonts must use `data:`. Pack check also
+refuses outside script, stylesheet and frame references. Request host operations over the granted
+MessagePort API.
+
+Garden's conformance runner serves the candidate exactly this way (the prelude, the hash-only and inline-only
+script policies, no URL frames, the 200-script limit), so what passes conformance runs the same after install.
+Any script the browser refuses in the editor's frame, or in a document inside it, fails case `9-liveness`
+(`r1-handshake` for a run plugin). Cases 10 and 11 measure focus and animation from an isolated world, so an
+editor cannot answer them by replacing DOM functions.
+
+#### Describe the editor's card
+
+Each `editors[]` entry can declare a one-line `description` and a `visuals` object. The sample uses:
+
+```json
+{
+  "description": "Find banned terms, point at their sentences, and replace them in one saved version.",
+  "visuals": {
+    "icon": "editors/acme-terms/icon.svg",
+    "color": "#224a5e"
+  }
+}
+```
+
+| Field | Authoring rule |
+|---|---|
+| `description` | A string; whitespace is collapsed to one line. Keep that line at most 160 characters. |
+| `visuals.icon` | A pack-relative `.svg`, `.png` or `.webp` image, at most 16 KiB. |
+| `visuals.color` | A six-digit hex color such as `#224a5e`. |
+| `visuals.preview` | A pack-relative image filename, or an object with `light` and/or `dark` filenames; each image is at most 200 KiB. |
+| `visuals.live` | A boolean; `true` allows a live preview. |
+
+Image names match `^[A-Za-z0-9][A-Za-z0-9._/-]{0,120}$`, contain no `..` segment, and resolve inside
+the pack root. Every directory on the way and the image itself must be a real entry, never a symlink;
+the file's content must match its extension. Paths are relative to the manifest, so keep them unchanged
+when copying an editor into another pack. These fields are cosmetic: malformed values produce warning
+`PK089` and the pack still passes. Valid fields remain usable when another cosmetic field is bad.
+Garden stages accepted image files with the entry. Crew does not put them on studio's Plugins page for a pack
+editor yet: it drops both fields until mikeparcewski/wicked-crew#1702 lands (the editor installs either way).
+
+#### Pin, check, and run conformance
+
+After every entry edit, update its pinned hash, then check the pack and exercise it in Chromium:
+
+```bash
+wicked-garden run scripts/editor/pin.py ./terms-editor
+npx wicked-garden pack check ./terms-editor --json
+wicked-garden run scripts/editor/conformance.py --pack ./terms-editor --studio-dist /path/to/wicked-studio/dist --json
+```
+
+The conformance runner needs Python Playwright, its Chromium browser, and a built wicked-studio dist
+containing the conformance host page. The `--studio-dist` route runs against that local build. An
+existing crew host can instead be selected with `--host-url <crew-origin>`. A missing browser is a
+failure, never a passing report. Inspect every case, including the save, content display, keyboard,
+theme and surface checks. Re-run pin, pack check and conformance after changing the entry; the saved
+hash names its exact bytes and grants are tied to that build.
+
+To verify the checked-in sample, use the same commands with
+`tests/fixtures/packs/acme-terms` as the pack directory. Pack check should report no warnings.
+
+#### Install the editor-only pack
+
+**Crew today refuses a pack that also ships skills or blocks** with HTTP 501,
+`pack_ships_skills_or_blocks`, until their own **Add these** approval step exists
+(mikeparcewski/wicked-crew#1703). The complete
+`acme-terms` sample therefore cannot be installed through crew today, and passing conformance does
+not establish the full editor-plugin journey for its skills and block.
+
+The scaffolded `terms-editor` directory above is already editor-only. To install the sample's editor
+by itself, copy its `editors/` directory (including `icon.svg`) into a new pack, and use a manifest
+containing its editor declaration and pack identity without `domains`, `skills_dir` or `blocks`.
+For example, run this Python from the garden checkout:
+
+```python
+import json
+from pathlib import Path
+import shutil
+
+source = Path("tests/fixtures/packs/acme-terms")
+target = Path("acme-terms-editor")
+target.mkdir()  # Refuse to overwrite an existing pack.
+shutil.copytree(source / "editors", target / "editors")
+manifest = json.loads((source / "wicked-pack.json").read_text(encoding="utf-8"))
+editor_only = {key: manifest[key] for key in ("spec", "name", "vendor", "version", "description", "editors")}
+editor_only["name"] = "acme-terms-editor"
+(target / "wicked-pack.json").write_text(json.dumps(editor_only, indent=2) + "\n", encoding="utf-8")
+```
+
+Run pack check and conformance on that copy, then inspect the install plan and install it into your
+chosen existing crew host:
+
+```bash
+wicked-garden run scripts/editor/install.py --dir ./acme-terms-editor --crew-url <crew-origin> --dry-run
+wicked-garden run scripts/editor/install.py --dir ./acme-terms-editor --crew-url <crew-origin> --json
+```
+
+The installer stages the manifest, entry, accepted declared images and README when present under
+`<root>/<name>/current/`, where the root is `--install-root`, else `$WICKED_EDITOR_INSTALL_ROOT`, else
+`$WICKED_HOME/editors`, else `~/.wicked/editors`. Crew re-runs pack check and conformance against the staged copy
+before recording the editor; a refusal restores the previous installation. `--target daemon-off`
+installs it disabled. Manage it in studio Settings → Developer → Editor plugins. For a governed build,
+use Settings → Developer → Create an editor plugin: the `editor-plugin` workflow presents its install
+consent, and the approved install step applies the plan.
 
 ## Validate: the shipped conformance gate
 
@@ -119,7 +261,7 @@ manifest, router/worker shape, naming, disclosure tiers, NOT-THIS-WHEN
 reciprocity, produces contracts (archetype names must exist in garden's
 catalog), peer-floor syntax, and for spec 2 every editor (inside the pack, one `.html` file, its
 hash, its size, nothing loaded from outside it, kinds, sizes, permissions) and block (preset file,
-produced kind, pack skills): rule codes PK001–PK072, each with an actionable message. It runs anywhere Python ≥ 3.10 exists; no garden install
+produced kind, pack skills), plus cosmetic card-field warnings (PK089): each rule has an actionable message. It runs anywhere Python ≥ 3.10 exists; no garden install
 required (`scripts/pack/check.py` ships in the npm package).
 
 ## Install + register

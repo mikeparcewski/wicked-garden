@@ -119,3 +119,30 @@ def test_every_shipped_skill_frontmatter_is_valid():
 def test_ci_yaml_requirement_hard_fails_only_in_ci(yaml_available, env, expect_error):
     err = ci_yaml_requirement_error(yaml_available, env)
     assert (err is not None) is expect_error, (yaml_available, env, err)
+
+
+# --- #1413: the description limit is measured on the value the publish parses ---------------------------
+
+def _desc_block(lines: list[str]) -> str:
+    return "---\nname: wicked-garden-x\ndescription: |\n" + "\n".join(lines) + "\nmetadata:\n  role: worker\n---\n# x\n"
+
+
+def test_a_description_over_the_limit_only_by_blank_lines_and_its_final_newline_fails():
+    # 10 x 99 + 22 characters on 11 lines: 1022 by a line-scan reader that drops blank lines and the final
+    # newline; 1026 as yaml.safe_load reads it (3 blank lines and the clip newline). skills/demo shipped this way.
+    lines = ["  " + "w" * 99] * 10 + [""] * 3 + ["  " + "w" * 22]
+    err = frontmatter_yaml_error(_desc_block(lines))
+    assert err is not None and "1026 characters" in err, err
+
+
+def test_a_description_at_the_limit_passes():
+    lines = ["  " + "w" * 99] * 10 + ["  " + "w" * 23]  # 990 + 23 + 10 breaks + the final newline = 1024
+    assert frontmatter_yaml_error(_desc_block(lines)) is None
+    lines[-1] = "  " + "w" * 24
+    assert frontmatter_yaml_error(_desc_block(lines)) is not None
+
+
+def test_the_limit_is_the_portability_lints():
+    import json
+    garden = json.loads((_REPO / "tests" / "portability_rules.garden.json").read_text(encoding="utf-8"))
+    assert _validate.DESCRIPTION_MAX_CHARS == garden["cross_cli"]["description_max_chars"] == 1024

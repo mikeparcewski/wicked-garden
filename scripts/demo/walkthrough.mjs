@@ -11,6 +11,8 @@
 // lint (walkthrough-lint.mjs, DES §4.5) is the walkthrough_plan step's pinned validator: exit 0 = no finding.
 // record re-runs it on the storyline it loaded (DES §4.4 step 1): any finding refuses (storyline_refused).
 // Safety: WICKED_WALKTHROUGH_JAIL must be set; without it writes INCONCLUSIVE(unjailed_host) and exits 0.
+// WICKED_WALKTHROUGH_PORT (core#1297): the one loopback port the engine's jail opens; the fixture starts there
+// (unset in a hand run: a free port; not a TCP port: INCONCLUSIVE(fixture_unavailable)).
 //
 // What the proof root holds is ONE contract with crew's walkthrough view and acceptance
 // (wicked-crew `packages/crew/src/api/recording.ts` WT-W1, `qe/walkthrough-acceptance.ts` WT-W2;
@@ -975,9 +977,26 @@ async function main() {
   // 3. Spawn fixture, poll ready
   const dataDir = path.join(ROOT, "data");
   fs.mkdirSync(dataDir, { recursive: true });
+  // core#1297: under the engine the fixture serves on the one loopback port the engine reserved,
+  // the only port its jail opens (bind, inbound, outbound); a port of our own would be refused.
+  // A hand run outside the engine picks a free one. A value that is not a port is refused by name.
+  const enginePort = process.env.WICKED_WALKTHROUGH_PORT;
   let fixturePort;
-  try { fixturePort = await freePort(); } catch (e) {
-    fixturePort = 0;
+  if (enginePort !== undefined && enginePort !== "") {
+    fixturePort = /^[0-9]{1,5}$/.test(enginePort) && Number(enginePort) >= 1 && Number(enginePort) <= 65535
+      ? Number(enginePort) : null;
+    if (fixturePort === null) {
+      const chapters = chapterStubs(story);
+      const reason = `WICKED_WALKTHROUGH_PORT is not a TCP port (1-65535): ${JSON.stringify(enginePort)}`;
+      writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable", reason, chapters });
+      writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable" });
+      finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "fixture_unavailable", chapters });
+      process.exit(0);
+    }
+  } else {
+    try { fixturePort = await freePort(); } catch (e) {
+      fixturePort = 0;
+    }
   }
   const fixtureOriginStr = `http://127.0.0.1:${fixturePort}`;
   const startArgv = story.fixture.start;

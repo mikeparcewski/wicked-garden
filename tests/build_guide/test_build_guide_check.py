@@ -13,8 +13,8 @@ import pytest
 from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
 
 SCHEMA = REPO / "schemas" / "build-guide.v1.json"
-# git blob sha of schemas/build-guide.v1.json on wicked-core main@72da31b (landed in #1066).
-CORE_BLOB = "d8a34433eb0a7da6e3ba1a9616cde1d2b3fb6236"
+# git blob sha of schemas/build-guide.v1.json on wicked-core main@9ad6493 (last changed in #1766).
+CORE_BLOB = "97f98ca417c84616e2babd0f09f3aa42a0cab591"
 SEED_REPOS = {
     "cargo-libtest.json": "cargo-repo",
     "pytest-short-summary.json": "pytest-repo",
@@ -41,7 +41,7 @@ def _seed(name: str = "cargo-libtest.json") -> dict:
 def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
     code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
     assert code == 0, report["errors"]
-    assert report["schema"].startswith("wicked-core main@72da31b")
+    assert report["schema"].startswith("wicked-core main@9ad6493")
 
 
 @pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
@@ -183,7 +183,8 @@ def test_core_s_own_guide_checks_clean_and_its_stale_verified_is_flagged():
     `verified` predates the version probe, so the floor would not rely on it yet."""
     code, report = run_script("check", "--guide", str(GUIDES / "wicked-core.json"))
     assert code == 0, report["errors"]
-    assert any("the floor will not rely on this check (version: never ran)" in w for w in report["warnings"])
+    assert any("the floor will not rely on this check (complete: never ran; version: never ran)" in w
+               for w in report["warnings"])
 
 
 def test_a_probed_guide_whose_required_probe_failed_is_flagged(tmp_path):
@@ -193,7 +194,8 @@ def test_a_probed_guide_whose_required_probe_failed_is_flagged(tmp_path):
                                                                       "mutation")}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
     assert code == 0
-    assert any("the floor will not rely on this check (multi: never ran; version: never ran)" in w for w in report["warnings"])
+    assert any("the floor will not rely on this check (complete: never ran; multi: never ran; version: never ran)"
+               in w for w in report["warnings"])
 
 
 def test_a_shell_in_argv_is_flagged(tmp_path):
@@ -240,8 +242,8 @@ def test_make_and_npm_indirection_count_as_declared():
 def test_a_retried_pass_counts_as_passed(tmp_path):
     guide = _seed()
     _t(guide)["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
-                             "results": {p: "pass" for p in ("list", "run", "ids", "alone", "deselect", "mutation",
-                                                             "version")} | {"multi": "pass (retried)"}}
+                             "results": {p: "pass" for p in ("list", "run", "complete", "ids", "alone", "deselect",
+                                                             "mutation", "version")} | {"multi": "pass (retried)"}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
     assert code == 0 and not [w for w in report["warnings"] if "will not rely" in w]
 
@@ -314,6 +316,8 @@ def test_a_ci_step_in_a_sub_package_must_be_declared_with_that_cwd(tmp_path):
     (lambda c: c["results"]["how"].update(env={"lower": "x"}), "env 'lower': names are"),
     (lambda c: c["deselect"].update(append=["--suite={q}", "--p=^(?!(?:{ids:re|})$)"]),
      "`{ids:re|}` and `{q}` in one `deselect.append` (the pattern cannot bind ids to qualifiers)"),
+    (lambda c: c["deselect"].update(append=["--", "--suite={q}", "--skip={id}", "--exact"]),
+     "`{q}` and `{id}` in different `deselect.append` tokens"),
 ])
 def test_core_load_time_refusals_are_reported_in_its_words(tmp_path, edit, needle):
     guide = _seed()
@@ -402,3 +406,32 @@ def test_an_escaped_metacharacter_is_not_a_non_re2_construct(tmp_path, pattern, 
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     flagged = [e for e in report["errors"] if "RE2 does not support" in e]
     assert bool(flagged) == bad, (pattern, report["errors"])
+
+
+def test_a_count_rule_is_accepted_by_the_schema_and_needs_an_n_group(tmp_path):
+    """core#1101: core's schema has `parser.count` (the `complete` probe); the vendored copy accepts it,
+    and the lint holds it to a named group `n`."""
+    guide = _seed()
+    assert _t(guide)["parser"]["count"] == r"^running (?P<n>\d+) tests?$"
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 0, report["errors"]
+    assert not [w for w in report["warnings"] if "parser.count" in w]
+    _t(guide)["parser"]["count"] = r"^running (?P<m>\d+) tests?$"
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any(e.startswith("checks[") and "parser.count" in e for e in report["errors"]), report["errors"]
+
+
+def test_a_text_check_without_a_count_rule_is_warned_it_never_excludes(tmp_path):
+    guide = _seed()
+    del _t(guide)["parser"]["count"]
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 0, report["errors"]
+    assert any("parser.count: missing" in w and "never excludes" in w for w in report["warnings"]), report["warnings"]
+
+
+def test_a_qualifier_bound_to_its_id_in_one_token_loads(tmp_path):
+    guide = _seed()
+    _t(guide)["deselect"]["append"] = ["--", "--skip={q}::{id}", "--exact"]
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert not [e for e in report["errors"] if "different `deselect.append` tokens" in e], report["errors"]

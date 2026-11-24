@@ -170,3 +170,50 @@ def test_resume_empties_the_evidence_dir_so_the_reviewer_sees_only_this_attempt(
     text = _read(ACCEPT)
     assert "EMPTY\n// <dir> (every file in it, the previous manifest.json included" in text
     assert "empties `<dir>` first" in _engine_section()
+
+
+# --- garden#1469: the evidence phase leaves no manifest, and an engine-run review never grades one ---
+
+def test_evidence_phase_writes_no_manifest_and_uses_the_engines_dir():
+    body = _engine_section()
+    flat = " ".join(body.split())
+    assert "This phase writes no `manifest.json`" in flat
+    # Only a non-terminal, non-campaign leftover is deleted (codex r2): a bundle stays for review.
+    assert ("(no `scenario_evidence` block, `status` missing or `running`, or no verdict), delete that "
+            "`{EVIDENCE_DIR}/manifest.json` before your reply; leave any other manifest in place") in flat
+    assert "never in a dir you create or name" in flat
+
+
+def test_engine_run_review_never_validates_a_pre_verdict_manifest():
+    text = _read(REVIEWER)
+    m = re.search(r"^## Campaign Bundles[^\n]*\n(.*?)(?=^## )", text, re.S | re.M)
+    assert m, "reviewer skill needs its Campaign Bundles section"
+    body = m.group(1)
+    # The campaign trigger is unchanged: a dir holding a manifest is a bundle ...
+    assert "When the evidence directory contains a `manifest.json`" in body
+    # ... and keeps all three duties.
+    for duty in ("**Validate before grading.**", "**Treat the executor claim as a claim.**",
+                 "**Classify every non-PASS verdict.**"):
+        assert duty in body, duty
+    # The one exception: a NON-TERMINAL leftover in an engine-run review.
+    exempt = re.search(r"\*\*Except a leftover in an engine-run review\.\*\*(.*?)\n\n", body, re.S)
+    assert exempt, "the engine-run leftover paragraph"
+    para = " ".join(exempt.group(1).split())
+    assert "`WICKED_QE_REVIEW_SESSION` set" in para
+    assert "carries no `scenario_evidence` block and whose `status` is missing or `running`, or that has no `verdict`" in para
+    assert "do not validate it and never render INCONCLUSIVE because of it" in para
+    # Campaign identity wins (codex r2): a scenario_evidence block, or a terminal manifest, keeps
+    # every duty whatever the session.
+    assert ("A manifest with a `scenario_evidence` block, or with a terminal `status` and a `verdict`, "
+            "is a bundle and keeps every duty below") in para
+
+
+def test_engine_run_review_without_a_plan_judges_the_scenario_even_with_no_manifest():
+    # codex r2: the no-plan rule lives in the Process, outside the manifest condition.
+    text = _read(REVIEWER)
+    m = re.search(r"^### 1\. Load All Inputs\n(.*?)(?=^### )", text, re.S | re.M)
+    assert m, "the reviewer's Load All Inputs step"
+    body = " ".join(m.group(1).split())
+    assert "**No test plan in an engine-run review.**" in body
+    assert "`WICKED_QE_REVIEW_SESSION` is set and the evidence directory holds no `test-plan.md`" in body
+    assert "the missing plan alone is never EVIDENCE_MISSING or INCONCLUSIVE" in body

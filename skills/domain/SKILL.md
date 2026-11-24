@@ -169,14 +169,16 @@ needs an INDEXED store whose real requirements reach the configured minimum; a c
   about 2 h left") and the run loops
   back to `extract-prepare` until the minimum is reached. Each page frames the unmapped
   behaviours first, then the placeholders earlier pages left, and skips a unit the seat
-  already answered in this run: an answered placeholder waits for a later run, while a unit
-  the seat left unanswered can be framed again. The run asks the operator instead of mapping
+  already answered in this run: an answered placeholder is asked again only when the operator
+  chooses to, while a unit the seat left unanswered can be framed again. The run asks the operator instead of mapping
   on when the budget per grant (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES`
   240, crew Settings) is spent, when two pages added no real requirement, when a page of 20
   or more units resolved under 1 in 20, or when nothing is left to map. It offers map more
-  (while units are left), lower the minimum for this repository to the real share so far
-  and build the graph (once that share is at least 1%), or stop (what was mapped is kept).
-  With nothing left to map and a share under 1%, nothing can be lowered, so the run moves on
+  (while units are left), ask again the placeholders this run already asked about (when every
+  unit was asked but some are still placeholders; recommended while some were asked only
+  once), lower the minimum for this repository to the real share so far and build the graph
+  (once that share is at least 1%), or stop (what was mapped is kept).
+  With nothing left to map or ask again and a share under 1%, nothing can be lowered, so the run moves on
   to the coverage step, which reports the share (after a low-yield last page it first asks,
   with one choice: go on to the coverage step). A minimum the units left to ask cannot
   reach gets no time estimate.

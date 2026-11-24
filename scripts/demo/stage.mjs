@@ -17,15 +17,83 @@
 // DEMO_KEEP_FRAMES=1 (keepFrames) also writes every screencast frame to frames/ with its timestamp in
 // timeline.json, for looking at what the screencast delivered; the master is still what gets cut.
 import { loadChromium } from "./_playwright.mjs";
-import { armGuard } from "./readonly.mjs";
+import { armGuard, armPolicy, underPath } from "./readonly.mjs";
 import { CAPTURE, FPS } from "./postprocess.mjs";
 import { NEUTRAL_PALETTE } from "./palette.mjs";
+import { placeLabel } from "./label-place.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 
 // Served from the app's own origin (route interception), so the app iframe is same-origin with the stage.
 const STAGE_PATH = "/__demo_stage__";
+const FOCUS_ATTR = "data-wicked-demo-focus";
+const FOCUS_PATH_ATTR = "data-wicked-demo-focus-path";
+
+/**
+ * (An init script, in every frame of the recording's page) Keep chrome out of the picture (§13 A1.2). The stage is
+ * the top document; the app frame is its child (depth 1) and the app's own frame inside it is depth 2. Each `hide`
+ * entry becomes ONE rule of a constructed style sheet (insertRule parses exactly one rule, so a selector cannot
+ * carry another); with `focus` (a crew app) the app frame's first iframe fills the window and the rest of that page
+ * is invisible. The recorder's code, never the storyline's: the storyline only names selectors.
+ */
+function keepChromeOut({ hide, focus, mark, path }) {
+  if (window === window.top) return;
+  let depth = 0;
+  for (let w = window; w !== w.top && depth < 4; w = w.parent) depth += 1;
+  const rules = hide.filter((h) => (h.in === "content" ? 2 : 1) === depth).map((h) => `${h.css} { display: none !important; }`);
+  const pin = focus && depth === 1;
+  if (pin) {
+    rules.push("html, body { overflow: hidden !important; }", "body * { visibility: hidden !important; }",
+      `[${mark}] { visibility: visible !important; position: fixed !important; inset: 0 !important; width: 100vw !important; ` +
+      "height: 100vh !important; max-width: none !important; max-height: none !important; min-width: 0 !important; " +
+      "min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; " +
+      "box-sizing: border-box !important; opacity: 1 !important; transform: none !important; z-index: 2147483647 !important; }",
+      // A modal's backdrop paints in the top layer, over everything.
+      "::backdrop { display: none !important; }",
+      // An ancestor that makes a containing block (a transform, a filter, containment) would hold a fixed frame
+      // inside itself; one that clips would cut it.
+      `[${path}] { transform: none !important; filter: none !important; perspective: none !important; contain: none !important; ` +
+      "backdrop-filter: none !important; will-change: auto !important; clip-path: none !important; overflow: visible !important; " +
+      "opacity: 1 !important; }");
+  }
+  if (!rules.length) return;
+  const sheet = new CSSStyleSheet();
+  for (const r of rules) { try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* a selector that does not parse: skipped */ } }
+  // Once adopted, a sheet the page dropped is re-adopted, and (the crop) the loss is reported: the recorder fails a
+  // take whose crop was lost even for a moment while the app was on screen (frames already filmed cannot be repaired).
+  let adopted = false;
+  const adopt = () => {
+    try {
+      if (document.adoptedStyleSheets.includes(sheet)) return;
+      // Told to the recorder, which latches it for the rest of the take (a reload's fresh document forgets nothing
+      // there) and counts it only once the chapter is on screen (a drop behind the chapter card films nothing).
+      if (adopted && pin) { try { window.__wickedDemoCropLost?.(); } catch { /* no recorder binding (the probe) */ } }
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      adopted = true;
+    } catch { /* no document yet */ }
+  };
+  adopt();
+  document.addEventListener("DOMContentLoaded", adopt);
+  window.addEventListener("load", adopt);
+  // A page that replaces its adopted sheets (a theme switch) drops this one with no DOM mutation: re-adopt it often.
+  setInterval(adopt, 250);
+  if (pin) {
+    // The first iframe in the page is the app's own frame (what `in: "content"` names), whenever it is (re)made.
+    const pinFirst = () => {
+      const f = document.querySelector("iframe");
+      for (const x of document.querySelectorAll(`[${mark}]`)) if (x !== f) x.removeAttribute(mark);
+      const up = new Set();
+      for (let e = f?.parentElement; e && e !== document.documentElement; e = e.parentElement) up.add(e);
+      for (const x of document.querySelectorAll(`[${path}]`)) if (!up.has(x)) x.removeAttribute(path);
+      for (const e of up) if (!e.hasAttribute(path)) e.setAttribute(path, "");
+      if (f && !f.hasAttribute(mark)) f.setAttribute(mark, "");
+      adopt();
+    };
+    new MutationObserver(pinFirst).observe(document, { childList: true, subtree: true });
+    pinFirst();
+  }
+}
 const W = 1920, H = 1080;
 export const FRAME = { x: 160, y: 20, w: 1600, h: 900, bar: 38 };
 
@@ -36,16 +104,22 @@ function hexToRgb(hex) {
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-export function stageHtml({ name, logoSvg, accent }, appUrl, palette = NEUTRAL_PALETTE) {
+// `webFonts: false` (the engine-run recorder, DES-DEMO-RECORD-001 §3.4): the stage page requests nothing from the
+// network, so its own page never trips the request policy; the fonts fall back to the system's.
+export function stageHtml({ name, logoSvg, accent }, appUrl, palette = NEUTRAL_PALETTE, { webFonts = true } = {}) {
   const logo = (logoSvg || "").replace(/<\?xml[^>]*>/, "");
   // The storyline's own brand colour, else the studio skin's accent (palette.mjs), never a fixed red.
   const [r, g, b] = hexToRgb(accent || palette.accent);
+  // The capture-liveness pixel: the canvas colour and a neighbour one step away in blue, so a pulse changes the
+  // picture (a new screencast frame) without anything a viewer can see.
+  const [cr, cg, cb] = hexToRgb(palette.canvas);
+  const pulseA = `rgb(${cr},${cg},${cb})`, pulseB = `rgb(${cr},${cg},${cb > 0 ? cb - 1 : 1})`;
   const p = palette;
   const face = encodeURIComponent(p.font).replace(/%20/g, "+");
   const lk = logo ? `${logo}<span class="nm">${esc(name)}</span>` : `<span class="nm solo">${esc(name)}</span>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(name)} demo</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=${face}:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+${webFonts ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=${face}:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">` : ""}
 <style>
 :root{--ink:${p.ink};--ink2:${p.ink2};--muted:${p.muted};--line:${p.line};--bg:${p.canvas};--surface:${p.surface};--brand:rgb(${r},${g},${b});--brand-soft:rgba(${r},${g},${b},.14);--brand-glow:rgba(${r},${g},${b},.45);}
 *{box-sizing:border-box}html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:var(--bg);
@@ -84,9 +158,11 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 #hl{position:absolute;border-radius:12px;border:3px solid var(--brand);box-shadow:0 0 0 7px var(--brand-soft),0 10px 30px -10px var(--brand-glow);opacity:0;
  transition:opacity .35s,left .45s,top .45s,width .45s,height .45s;pointer-events:none;z-index:20}
 #hl.on{opacity:1}
-#hl span{position:absolute;left:-3px;bottom:calc(100% + 9px);white-space:nowrap;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;padding:6px 11px;border-radius:8px;
+#hl span,#hlm{position:absolute;left:-3px;bottom:calc(100% + 9px);white-space:nowrap;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;padding:6px 11px;border-radius:8px;
  box-shadow:0 6px 18px -6px rgba(0,0,0,.35)}
+#hlm{visibility:hidden;pointer-events:none}
 #hl.below span{bottom:auto;top:calc(100% + 9px)}
+#hl.right span{bottom:auto;left:calc(100% + 9px);top:50%;transform:translateY(-50%)}
 #cur{position:absolute;left:0;top:0;width:26px;height:26px;z-index:40;pointer-events:none;transition:transform .7s cubic-bezier(.25,.8,.25,1),opacity .3s;opacity:0}
 #cur.on{opacity:1}#cur svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
 .rip{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2.5px solid var(--brand);background:var(--brand-soft);z-index:39;
@@ -110,16 +186,19 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 #card .seg p{margin-top:18px;font-size:23px;max-width:880px}
 #card .seg .meta{margin-top:34px}
 #card li{font-size:21px;color:var(--ink2);display:flex;gap:14px;align-items:baseline}#card li b{color:var(--brand);font-variant-numeric:tabular-nums;font-size:16px}
+#pulse{position:fixed;right:0;bottom:0;width:2px;height:2px;background:${pulseA};z-index:2147483647;pointer-events:none}
 </style></head><body>
 <div id="win"><div id="bar"><div class="dots"><i></i><i></i><i></i></div><div id="url"><b>${esc(name)}</b><span id="path">/</span></div><div style="width:47px"></div></div>
-<iframe id="app" src="${appUrl}"></iframe></div>
+<iframe id="app" name="app" data-src="${esc(appUrl)}"></iframe></div><i id="pulse"></i>
 <div id="band"><div id="cap"></div><div id="brand"><div class="lk">${lk}</div><div id="prog"></div><div id="chap"></div></div></div>
 <div id="speed"><svg viewBox="0 0 24 24" style="fill:var(--bg)"><path d="M4 5v14l8-7zM12 5v14l8-7z"/></svg><span class="x"></span><span class="lbl"></span><span class="t"></span></div>
 <div id="hl"><span></span></div>
+<span id="hlm" aria-hidden="true"></span>
 <div id="cur"><svg viewBox="0 0 26 26" width="26" height="26"><path d="M5 3l15.5 9.2-6.9 1.5 3.9 7.3-3 1.6-3.9-7.4-5.1 4.6z" fill="#0b0b0c" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
 <div id="card"><div class="in"></div></div>
 <script>
 const $=s=>document.querySelector(s);
+{const f=$('#app');f.src=f.dataset.src;}
 window.__stage={
   caption(c){const host=$('#cap');const olds=[...host.querySelectorAll('.cap')];olds.forEach(o=>{o.style.transitionDuration='.28s';o.classList.add('out');setTimeout(()=>o.remove(),300)});
     const el=document.createElement('div');el.className='cap out';
@@ -131,19 +210,27 @@ window.__stage={
       const t0=performance.now();clearInterval(window.__spd);window.__spd=setInterval(()=>{const sec=Math.round((performance.now()-t0)/1000);
       s.querySelector('.t').textContent=Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0')+' real time'},250)}
     else{s.classList.remove('on');clearInterval(window.__spd)}},
-  highlight(b,label,below){const h=$('#hl');if(!b){h.classList.remove('on');return}const p=8;const fresh=!h.classList.contains('on');
+  measureLabel(label){const s=$('#hlm');s.textContent=label||'';const r=s.getBoundingClientRect();return {width:r.width,height:r.height}},
+  highlight(b,label,side){const h=$('#hl');if(!b){h.classList.remove('on');return}const p=8;const fresh=!h.classList.contains('on');
     if(fresh)h.style.transition='opacity .35s';
     Object.assign(h.style,{left:(b.x-p)+'px',top:(b.y-p)+'px',width:(b.width+2*p)+'px',height:(b.height+2*p)+'px'});
     if(fresh){void h.offsetWidth;setTimeout(()=>{h.style.transition=''},400)}
-    const s=h.querySelector('span');s.textContent=label||'';s.style.display=label?'':'none';h.classList.toggle('below',!!below);h.classList.add('on')},
+    const s=h.querySelector('span');s.textContent=label||'';s.style.display=label?'':'none';h.classList.toggle('below',side==='below');h.classList.toggle('right',side==='right');h.classList.add('on')},
   cursor(x,y,show){const c=$('#cur');c.style.transform='translate('+(x-5)+'px,'+(y-3)+'px)';c.classList.toggle('on',show!==false)},
   ripple(x,y){const r=document.createElement('div');r.className='rip';r.style.left=x+'px';r.style.top=y+'px';document.body.appendChild(r);setTimeout(()=>r.remove(),700)},
+  pulse(){const e=$('#pulse');e.dataset.on=e.dataset.on==='1'?'0':'1';e.style.background=e.dataset.on==='1'?'${pulseB}':'${pulseA}'},
   card(html){const c=$('#card');if(html===null){c.classList.remove('on');return}c.querySelector('.in').innerHTML=html;c.querySelectorAll('[data-logo]').forEach(e=>{e.className='lk';e.innerHTML=document.querySelector('#brand .lk').innerHTML});c.classList.add('on')},
 };
 </script></body></html>`;
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** What is left of `deadline` (epoch ms) as a Playwright timeout, at least 1 ms; `dflt` with no deadline. */
+const left = (deadline, dflt) => (deadline === null ? dflt : Math.max(1, deadline - Date.now()));
+/** An optional step whose time ran out stops here, at the next operation (no animation runs past it). */
+const due = (deadline) => { if (deadline !== null && Date.now() >= deadline) throw new Error("the optional step's time ran out"); };
+/** A pause, cut short by `deadline`. */
+const pause = (ms, deadline) => sleep(deadline === null ? ms : Math.max(0, Math.min(ms, deadline - Date.now())));
 
 // The master: near-lossless, fast enough to keep up with 30 fps on a busy host, a keyframe (= a fragment) every second.
 const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-tune", "stillimage", "-g", String(FPS), "-keyint_min", String(FPS),
@@ -152,6 +239,12 @@ const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-t
 // 1080p pictures) the host cannot encode live and the take fails rather than grow without bound.
 const BACKLOG_WARN = 32 * 1024 * 1024;
 const BACKLOG_FAIL = 256 * 1024 * 1024;
+
+function demoError(code, message) {
+  const e = new Error(`${code}: ${message}`);
+  e.code = code;
+  return e;
+}
 
 function encoderFailure(message) {
   const e = new Error(message);
@@ -181,7 +274,7 @@ export class Stage {
    * @param {boolean} [o.keepFrames=false]  also write every screencast frame to frames/ (debugging; DEMO_KEEP_FRAMES=1)
    */
   constructor({ baseUrl, outDir, chapters, brand, palette = null, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
-    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false }) {
+    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false, policy = null, dropPicturesAfterFirst = false, hide = [], focusContent = false, redactSkips = false }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.ffmpeg = ffmpeg;
@@ -198,7 +291,33 @@ export class Stage {
     this.readOnly = !writableOrigin;
     this.blocked = [];
     this.consoleHandler = consoleHandler;
-    this.marks = { chapters: [], speed: [], captions: [] };
+    // The engine-run recorder's request policy (readonly.mjs demoPolicy): null = the hand recorder's write guard.
+    this.policy = policy;
+    this.diagnostics = { wsRefused: [], wsFramesDropped: 0 };
+    this.leftApp = null; // the first app-frame URL outside the launch path (policy only)
+    this.nestedFirst = new WeakMap(); // a nested app frame → the directory of its first document (policy only)
+    this.appErrors = []; // app documents (the app frame or a frame inside it) that failed to load
+    this.firstFailureAt = null; // wall clock (s) when the first of those was seen
+    this.lastPictureAt = 0; // wall clock (s) of the newest screencast picture
+    this.pictureSeq = 0; // how many screencast pictures have arrived
+    this.captureStalledAt = null; // set by the liveness monitor when pictures stopped arriving (policy only)
+    // A test seam (demo-record.mjs passes it only under its test jail marker): ignore every picture after the
+    // first, as a capture channel that died would.
+    this.dropPicturesAfterFirst = dropPicturesAfterFirst;
+    this.marks = { chapters: [], speed: [], captions: [], checkpoints: [], skipped: [] };
+    // Chrome kept out of the picture (§13 A1.2): the storyline's `hide` selectors, and (a crew app) everything in
+    // the launch page but the app's own frame.
+    this.hide = hide;
+    this.focusContent = focusContent;
+    this.redactSkips = redactSkips; // a skip's reason is the browser's words: kept out when live data stays private
+    this.currentStep = null; // the storyline step running now (a refusal names the step it happened in)
+    this.blockedDuring = null;
+    this.viewRequired = false; // (a crew app) once its chapter is ready, every checkpoint proves its frame fills the window
+    this.cropArmed = false; // (a crew app) its chapter is on screen: a dropped crop from now on was filmed
+    this.cropLost = null; // wall clock (s) when the page first dropped the crop while the app was on screen
+    this.hideInvalid = []; // `hide` selectors the browser could not parse (skipped: hiding is cosmetic)
+    this.inflight = new Set(); // requests in flight, over every frame (settle)
+    this.lastNetAt = 0; // wall clock (s) of the last request start or end
     this.chapterIndex = -1;
     this.latest = null; // the newest screencast picture (JPEG bytes)
     this.emitted = 0; // master frames handed to the encoder
@@ -216,12 +335,82 @@ export class Stage {
     // A service worker answers requests the context's routes never see, so a guarded recording runs without one.
     this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}), serviceWorkers: "block" });
     // No writes except to the fixture origin, if one is named (readonly.mjs): the page routes below still win for the stage itself.
-    this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
+    // The frame the storyline drives is bound by IDENTITY once known (a page script can rename a frame); before
+    // that, the stage's only child frame named "app".
+    const isAppFrame = (f) => !!f && (this.appFrame ? f === this.appFrame : f.name() === "app" && f.parentFrame() === this.page?.mainFrame());
+    const inApp = (f) => { for (let x = f; x; x = x.parentFrame()) if (isAppFrame(x)) return true; return false; };
+    // A document of another page (a popup) is refused like the stage's own navigation: one page is driven.
+    const navOf = (f) => (isAppFrame(f) ? "app" : f && (f === this.page?.mainFrame() || (this.page && f.page() !== this.page)) ? "stage" : null);
+    const fail = (list, entry) => { list.push(entry); this.firstFailureAt ??= this.now(); };
+    if (this.policy) {
+      const armed = await armPolicy(this.context, this.policy, { navOf, onBlocked: () => {
+        this.firstFailureAt ??= this.now();
+        // The first refusal's moment, once: before any step it happened while the chapter loaded or got ready.
+        if (this.blockedDuring === null) this.blockedDuring = this.currentStep ?? "before the chapter's steps (while it loaded or got ready)";
+      } });
+      this.blocked = armed.blocked;
+      this.diagnostics = armed.diagnostics;
+    } else {
+      this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
+    }
+    if (this.focusContent) {
+      // A crop the page dropped once the chapter was on screen fails the take, even if a reload hides the evidence.
+      await this.context.exposeBinding("__wickedDemoCropLost", () => {
+        if (this.cropArmed && this.cropLost === null) { this.cropLost = this.now(); this.firstFailureAt ??= this.cropLost; }
+      });
+    }
+    if (this.hide.length || this.focusContent) await this.context.addInitScript(keepChromeOut, { hide: this.hide, focus: this.focusContent, mark: FOCUS_ATTR, path: FOCUS_PATH_ATTR });
     this.page = await this.context.newPage();
+    const netEvent = () => { this.lastNetAt = this.now(); };
+    this.page.on("request", (r) => { this.inflight.add(r); netEvent(); });
+    this.page.on("requestfinished", (r) => { this.inflight.delete(r); netEvent(); });
+    this.page.on("requestfailed", (r) => { this.inflight.delete(r); netEvent(); });
+    if (this.policy) {
+      // No second page: a popup or a link to a new window is refused and closed.
+      this.context.on("page", (p) => {
+        if (p === this.page) return;
+        fail(this.blocked, `a new page opened (${p.url()}): the recorder drives one page`);
+        p.close().catch(() => {});
+      });
+    }
+    // The app's documents — the app frame and every frame inside it (a crew app renders in a nested editor
+    // frame): a failed one (4xx/5xx, or refused by the network) is an app that did not render.
+    this.page.on("response", (r) => {
+      const req = r.request();
+      let mine = false;
+      try { mine = req.isNavigationRequest() && inApp(req.frame()); } catch { /* no frame */ }
+      if (mine && r.status() >= 400) fail(this.appErrors, `${r.status()} ${r.url()}`);
+    });
+    this.page.on("requestfailed", (req) => {
+      let mine = false;
+      try { mine = req.isNavigationRequest() && inApp(req.frame()); } catch { /* no frame */ }
+      if (mine && !/blockedbyclient/i.test(req.failure()?.errorText ?? "")) fail(this.appErrors, `${req.failure()?.errorText ?? "failed"} ${req.url()}`);
+    });
     if (this.consoleHandler) this.page.on("console", this.consoleHandler);
-    const html = stageHtml(this.brand, this.baseUrl + firstPath, this.palette);
+    const html = stageHtml(this.brand, this.baseUrl + firstPath, this.palette, { webFonts: !this.policy });
     await this.page.route(this.baseUrl + STAGE_PATH, (route) => route.fulfill({ status: 200, contentType: "text/html", body: html }));
     this.page.on("framenavigated", (f) => {
+      if (this.policy && isAppFrame(f)) {
+        // Same-document (history API) transitions too: a click must not carry the demo out of the app, and the
+        // frame's document must stay one the app served (not data:, blob: or a blank page after it loaded).
+        if (!this.appOutside(f.url())) { /* still in the app */ } else if (!(f.url() === "about:blank" && !this.appLoaded)) {
+          this.leftApp ??= f.url();
+          this.firstFailureAt ??= this.now();
+        }
+        if (/^https?:/.test(f.url())) this.appLoaded = true;
+      } else if (this.policy && inApp(f)) {
+        // A frame the app itself nests (a crew app renders in one) keeps to where it first loaded: the same origin,
+        // http(s), and the directory of its first document. A link inside it never carries the demo elsewhere.
+        const first = this.nestedFirst.get(f);
+        let u = null;
+        try { u = new URL(f.url()); } catch { /* unparseable */ }
+        if (first === undefined) {
+          if (u && /^https?:$/.test(u.protocol)) this.nestedFirst.set(f, u.pathname.replace(/[^/]*$/, ""));
+        } else if (!u || !/^https?:$/.test(u.protocol) || u.origin !== this.policy.appOrigin || !u.pathname.startsWith(first)) {
+          this.leftApp ??= f.url();
+          this.firstFailureAt ??= this.now();
+        }
+      }
       if (f !== this.page.mainFrame() && f.url().startsWith(this.baseUrl)) {
         const u = new URL(f.url());
         // Path only: query strings (search terms, section ids) would crowd the address bar.
@@ -229,10 +418,16 @@ export class Stage {
       }
     });
     await this.page.goto(this.baseUrl + STAGE_PATH, { waitUntil: "load" });
+    if (this.hide.length) {
+      // The stage's own document says which selectors parse (the app's documents never see this check).
+      this.hideInvalid = await this.page.evaluate((list) => list.filter((h) => {
+        try { new CSSStyleSheet().insertRule(`${h.css} { display: none !important; }`); return false; } catch { return true; }
+      }).map((h) => h.css), this.hide);
+    }
     await this.page.evaluate(() => document.fonts.ready).catch(() => {}); // offline: falls back to system fonts
     this.app = this.page.frameLocator("#app");
     this.appFrame = await (await this.page.$("#app")).contentFrame();
-    await this.appFrame.waitForLoadState("networkidle").catch(() => {});
+    await this.idle();
     // Screencast: every changed picture, kept as "the newest" for the ticker (and on disk only with keepFrames).
     this.cdp = await this.context.newCDPSession(this.page);
     let gotFirst;
@@ -240,7 +435,13 @@ export class Stage {
     this.cdp.on("Page.screencastFrame", (ev) => {
       // Frames due before this picture existed show the previous one: a change lands at its own time, never early.
       if (this.ticker) this.emitUpTo(Math.min(ev.metadata.timestamp, this.now()));
+      if (this.dropPicturesAfterFirst && this.pictureSeq > 0) {
+        this.cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
+        return;
+      }
       this.latest = Buffer.from(ev.data, "base64");
+      this.lastPictureAt = this.now();
+      this.pictureSeq += 1;
       if (this.keepFrames) {
         const name = `f${String(this.frames.length).padStart(6, "0")}.jpg`;
         fs.writeFileSync(path.join(this.outDir, "frames", name), this.latest);
@@ -250,12 +451,22 @@ export class Stage {
       this.cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
     });
     await this.cdp.send("Page.startScreencast", { format: "jpeg", quality: 95, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
-    await withTimeout(first, 15_000, "the screencast delivered no frame within 15 s");
+    await withTimeout(first, 15_000, "the screencast delivered no frame within 15 s").catch((e) => { throw demoError("capture_stalled", e.message); });
     // The master: frame k is the picture at t0 + k/FPS. Frames fall due with the clock; whatever is due is sent at
     // each tick and before each new picture (so a late tick costs no time and shifts nothing earlier).
     this.encoder = this.startEncoder();
     this.t0 = this.now();
     this.ticker = setInterval(() => this.emitUpTo(this.now()), 1000 / FPS);
+    if (this.policy) {
+      // Capture liveness between checkpoints too: every second the stage flips its corner pixel, and pictures that
+      // stop arriving for 4 s mark the take stalled (a capture channel that died repeats its last picture into a
+      // video that looks fine).
+      this.liveness = setInterval(() => {
+        if (this.captureStalledAt !== null) return;
+        this.page.evaluate(() => window.__stage?.pulse()).catch(() => {});
+        if (this.now() - this.lastPictureAt > 4) this.captureStalledAt = this.now();
+      }, 1000);
+    }
     this.emitUpTo(this.t0); // frame 0
     this.writeTimeline(false);
     this.cursorAt = { x: FRAME.x + FRAME.w / 2, y: FRAME.y + FRAME.h / 2 };
@@ -318,6 +529,113 @@ export class Stage {
   stage(fn, arg) { this.check(); return this.page.evaluate(`(${fn.toString()})(window.__stage, ${JSON.stringify(arg ?? null)})`); }
   hold(ms) { this.check(); return sleep(ms); }
 
+  /**
+   * A checkpoint (after `ready`, a go, a click, typing, a card leaving): the app is still where it should be, its
+   * document loaded, and the screencast is LIVE — the stage flips a 2 px pixel in its corner and a new picture must
+   * arrive within 2 s. A frozen capture channel repeats the last picture into a valid-looking video; this catches
+   * it, while a still app view passes (the pixel changes, the app need not).
+   */
+  async checkpoint(kind) {
+    this.check();
+    this.policyCheck();
+    const seq = this.pictureSeq;
+    const t = this.now();
+    await this.stage((s) => s.pulse());
+    const deadline = Date.now() + 2000;
+    while (this.pictureSeq <= seq && Date.now() < deadline) await sleep(50);
+    if (this.pictureSeq <= seq) throw demoError("capture_stalled", `no new screencast picture within 2 s of the ${kind} checkpoint`);
+    if (this.viewRequired) await this.requireView();
+    this.mark("checkpoints", { t, kind, pictureAt: this.lastPictureAt, chapter: this.chapterIndex });
+  }
+
+  /**
+   * Until no request has been in flight, in any frame, for `quietMs` (bounded by `timeoutMs`; a page that never
+   * goes quiet, such as one holding a long poll, is not a failure). Returns whether it went quiet.
+   */
+  async settle({ quietMs = 500, timeoutMs = 15_000 } = {}) {
+    this.check();
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      // A request that was redirected is answered by the one it became.
+      for (const r of this.inflight) if (r.redirectedTo() !== null) this.inflight.delete(r);
+      if (this.inflight.size === 0 && this.now() - this.lastNetAt >= quietMs / 1000) return true;
+      await sleep(100);
+    }
+    return false;
+  }
+
+  /** An optional step was skipped: a timeline mark (and the take's record lists it). */
+  skipped(entry) {
+    this.mark("skipped", { t: this.now(), chapter: this.chapterIndex, ...entry, ...(this.redactSkips ? { reason: "(redacted)" } : {}) });
+    console.log(`  skipped ${entry.what ?? entry.step} (optional)`);
+  }
+
+  /** Cut the video from `start` (wall clock, s) to now: frames that all show the same card (§13 A1.1). */
+  cutSince(start, label) {
+    const end = this.now();
+    if (end > start) this.mark("speed", { start, end, factor: 1, cut: true, label });
+  }
+
+  /** What the take shows (a crew app: whether its own frame fills the window). */
+  async view() {
+    if (!this.focusContent) return { view: "page" };
+    // The app's frame fills the window: it sits at the origin at full size, and it is what the page shows at the
+    // centre and near each corner (nothing over it, nothing clipping it).
+    const r = await this.appFrame.evaluate((attr) => {
+      const f = document.querySelector(`[${attr}]`);
+      if (!f) return "app_frame_missing";
+      const b = f.getBoundingClientRect(), W = innerWidth, H = innerHeight;
+      // Exactly the window (within 2 px on every edge): neither short of it nor running past it.
+      const placed = [b.left, b.top, b.right - W, b.bottom - H].every((d) => Math.abs(d) <= 2);
+      const shown = [[0.5, 0.5], [0.04, 0.04], [0.96, 0.04], [0.04, 0.96], [0.96, 0.96]].every(([x, y]) => document.elementFromPoint(W * x, H * y) === f);
+      // Painted, too: no transparent frame or ancestor.
+      let opaque = true;
+      for (let e = f; e; e = e.parentElement) if (Number(getComputedStyle(e).opacity) < 0.99) opaque = false;
+      return placed && shown && opaque ? "app_frame" : "app_frame_partial";
+    }, FOCUS_ATTR).catch(() => "app_frame_missing");
+    return { view: r };
+  }
+
+  /** (A crew app) The chapter card has lifted: a crop the page drops from now on is in the picture. */
+  armCrop() { if (this.focusContent) this.cropArmed = true; }
+
+  /** (A crew app) Its frame fills the window now, or the take fails: studio's page would be in the picture. */
+  async requireView() {
+    if (!this.focusContent) return;
+    // A page that just reloaded re-pins its frame a moment later: up to 2 s to show it (a lost crop never recovers).
+    if (this.cropLost !== null) this.policyCheck();
+    let { view } = await this.view();
+    for (const until = Date.now() + 2000; view !== "app_frame" && Date.now() < until;) {
+      await sleep(100);
+      ({ view } = await this.view());
+    }
+    if (view !== "app_frame") {
+      throw demoError("app_not_ready", `the app's own frame does not fill the window (${view}): studio's page around it could not be kept out of the picture`);
+    }
+    this.viewRequired = true;
+  }
+
+  /** The policy's sticky failures, and where the app frame is now (policy only). */
+  policyCheck() {
+    if (!this.policy) return;
+    if (this.captureStalledAt !== null) throw demoError("capture_stalled", "the screen capture stopped delivering pictures");
+    if (this.cropLost !== null) throw demoError("app_not_ready", "the app's own frame does not fill the window (app_frame_lost): the page dropped the recorder's crop, so studio's page was in the picture");
+    if (this.appFrame && this.appOutside(this.appFrame.url())) this.leftApp ??= this.appFrame.url();
+    if (this.leftApp) throw demoError("left_app", `the app frame left ${this.policy.launchPath}: ${this.leftApp}`);
+    if (this.appErrors.length) throw demoError("app_not_ready", `the app did not load: ${this.appErrors.slice(0, 3).join("; ")}`);
+  }
+
+  /** Whether a URL is outside the app (another origin, not http(s), or not under the launch path). */
+  appOutside(url) {
+    try {
+      const u = new URL(url);
+      return !/^https?:$/.test(u.protocol) || u.origin !== this.policy.appOrigin || !underPath(u.pathname, this.policy.launchPath);
+    } catch {
+      return true;
+    }
+  }
+
+
   async card(html, ms) {
     await this.stage((s, h) => s.card(h), html);
     await sleep(ms);
@@ -338,18 +656,32 @@ export class Stage {
   }
 
   async go(p) {
-    await this.appFrame.goto(this.baseUrl + p, { waitUntil: "domcontentloaded" });
-    await this.appFrame.waitForLoadState("networkidle").catch(() => {});
+    try {
+      await this.appFrame.goto(this.baseUrl + p, { waitUntil: "domcontentloaded" });
+    } catch (e) {
+      if (!this.policy) throw e;
+      this.policyCheck();
+      throw demoError("app_not_ready", `the app page ${p} did not load: ${String(e.message).split("\n")[0]}`);
+    }
+    await this.idle();
     await sleep(700);
   }
 
-  /** Box of a locator in stage coordinates (Playwright reports main-frame viewport coordinates). */
-  async box(locator) {
-    await locator.first().waitFor({ state: "visible", timeout: 60_000 });
-    return locator.first().boundingBox();
+  /** The app's network settles: the engine-run recorder's one bounded quiet wait (settle), else Playwright's idle. */
+  async idle() {
+    if (this.policy) await this.settle();
+    else await this.appFrame.waitForLoadState("networkidle").catch(() => {});
   }
 
-  async reveal(locator) {
+  /** Box of a locator in stage coordinates (Playwright reports main-frame viewport coordinates). */
+  async box(locator, { deadline = null } = {}) {
+    due(deadline);
+    await locator.first().waitFor({ state: "visible", timeout: left(deadline, 60_000) });
+    return locator.first().boundingBox({ timeout: left(deadline, 30_000) });
+  }
+
+  async reveal(locator, { deadline = null } = {}) {
+    due(deadline);
     // Centre it, unless it is taller than most of the viewport: then bring its top just under the sticky app header.
     // Scrolls the element's nearest scrollable ancestor, falling back to the window.
     await locator.first().evaluate((el, offset) => {
@@ -358,40 +690,65 @@ export class Stage {
       let p = el.parentElement;
       while (p && !(p.scrollHeight > p.clientHeight && /(auto|scroll)/.test(getComputedStyle(p).overflowY))) p = p.parentElement;
       (p && p !== document.body && p !== document.documentElement ? p : window).scrollBy({ top: by, behavior: "smooth" });
-    }, this.stickyOffset).catch(() => {});
-    await sleep(900);
+    }, this.stickyOffset, { timeout: left(deadline, 30_000) }).catch(() => {});
+    await pause(900, deadline);
   }
 
-  async point(locator, label, { below = false, hold = 0, reveal = true } = {}) {
-    if (reveal) await this.reveal(locator);
-    const raw = await this.box(locator);
+  async point(locator, label, { below = false, hold = 0, reveal = true, deadline = null } = {}) {
+    if (reveal) await this.reveal(locator, { deadline });
+    const raw = await this.box(locator, { deadline });
     // Clip to the visible app viewport (inside the window frame) so a tall section never spills over the stage.
-    const top = FRAME.y + FRAME.bar + 12, bottom = FRAME.y + FRAME.h - 12, left = FRAME.x + 12, right = FRAME.x + FRAME.w - 12;
-    const x = Math.max(raw.x, left), y = Math.max(raw.y, top);
+    const top = FRAME.y + FRAME.bar + 12, bottom = FRAME.y + FRAME.h - 12, frameLeft = FRAME.x + 12, right = FRAME.x + FRAME.w - 12;
+    const x = Math.max(raw.x, frameLeft), y = Math.max(raw.y, top);
     const b = { x, y, width: Math.max(40, Math.min(raw.x + raw.width, right) - x), height: Math.max(30, Math.min(raw.y + raw.height, bottom) - y) };
-    if (b.y - top < 44) below = true; // no room for the label above
-    if (below && bottom - (b.y + b.height) < 44) below = false;
-    await this.stage((s, a) => s.highlight(a.b, a.label, a.below), { b, label, below });
+    const size = await this.stage((s, text) => s.measureLabel(text), label);
+    // Compare frame-local and main-frame target rects, including nested frames (wicked-garden#1514).
+    const app = await locator.first().evaluate((target) => {
+      const targetRect = target.getBoundingClientRect(), texts = [];
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let node; (node = walker.nextNode());) {
+        if (!node.textContent.trim() || target.contains(node)) continue;
+        const parent = node.parentElement;
+        if (!parent.checkVisibility({ opacityProperty: true, visibilityProperty: true })) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const r of range.getClientRects()) {
+          const x = Math.max(0, r.left), y = Math.max(0, r.top);
+          const width = Math.min(window.innerWidth, r.right) - x, height = Math.min(window.innerHeight, r.bottom) - y;
+          if (width > 0 && height > 0) texts.push({ x, y, width, height });
+        }
+      }
+      return { target: { x: targetRect.x, y: targetRect.y }, texts, width: window.innerWidth, height: window.innerHeight };
+    }, undefined, { timeout: left(deadline, 30_000) });
+    const offset = { x: raw.x - app.target.x, y: raw.y - app.target.y };
+    const frame = { top: Math.max(top, offset.y), bottom: Math.min(bottom, offset.y + app.height),
+      left: Math.max(frameLeft, offset.x), right: Math.min(right, offset.x + app.width) };
+    const texts = app.texts.map((r) => ({ ...r, x: r.x + offset.x, y: r.y + offset.y }));
+    const side = placeLabel({ box: b, pad: 8,
+      label: size, texts, frame }, below ? "below" : "above");
+    await this.stage((s, a) => s.highlight(a.b, a.label, a.side), { b, label, side });
     if (hold) await sleep(hold);
     return b;
   }
   async unpoint() { await this.stage((s) => s.highlight(null)); await sleep(350); }
 
-  async moveTo(locator) {
-    const b = await this.box(locator);
+  async moveTo(locator, { deadline = null } = {}) {
+    const b = await this.box(locator, { deadline });
     const x = b.x + Math.min(b.width / 2, 60), y = b.y + b.height / 2;
     await this.stage((s, c) => s.cursor(c.x, c.y, true), { x, y });
     this.cursorAt = { x, y };
-    await sleep(800);
+    await pause(800, deadline);
     return { x, y };
   }
 
-  async click(locator, { reveal = true, after = 900 } = {}) {
-    if (reveal) await this.reveal(locator);
-    const { x, y } = await this.moveTo(locator);
+  /** `deadline` (epoch ms) bounds every wait in the step (an optional step's): a click Playwright gives up on is never made later. */
+  async click(locator, { reveal = true, after = 900, deadline = null } = {}) {
+    if (reveal) await this.reveal(locator, { deadline });
+    const { x, y } = await this.moveTo(locator, { deadline });
+    due(deadline);
     await this.stage((s, c) => s.ripple(c.x, c.y), { x, y });
-    await locator.first().click();
-    await sleep(after);
+    await locator.first().click(deadline === null ? {} : { timeout: left(deadline, 0) });
+    await pause(after, deadline);
   }
 
   async type(locator, text, { delay = 28 } = {}) {
@@ -418,6 +775,7 @@ export class Stage {
   async close() {
     // Also after an open() that failed part-way: close what was opened, and write a timeline only once recording began.
     let meta = null;
+    if (this.liveness) { clearInterval(this.liveness); this.liveness = null; }
     if (this.ticker) {
       await sleep(600); // the last picture settles before the master stops
       clearInterval(this.ticker);

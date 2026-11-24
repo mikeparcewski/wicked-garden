@@ -46,7 +46,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `hotspots` | most-central symbols, god-objects | [refs/hotspots.md](refs/hotspots.md) |
 | `service-map` | service architecture from infra + code | [refs/service-map.md](refs/service-map.md) |
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
-| `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
+| `answer` | cited answer from the estate knowledge/memory stores, and from a live data source's rows when crew lets the step query it | [refs/answer.md](refs/answer.md) |
 
 Doctrine / which-rules-apply: **Steering** (the governance rules, 7 steering types) is in the same stores — the estate `knowledge.recall` tool through the shim — `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"knowledge.recall","arguments":{"scope_prefix":"wiki:",…}}'` (`wiki:` is a historical prefix) — + the estate `rules.recall` tool the same way (§ Resolving symbols) (cited, read-only); management: wicked-core `crates/wicked-governance/STEERING.md`.
 
@@ -90,7 +90,10 @@ every worker so it spawns read-only by default). The store rides `WICKED_ESTATE_
 `WICKED_HOME` / `WICKED_MEMORY_DB` from the environment, or `--db <path>`. A container seat has
 no local store: the same command relays through wicked-crew's broker (the run hands the seat
 its address and a unit token), which answers from the run's own graph. With neither, the shim refuses
-(`{"ok": false, "reason": …}`); a relayed call the broker refused names why in
+(`{"ok": false, "reason": …}`). A code-graph read (`search`, `SearchEntity`, `BlastRadius`, …) needs the GRAPH
+pinned (`--db` or `WICKED_ESTATE_DB` naming the repo's graph, or `./.wicked-estate/graph.db`): `WICKED_HOME` pins
+only memory and knowledge, so without a graph pin the shim refuses instead of answering empty (under
+`WICKED_RUNTIME=team`, `WICKED_STORE_URL` names the team graph; with neither it refuses the same way); a relayed call the broker refused names why in
 `broker_refusal` — report either, never guess a store. There is no other transport: no estate
 tool is registered on any seat, so there is nothing to "connect", nothing to fall back to, and
 no second rung — a grep is not the graph.
@@ -103,6 +106,15 @@ wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"SearchEnti
 ```
 `name` is the exact / substring symbol match; `query` is full-text over the knowledge stores and
 answers `matches: []` for a code symbol — a 0-hit `query` does not mean the graph is empty.
+
+**`resolved: false` is a miss, not an answer.** When estate cannot resolve the target (a name or
+path the graph does not hold), `BlastRadius`, `Lineage`, `TraverseGraph` and `Path` answer
+`resolved: false` with ranked `suggestions` (`Path` also names the operand in `unresolved`), and
+the shim adds an `UNRESOLVED:` diagnostic (a joined `BlastRadius` / `Lineage` answer also says
+`complete: false`). Check `resolved` before reading rows, `found` or cut flags. Zero rows there
+never mean "no dependents": re-query with a SymbolId from `suggestions` or `SearchEntity`, and if
+none fits, report the target as not in the graph. (Estate before 0.32.1 resolved names only in
+`Path`: if it answers `resolved: false` for a name `SearchEntity` finds, pass that SymbolId.)
 
 **Name the path that answered** (`shim` or `ungrounded`) in every result. If the shim answers
 `{"ok": false, …}` or the fence denies the call, write `estate: not available (<reason>)` in your
@@ -135,9 +147,13 @@ files import this file" — no longer an empty "no resolved dependents".
    *declares* a capability — and archetype→playbook relationships via garden's
    `.wicked-estate-extractors/archetype.toml` (provenance `extractor:archetype-playbook`).
    **The whole answer, not page 1** (estate#279): estate pages a wide answer (`next_cursor`), and
-   the shim's `call` follows every cursor and joins the pages, so `dependents` is complete. Read
-   `complete` in the result: `false` means a page failed or a depth/node cap cut the walk (see
-   `diagnostics`), and you report it as partial, never as the full blast radius.
+   the shim's `call` follows every cursor and joins the pages. Claim the full blast radius only
+   when `complete` is `true`. `resolved: false` is a miss (see above), not a partial answer;
+   otherwise `complete: false` means a page failed or a depth/node cap cut the walk (see
+   `diagnostics`), and you report it as partial. A missing `complete` (an older estate) means
+   read `truncated` and `next_cursor` yourself. RPC failure is `{"ok": false, "reason": …}`
+   with exit 1; a tool error is `{"error": …, "diagnostics": [...]}` with exit 1.
+   Relay refusals on `call` still return `"result": null` with `broker_refusal` and exit 0.
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
@@ -166,7 +182,8 @@ estate default 24 for `Lineage` and 8 for `BlastRadius`, max 24).
      `{"symbol": "<name>"}` → `dependencies` (with `"relation": "flows_to"`, value flow →
      `dependencies` are the consumers and `flows` the hops). Lineage's default depth is its
      ceiling (24), and the shim follows `next_cursor` to the end of the answer (estate#279):
-     check `complete` and report a `false` as partial.
+     check `resolved` first (`false` is a miss, above), then `complete`, and report a `false` as
+     partial (a missing `complete`, RPC failure, tool error or relay refusal: see § Blast radius step 3).
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
      `{"symbol": "<name>"}` → `dependents`.
    - **both**: run both and present each direction. (A bounded multi-hop walk

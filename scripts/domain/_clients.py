@@ -11,8 +11,7 @@ shell string) and never import other-product code — so the disjoint-build
 
 - ``estate_client(db)`` -> a CLI-backed :class:`CliEstateClient` when
   ``wicked-estate`` resolves AND a store path is given, else the fixture-backed
-  ``_mocks.EstateClient``. Same six method names the workers already call, so no
-  SKILL.md changes.
+  ``_mocks.EstateClient``. The workers and queued pages share this surface.
 - ``core_client()`` -> a CLI-backed :class:`CliCoreClient` when ``wicked-core``
   resolves, else ``None``. There is NO mock CoreClient: the mock lane is a
   genuinely different flow (``_mocks.BrainClient`` + ``emit_domain_model``
@@ -30,6 +29,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
@@ -100,6 +100,11 @@ def _resolve_bin(
 _DEFAULT_TIMEOUT = 120
 
 
+class CliOutcomeUnknown(RuntimeError):
+    """The peer ran but its result cannot be read (killed at its bound, or output that is not
+    UTF-8): what it did is unknown."""
+
+
 def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     """Run ``argv`` (argv list, never a shell string), bounded + fail-loud."""
     try:
@@ -114,9 +119,9 @@ def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     except FileNotFoundError as e:
         raise RuntimeError(f"{argv[0]} not found or not executable: {e}") from e
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
+        raise CliOutcomeUnknown(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
     except ValueError as e:  # invalid UTF-8 in the peer's stdout/stderr
-        raise RuntimeError(f"{argv[0]} produced undecodable (non-UTF-8) output: {e}") from e
+        raise CliOutcomeUnknown(f"{argv[0]} produced undecodable (non-UTF-8) output: {e}") from e
     except OSError as e:
         raise RuntimeError(f"{argv[0]} could not be executed: {e}") from e
 
@@ -160,15 +165,75 @@ def _run(argv: list[str]) -> str:
     return proc.stdout
 
 
-def _looks_like_symbol_id(value: str) -> bool:
-    """A resolved SymbolId reference, never a bare name (the silent-fan-out scar).
-    Real estate SymbolIds carry scheme+path structure — e.g.
-    ``ts-javascript . . . index/decodeHtmlEntities().`` (the live format) or a
-    ``sym::a::b`` synthetic id — so they contain a structural separator a bare
-    identifier never does (``::``, the ` . . . ` scheme marker, or a path ``/``)."""
-    if not isinstance(value, str) or not value.strip():
-        return False
-    return "::" in value or " . . . " in value or "/" in value
+def annotate_row(symbol_id: str, type: str, key: str, value: str,
+                 confidence: float | None = None, provenance: str | None = None,
+                 replace: bool = True, author: str | None = None) -> dict:
+    """Build the annotation row shared by direct clients and queued pages."""
+    row = {"op": "annotate", "symbol": symbol_id, "type": type, "key": key,
+           "value": value, "replace": bool(replace)}
+    if confidence is not None:
+        row["confidence"] = float(confidence)
+    if provenance:
+        row["provenance"] = provenance
+    if author:
+        # The seat that stated it: wicked-core's corroboration counts extractor SEATS by
+        # annotation author (never provenance), so two seats agreeing read as two sources.
+        row["author"] = author
+    return row
+
+
+def semantics_row(symbol_id: str, requirement: str, validated: bool,
+                  validated_by: str = "extract-loop") -> dict:
+    """Build a requirement row with its validator named."""
+    return {"op": "semantics", "symbol": symbol_id, "requirement": requirement,
+            "validated": bool(validated), "validated_by": validated_by or "extract-loop"}
+
+
+class BatchOutcomeUnknown(RuntimeError):
+    """A write-batch whose commit cannot be told from its reply (killed at its time bound, or a
+    reply counting other rows): the page may be in the store, so it is never "nothing written"."""
+
+
+class PageWrites:
+    """Queue a page's writes and verify its annotations after the batch commits."""
+
+    def __init__(self, estate):
+        self.estate = estate
+        self.rows: list[dict] = []
+        self.expectations: list[tuple[str, str, str | None]] = []
+        self.written = False
+        self.uncertain = False  # the batch ran but its outcome is unknown
+
+    def __getattr__(self, name):
+        return getattr(self.estate, name)
+
+    def annotate(self, symbol_id: str, type: str, key: str, value: str,
+                 confidence: float | None = None, provenance: str | None = None,
+                 replace: bool = True, author: str | None = None) -> None:
+        self.rows.append(annotate_row(symbol_id, type, key, value, confidence, provenance,
+                                      replace, author))
+
+    def set_requirement(self, symbol_id: str, requirement: str, validated: bool,
+                        validated_by: str = "extract-loop") -> None:
+        self.rows.append(semantics_row(symbol_id, requirement, validated, validated_by))
+
+    def expect(self, sid: str, key: str, value: str | None = None) -> bool:
+        self.expectations.append((sid, key, value))
+        return True
+
+    def flush(self, read_back) -> None:
+        """One estate transaction for the page, then every recorded read-back. An empty page
+        touches nothing, so it never counts as written."""
+        try:
+            self.estate.write_batch(self.rows)
+        except BatchOutcomeUnknown:
+            self.uncertain = True
+            raise
+        self.written = bool(self.rows)
+        for sid, key, value in self.expectations:
+            if not read_back(sid, key, value):
+                raise RuntimeError(
+                    f"write not durable: {sid} missing annotation {key} on read-back")
 
 
 def _read_output_json(out: str, cmd: str) -> Any:
@@ -192,15 +257,14 @@ def _read_output_json(out: str, cmd: str) -> Any:
 # --- estate (the frozen read/write surface, CLI-backed) ----------------------
 
 class CliEstateClient:
-    """Shells ``wicked-estate`` for the six-method estate surface. Same interface
+    """Shells ``wicked-estate`` for the estate read and write surface. Same interface
     as ``_mocks.EstateClient`` so the workers are unchanged.
 
     Reconciles four mock/CLI mismatches the recon flagged:
       * ``resolve`` returns an object array -> extract each ``.symbol_id`` (mock
         returned a bare ``list[str]``); ``--file`` is EXACT path equality.
-      * ``annotate`` ALWAYS passes ``--symbol`` (a bare name fans out to every
-        search hit) and ALWAYS ``--replace`` (the CLI defaults to APPEND, which
-        would stack duplicate rows across re-index runs).
+      * ``annotate`` passes ids through ``--symbol`` for estate to check against its
+        nodes, and defaults to ``--replace`` to avoid duplicate rows across runs.
       * ``set_requirement`` routes to the ``semantics`` subcommand (node_semantics),
         NOT ``annotate``.
       * every op threads ``--db`` so writes + the later ``wicked-core`` read hit
@@ -270,7 +334,7 @@ class CliEstateClient:
         hits = _run_json(argv)
         # `resolve --json` emits a JSON ARRAY of hit objects (possibly empty). A
         # non-list shape is a contract break — fail loud, NOT a fail-open [] that
-        # looks like "zero hits" and lets a downstream write silently no-op.
+        # looks like "zero hits" and hides a broken resolve contract.
         if not isinstance(hits, list):
             raise RuntimeError(
                 f"wicked-estate resolve returned {type(hits).__name__}, expected a "
@@ -281,47 +345,68 @@ class CliEstateClient:
     def annotate(self, symbol_id: str, type: str, key: str, value: str,
                  confidence: float | None = None, provenance: str | None = None,
                  replace: bool = True, author: str | None = None) -> None:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name fans "
-                "out to EVERY search hit (the duplicate-Charge scar); resolve() first"
-            )
-        argv = self._argv("annotate", "--symbol", symbol_id, "--type", type,
-                          "--key", key, "--value", value)
-        if confidence is not None:
-            argv += ["--confidence", repr(float(confidence))]
-        if provenance is not None:
-            argv += ["--provenance", provenance]
-        if author:
-            # The seat that stated it: wicked-core's corroboration counts extractor SEATS by
-            # annotation author (never provenance), so two seats agreeing read as two sources.
-            argv += ["--author", author]
-        if replace:
-            argv.append("--replace")  # else the CLI APPENDs (stacks duplicates)
+        row = annotate_row(symbol_id, type, key, value, confidence, provenance, replace, author)
+        argv = self._argv("annotate", "--symbol", row["symbol"], "--type", row["type"],
+                          "--key", row["key"], "--value", row["value"])
+        if "confidence" in row:
+            argv += ["--confidence", repr(row["confidence"])]
+        if "provenance" in row:
+            argv += ["--provenance", row["provenance"]]
+        if "author" in row:
+            argv += ["--author", row["author"]]
+        if row["replace"]:
+            argv.append("--replace")
         _run(argv)
 
     def set_requirement(self, symbol_id: str, requirement: str,
                         validated: bool, validated_by: str = "extract-loop") -> None:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing set_requirement on non-SymbolId {symbol_id!r} — a bare "
-                "name is a silent no-op in estate; resolve() first"
-            )
-        # node_semantics (requirement/validated), a SEPARATE subcommand from annotate. estate
-        # >= 0.30 refuses `--validated` without `--validated-by` (who made the claim), so every
-        # write names its validator — a usage error here used to abort the whole pass on its first
-        # node.
-        _run(self._argv("semantics", symbol_id, "--requirement", requirement,
-                        "--validated", "true" if validated else "false",
-                        "--validated-by", validated_by or "extract-loop"))
+        row = semantics_row(symbol_id, requirement, validated, validated_by)
+        _run(self._argv("semantics", row["symbol"], "--requirement", row["requirement"],
+                        "--validated", "true" if row["validated"] else "false",
+                        "--validated-by", row["validated_by"]))
+
+    def write_batch(self, rows: list[dict]) -> dict:
+        """Write one page through estate's transaction and require its row count."""
+        if not rows:
+            return {"rows": 0, "annotations": 0, "replaced": 0, "semantics": 0}
+        # A cleanup failure after the call must not hide a committed page.
+        with tempfile.TemporaryDirectory(prefix="wicked-domain-batch-",
+                                         ignore_cleanup_errors=True) as tmp:
+            path = Path(tmp) / "writes.ndjson"
+            path.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+            # Estate's commit is its last fallible step, so its own non-zero exit (a refused row
+            # says "...; nothing was written") means nothing was committed. Killed (at the time
+            # bound or by a signal) or with a reply that is not its count, it may have committed.
+            argv = self._argv("write-batch", str(path), "--json")
+            try:
+                proc = _invoke(argv)
+            except CliOutcomeUnknown as e:
+                raise BatchOutcomeUnknown(str(e)) from e
+        if proc.returncode < 0:
+            raise BatchOutcomeUnknown(
+                f"{argv[0]} write-batch was killed by signal {-proc.returncode}")
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"{argv[0]} exited {proc.returncode}: {proc.stderr.strip() or proc.stdout.strip()}")
+        out = proc.stdout
+        try:
+            reply = json.loads(out)
+        except json.JSONDecodeError:
+            reply = None
+        if isinstance(reply, dict) and reply.get("rows") == len(rows):
+            return reply
+        lines = out.strip().splitlines()
+        if lines and lines[0].startswith("wicked-estate ") and "usage" in lines[0].lower():
+            # An estate without write-batch prints its usage banner for the unknown command and
+            # exits 0, having written nothing.
+            raise RuntimeError(
+                f"wicked-estate write-batch did not report {len(rows)} written row(s): this estate "
+                f"has no write-batch (it printed its usage); wicked-estate 0.35.9 or later has it")
+        raise BatchOutcomeUnknown(
+            f"wicked-estate write-batch did not report {len(rows)} written row(s): "
+            f"{out.strip()[:200]!r}")
 
     def read_annotations(self, symbol_id: str) -> list[dict[str, Any]]:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing read_annotations on non-SymbolId {symbol_id!r} — the "
-                "positional form name-SEARCHES and would silently miss a SymbolId; "
-                "resolve() first"
-            )
         # MUST use `--symbol` (not the positional `<name>` form, which name-searches
         # and returns an ARRAY of per-symbol objects — a SymbolId there matches
         # nothing and yields [] silently). `--symbol` returns the single-symbol shape

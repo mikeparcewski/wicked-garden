@@ -59,6 +59,7 @@ schema wins.
 | `disposition_reason` | string | **MANDATORY when `disposition == "drop"`** (schema if/then). A reason-less drop is NOT honored by the coverage gate. |
 | `merged_programs` | string[] | optional |
 | `corroboration` | object | optional (1.1.0), **computed by core, never asserted by a worker**: `{status: validated\|unconfirmed, sources, call_sites, tests, docs, extra_extractors, why?: {code, text}}`. `validated` at 2+ independent sources; `unconfirmed` carries why (`unindexed_file`, `dead_code`, `config_only`, `single_caller`, `test_only`, `doc_only`, `extractors_only`). |
+| `business_domain` | object | optional (1.1.0, bundle 1.3.1): `{id, name, confidence}`, the repository business domain the requirement's rule picked from the catalog (`metadata.business_domains[]`: `{id, name, purpose, requirements, directories}`). Read by core from the code node's `business_domain` annotation, which the host's `extract-apply` writes after checking the catalog's code evidence (the `wicked-garden-domain-modeler` skill's "Business domains" section). The requirement's key keeps its package directory. |
 
 ## Rule (`business_rules[]`) — `required: ["id","statement","confidence","provenance"]`
 

@@ -2,7 +2,494 @@
 
 ## [Unreleased]
 
+## [12.68.5] - 2026-11-22
+
+Patch release on the train-11 cut d093a838, carrying 13 PRs since 12.68.4: #1500, #1501, #1505, #1506, #1507, #1508, #1510, #1512, #1515, #1516, #1517, #1518, #1520.
+
 ### Added
+
+- pack check: spec-2 editors may declare `description` and `visuals` (icon, color, preview, live), checked the way crew reads them. A malformed value is a PK089 warning, never a refusal, and `editor install` stages the declared images. (#1357) (#1515)
+- The `acme-terms` sample pack has a real editor (reads, lists banned-term hits, contributes checks, points, replaces in one version) that passes every conformance case, and `docs/extending.md` has an authoring guide that walks it. Crew's install of a pack with skills or blocks is tracked in wicked-crew#1703. (#1338) (#1515)
+- **Editor install:** the dry-run plan names what each editor and run plugin asks to do (`asks`), so the install consent can show it (wicked-crew#1424). (#1517)
+
+### Changed
+
+- Editor conformance case 7: click data-wicked-reveal toggles first (refs studio#1214). (#1500)
+
+### Fixed
+
+- editor-scaffold: the template's `host.hello` handshake now requires `e.source === parent` and protocol `v === 1`, so a scaffolded editor passes its own security review (#1354). (#1501)
+- **demo:** the storyline check refuses `"in": "content"` on a page app whose probe found no frame inside the page, naming the field and saying to drop `"in"`, instead of the take failing `app_not_ready` after a 60 s wait. The probe verdict now carries `frames` for a page app. (#1463) (#1505)
+- **Editor conformance (case 18):** an editor that renders the artifact in a nested sandboxed frame now passes "shows the content it is handed". The case reads the editor frame and its visible nested frames (3 deep, 16 frames at most) and records each frame it did not read and why. A protocol-2 editor is judged on its full surface (its card when it declares no full), not the settings-only options instance. (#1504) (#1506)
+- **Business domains: a bad evidence row drops that row, not the catalog; backfill finishes on assignment-only pages; extraction frames only what the requirements share counts (#1453, #1447, #1450, #1454).** (#1507)
+  - A business-domain evidence item the code does not show is dropped and reported. The catalog is refused only below 3 domains, and `--check-rules` names the bad item on the page.
+  - At the target, requirements without a domain get assignment-only pages. The first catalog is stored exclusively.
+  - Refresh and the assign backfill skip units core leaves out: test dirs, e2e test dirs, and estate `stub`/`data`/`test_support` units.
+  - `extract-apply` takes the extract seat from the engine's `WICKED_UPSTREAM_AGENTS` once core sets it (#1364).
+- Changed: on a domain-extraction page with nothing to extract, the extractor writes an empty rules file instead of none, which the engine now requires from every page (wicked-core#1232). (#1508)
+- **mem**: a governed run with no project now uses the run's project, else the checkout's own name, else none. Before, it filed and recalled memories under the directory above the checkout (`repos`) (#1373). A no-repo run's default recall scope is its run project (#1336). `ingest` accepts `{"title", "path"}` for binary documents, which estate converts, and reports estate's refusal reason. mem-ingest uses vision for images only (#1462). (#1510)
+- editor conformance: the runner serves the candidate exactly as crew serves a third-party editor (the WebRTC prelude, hash-only plus inline-only script policies, no URL frames, at most 200 inline scripts), and any script the browser refuses fails case 9 (r1 for a run plugin). Cases 10 and 11 measure from a CDP isolated world, so an editor cannot answer them by replacing DOM functions. (#1384, #1420) (#1512)
+- A seat's jam says it is one model's view; the pointer label avoids app text (#1513, #1514). (#1516)
+- **Editor install:** a permission the install itself grants (such as `mcp.session`) is listed as the grant it is, not among the permissions you allow later in Plugins (wicked-crew#1424). (#1518)
+- **mem:** a no-project run's memory proposal, made from the run's worktree, names the repository in `facets.project` and `facets.repo` instead of the run id. On the k8s floor the worktree's `.git` is a plain directory, so the worktree now resolves to its repository by the engine's `wicked-worktrees/<run id>` layout (#1519). (#1520)
+
+## [12.68.4] - 2026-11-20
+
+Patch release on main 27a4ff62, carrying 13 PRs since 12.68.3: #1474, #1481, #1483, #1484, #1486, #1489, #1490, #1491, #1494, #1495, #1496, #1498, #1499. The estate shim now refuses a graph read with nothing behind it and tells a failure from an empty answer (#1481, #1483, #1491, #1494), which 12.68.3 does not have.
+
+### Changed
+
+- **CI: the selftest pin moves to wicked-ci 3bd45ae (the advisory verdict now concludes, wicked-ci#76/#81).** The selftest job grants `checks: write` so the called workflow can publish its verdict check run; the advisory job still never blocks a merge.
+
+### Fixed
+
+- **Demo review sheets include mid-chapter holds (garden#1464).** Contact sheets can sample the longest freeze midpoints alongside regular timestamps, and the recorder writes `review/survey.png` with both. Missing ffmpeg or ffprobe reports `COULD-NOT-RUN`; a review that cannot generate a needed sheet never passes.
+
+- **Estate relay failures report unavailability and keep diagnostics per thread (garden#1492, #1493).** Unreachable relays make Python `search` / `context` raise `EstateUnavailable` and their CLI actions exit 1 with the reason. Unresolved relayed targets name the run's graph answered by crew, without a local `--db` remedy. Local spawns use UTF-8 with replacement; both local transports preserve governed refusals, and failure and broker-refusal state are thread-local. Relay `call` refusals keep their exit-0 contract, and hooks remain silent and fail-open.
+
+- **Estate shim failures stay distinguishable from empty answers (garden#1480, #1479, #1473, #1476).** Startup failures report the last stderr line, Python graph reads refuse an unpinned store at the shared RPC boundary, and `search` / `context` raise `EstateUnavailable` on failure. CLI calls report tool errors with their diagnostics and reject unknown keys with the `arguments` spelling; unresolved targets name the searched store and the index or pin remedy. Low-level Python calls remain fail-open with `last_failure()` details.
+
+- **estate shim: team mode with no store URL refuses a graph read too (garden#1482).** #1478 left the team profile
+  to estate whenever no `--db` was forwarded, so `WICKED_RUNTIME=team` with no `WICKED_STORE_URL` still answered
+  `{"matches": []}`. The team exemption now needs a non-blank `WICKED_STORE_URL`; without it the read is refused like
+  local mode, and the reason names both fixes (pin the graph, or set `WICKED_STORE_URL`). Team mode with a URL is
+  unchanged. The search skill says so.
+
+- **estate shim: a code-graph read with no graph behind it is refused, never answered empty (garden#1478).** With
+  no graph pinned (no `--db`, no `WICKED_ESTATE_DB`, no `./.wicked-estate/graph.db`), or a pin naming a file that does
+  not exist, estate's read-only MCP serves an empty store, so `search` said `{"matches": []}` and `BlastRadius` said
+  0 dependents for symbols that exist. `search`, `context`, `stats` and `call` with a graph tool (SearchEntity,
+  RetrieveEntity, TraverseGraph, Path, BlastRadius, FetchContent, ContextBundle, RulesInventory, rules.recall,
+  RankHotspots, Communities, Lineage, SemanticSearch) now answer `{"ok": false, "reason": …}` naming the fix: pin
+  `--db` to the repository's code graph (wicked-crew's `code_graph_db`). `WICKED_HOME` alone pins the memory and
+  knowledge stores, not the graph. Memory and knowledge reads, `:memory:` / `scheme:` pins and calls relayed through
+  crew's broker are unchanged, and so is the team profile (`WICKED_RUNTIME=team`, whose store estate names itself). A pin
+  that can't be checked (an unreadable directory) is refused too, never a crash. `mode` now reports `graph` and
+  `graph_refusal`. The module's Python API is not covered yet (garden#1479).
+- **QE: an engine-run review never fails on a leftover manifest (garden#1469).** `qe accept --phase
+  evidence` writes no `manifest.json` (the public manifest is built only by step 6, after the verdict)
+  and deletes one left in the dir; inside a governed run it writes into exactly the `--resume <dir>`
+  the engine hands over, deleting only a leftover of its own (no `scenario_evidence`, status missing or
+  `running`, or no verdict). In an engine-run review (`WICKED_QE_REVIEW_SESSION` set) the acceptance
+  reviewer no longer validates such a leftover and never goes INCONCLUSIVE because of it, and a dir
+  with no `test-plan.md` is judged against the scenario's assertions, manifest or not. A manifest with
+  `scenario_evidence`, or a terminal one, is still a campaign bundle with every duty.
+
+### Merged since the last release (from each pull request's changelog entry)
+
+- **Memory recall and sources exclude legacy working-tier session-goal captures (garden#1475, #1477).** Empty memory results explicitly report "no stored memory matches"; estate ranking/floor is a follow-up.
+
+- docs: `docs/seat-limits.md` lists the sandbox limits a governed seat should expect, per role, and rule A7 points at it (#1488).
+
+- Editor conformance case 7 now types into and blurs a `data-wicked-save` input, textarea or contenteditable and expects exactly one write; a marked button is still clicked.
+
+- **A studio chat answer carries no notes about the seat itself (#1406, #1484).** Rule A9 of the governed worker now also rules out which skills it loaded or did not re-invoke, how a result reached it, and what its instructions describe; the one-line 'what could not be checked' stays. Governed units keep their output contract.
+
+- **The prompt hook no longer saves a session's first two prompts as active memory (#1485, #1486).** `_capture_session_goal` is deleted: those captures bypassed the approve queue and filled recall with raw task text. Existing captures are not erased here.
+
+- **Rule A7 no longer asks seats to propose sandbox facts or run verdicts (#1487, #1489).** A7 now asks for a check of this repository that failed on the repository's own setup, a trap in the repository's own tools, or an operator rule that holds beyond the run; a limit of the seat's own sandbox and a verdict on this run are listed under 'Not a memory'.
+
+## [12.68.3] - 2026-11-14
+
+Patch (#1467): the domain extraction client accepts every ADR-002 SymbolId wicked-estate emits (local, file,
+synthetic, global), so ids such as `db2 synthetic CARDDEMO.AUTHFRDS:` are written instead of refused, and still
+refuses bare names and malformed ids before any CLI call. crew's garden floor stays 12.68.0.
+
+### Fixed
+
+- **Domain extraction accepts estate SymbolIds and rejects malformed ids (#1465).** The client's guard checks the four ADR-002 forms (local, file, synthetic, global), including non-empty local file/id components and complete global descriptors, so `db2 synthetic CARDDEMO.AUTHFRDS:` and similar ids are written instead of refused. The four ADR-002 forms are treated as alternatives, so a Global id whose scheme or package manager looks like another form's marker (`file . . . src/main/run().`, `scip-x local pkg 1.0 a/b().`) is accepted, and a Local id whose id part ends in a `#` sigil (`ts-ruby local lib/account.rb#save#`) is accepted by trying every `#` split. Bare names and malformed ids are refused before any CLI call, with a message that says it would be a silent no-op. The mock client shares the one check.
+
+## [12.68.2] - 2026-11-12
+
+Test-suite fix (#1460): the default suite installs nothing from the network. The only shipped change is internal:
+`scripts/loom/compose.py` and `scripts/loom/gate.py` resolve their default command runner when called rather than when
+defined, so tests can stub it. Commands, arguments and output are unchanged.
+
+### Fixed
+
+- **The default test suite no longer installs from the network (#1457).** Loom compose/doctor tests use stubbed runners and probes, and phase-manager tests disable the external bus fallback. A POSIX-only recording guard refuses npm/npx/pip/pip3 calls outside a short allow-list of read-only/local forms and fails the session on recorded refusals. The guard is off on Windows and with `WICKED_GARDEN_E2E_NPM=1`.
+
+## [12.68.1] - 2026-11-12
+
+Test-suite fix only (#1458): the build-guide and walkthrough tests run offline and without `.git`. No skill, hook,
+script or agent changed; the published plugin behaves as 12.68.0.
+
+### Fixed
+
+- **The build-guide pytest tests no longer need pip or the network, and the tests that need git metadata skip without `.git` (wicked-garden#1445).** The `pytest-junit` test guide checks `python3 -c "import pytest"` instead of `pip install pytest`; the shipped `pytest-short-summary` seed is unchanged (it still installs pytest for the repos it ships to), and the tests that rehearse it use a copy whose install step is that same import check. Those rehearsals need pytest >= 9 (the seed's `--force-short-summary`; pytest 8 exits 4), so they skip with that reason on an older pytest. `test_every_run_and_verdict_garden_writes_carries_the_stamp`, `test_repo_not_modified_by_walkthrough_run`, `test_the_live_tree_is_clean` and `test_there_is_no_env_switch_that_lifts_the_guard` skip with a reason when the checkout has no `.git`; the last also fails now when `git grep` itself errors instead of passing vacuously. The walkthrough tests' `wicked-ledger` install is now opt-in (`WICKED_GARDEN_E2E_NPM=1`) and skips on a timeout, so neither the build-guide nor the walkthrough tests install from the network by default.
+
+## [12.68.0] - 2026-11-12
+
+Governed seats pull steering rules instead of having them pushed (#1455). Minor: governed-worker E7 changes how an
+evaluator reads a rule. **Pairs with wicked-crew 0.18.11**, the first crew whose broker answers `rules.recall` from
+the run's judged rule set; an older crew's broker answers it from the run's code graph, which holds no steering
+rules, so E7 records each rule as `UNASSESSED`. crew 0.18.11 requires this garden.
+
+### Changed
+
+- **Evaluators pull each steering rule's statement before judging it.** wicked-crew's run brief now names the rules
+  in force by id, severity and a short one-liner, with the command that reads the whole statement (wicked-crew,
+  ctx-pull). governed-worker E7 spells that command
+  (`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"rules.recall","arguments":{"ids":["<id>"]}}'`)
+  and says a rule whose statement cannot be read is `RULE <id>: UNASSESSED`, never N/A or KEPT, and never guessed from
+  its id.
+
+### Fixed
+
+- **`rules.recall` in a governed unit reads the rules the run is judged on.** The estate shim sends it to crew's
+  broker on every governed seat, host seats included, as it does the knowledge reads: crew answers the rules in force
+  for the run's project, the set its rule judge reads. A host seat used to ask its pinned store, the run's code graph,
+  which holds no steering rules, so a seat could not read a rule it was asked to check. Without the broker channel the
+  call answers nothing and says why; it is never answered from the local store.
+
+## [12.67.0] — 2026-11-11
+
+Minor: requirements carry a business domain proposed from code evidence; the rule extractor states what the code
+does; a governed builder records its stack check on one citable line. The `business_domain` annotation is read into
+`requirement.business_domain` by wicked-core-ts 0.15.39 or later (wicked-core#1425); an older core ignores it.
+
+### Added
+
+- **Requirements get a business domain, not just a directory.** A requirement's domain was its package directory,
+  which fit a product owner's view on 57% of the rows measured on AutoGPT. Now the first page of a domain-extraction
+  run proposes the repository's business domains (3 to 9 areas named for what the code does for its users, each with
+  a one-line purpose and the entry points, routes, CLI verbs or public-API nouns that show it), and every rule picks
+  one with a confidence; requirements an earlier map resolved are assigned on the next page. `extract-apply` refuses a
+  catalog whose evidence is not a tracked file or a symbol in the code graph, a domain named after a directory, a
+  second catalog for the same repository, picks outside the catalog and assignments to anything but a resolved
+  requirement. It stores the catalog beside the code graph and writes each pick as a `business_domain` annotation,
+  which wicked-core's `domain-graph` reads into `requirement.business_domain`. Requirement keys do not change. The
+  `domain-modeler` skill says how to propose and assign, and the extractor's seat text and rule-model prompt carry the
+  domain list. The vendored domain-model schema is re-synced to bundle 1.3.1 (the two new optional fields).
+
+### Fixed
+
+- **A governed builder writes its stack check on one line the rule judge can cite (wicked-core#1381).** The
+  governed-worker floor's C8 now asks a code-writing step for one exact output line, `STACK-CHECK: looked at <docs
+  or source> :: offers <what it provides for this job, or nothing this change needs>`, and the output contract
+  names it. E5 asks an evaluator of code to record its own check the same way, because wicked-core's POL-2101
+  record clause now accepts the reviewer's recorded check when the creator's output has none. Before this, a builder
+  did the check and wrote no sentence a judge could cite, so POL-2101 broke on the record alone. Tests pin the
+  wording.
+- **The domain rule extractor states what the code does, not what a comment says.** Both the bounded rule model's
+  prompt and the `domain-extractor` seat instructions now take the statement from the unit's body (its values,
+  limits, defaults and what it does with each parameter); a disagreeing comment, docstring or parameter name never
+  sets it. `code_meets: false` needs a test or a caller showing the intended behaviour, never a comment alone, and an
+  abstract method or stub takes an empty statement. Tests pin the wording in both texts.
+
+## [12.66.1] — 2026-11-08
+
+Patch: a run plugin made from the scaffold shows its whole section as soon as it opens.
+
+### Fixed
+
+- **A run plugin's first height reaches the host** (editor-scaffold run-plugin, CS7). The scaffold's ResizeObserver
+  runs before `host.hello`, so it remembered a height it could not send, and the report right after hello looked
+  unchanged and was dropped: the section stayed at its minimum until the content changed size. The scaffold now
+  measures nothing before hello and reports its height right after it. A node-driven test covers the order.
+
+## [12.66.0] — 2026-11-08
+
+Minor: drafts that answer an RFP or rework your own documents with every statement traced to its source; third-party
+run plugins in editor packs; the learn skill's report mode for sourced reports; drafts that keep process notes out
+and keep your edits on a refine; editor conformance cases 7 and 18; and fixes to domain mapping and Refresh map.
+
+### Added
+
+- **Draft: Respond and Rework, with every statement traced to its source** (DES-CATALOG-002 CS5, garden half). Two
+  new kinds for `wicked-garden-draft`. **Respond** answers an RFP, RFI or questionnaire item by item, in order, citing
+  the ask and your material for each answer; an item your material does not cover says so plainly instead of being
+  invented or left as a placeholder (`refs/respond.md`). **Rework** makes a new document from your source documents
+  (condense, re-audience, generalize, convert, refresh) and never adds a fact (`refs/rework.md`). Eight Kind rows
+  route to them, and their runs re-check every statement against the sources.
+- **Third-party run plugins (`plugins[]` in `wicked-pack.json` spec 2, protocol 3; DESIGN §2.b, CONTRACT-CS7)**:
+  `schemas/wicked-pack.schema.json` and `scripts/pack/check.py` validate `plugins[]` (`observe[]` `wicked.run.*`
+  topic patterns, `panels[]`, `visuals`, `samples`, one id namespace with `editors[]`, `permissions` refused);
+  `scripts/editor/scaffold.py --kind run-plugin` scaffolds a protocol-3 run-plugin pack; `scripts/editor/install.py
+  --plan` lists each plugin's `observe` topics and reasons; `scripts/editor/conformance.py` adds `RUN_PLUGIN_CASES`
+  (`r0-manifest`..`r5-hash-pinned`), `RUN_TOPICS` sample generation, pure verdict functions, and the report's
+  `plugins` array; and `skills/editor-scaffold/refs/run-plugin.md` documents the run-plugin contract.
+
+- **`wicked-garden-learn` report mode: the skill side of the `sourced-report` workflow** (DES-CATALOG-002 rev 8
+  §2.d, seam CS3). Six job cards (Research, Competitive, Due diligence, Analyze documents, Critique, Estimate)
+  share one read-only workflow, and a brief line (`Lens: <lens>.`) picks the report's shape from
+  `skills/learn/refs/report-<lens>.md`. Report mode is learn without the walkthrough and the write-up: it reads the
+  staged documents, the job's picked sources and the web, and changes nothing.
+  - **The packet** (`refs/report-claims.md`): a source log `S1..Sn` (a fetched page with its URL, title and fetch
+    time; a staged file with its quote and page; a repository file with its line and quote; a source call with
+    the arguments to repeat it), claims `C1..Cn` that each cite source ids, the web's state, and the report.
+  - **The web** is reached only through the job's crew `web` source, so each fetch time comes from that source.
+    When the job did not pick the web, or it is not available, the report says so and goes on with the rest. It
+    stops only when nothing is readable, and never answers from memory.
+  - **Documents:** Due diligence and Analyze documents refuse without them; Critique and Estimate take them
+    optionally (operator ruling 5).
+  - **The fidelity check** (`refs/report-check.md`, the `fidelity` action) runs on a seat that did not gather. It
+    re-checks every claim at its source, removes what does not hold, and fails the run when any claim does not
+    hold, so a person sees the findings.
+  - **The floor** (`scripts/learn/report_check.py`, read-only): `preflight` refuses a documents-required lens with
+    no documents (exit 3). `check` fails:
+    - an unsourced claim, or a source id the log does not hold;
+    - a URL the log does not hold, or one not written as `<url>` or `[title](url)` (URLs are read exactly);
+    - a file not staged, or a quote not in its file's text (a file resolving outside its folder is never read);
+    - a web source when the web was not available;
+    - a stop while something is readable;
+    - a report that cites an unknown claim or leaves one uncited.
+
+    A malformed packet gets findings or exit 2, never a traceback.
+
+### Changed
+
+- **The docs give the one command that installs wicked-estate** (first-run walk-through). The README and
+  `docs/required-peers.md` now say `npx wicked-installer install wicked-estate`, which downloads the prebuilt,
+  sha256-verified `wicked-estate` and `wicked-estate-mcp` binaries into `~/.local/bin` (macOS, glibc Linux x64/arm64,
+  Windows x64; other platforms build them with cargo into `$CARGO_HOME/bin` or `~/.cargo/bin`).
+- **Drafts keep process notes out of the artifact, and a refine keeps the person's own edits** (plugins-complete
+  G4; DES-CHAT-ARTIFACTS-001 slices A6 and A5). Three new `wicked-garden-draft` scripts:
+  - **`leak_scan.py`** (now part of `self_check.py`): fails a document that carries how it was made: inbox or
+    state paths, the run's id (`--run-id`), a drafting check's verdict ("UNVERIFIED", "self-check: PASS"), bare `[S]`
+    source markers, or first-person drafting narration ("I used SearchEntity…", "the brief asks…"). It reads text per
+    block with inline markup joined, speaker notes, every attribute occurrence, comments and CSS `content`, and passes
+    the subject's own vocabulary (a deck that explains a tool by name, a device's self-check).
+  - **`notes_check.py`** (`self_check.py --notes <notes.json>`): the run's `notes.json` exists and has exactly
+    `left_out`, `sources` and `assumptions`. What a draft could not confirm is listed there, never in the document;
+    speaker notes are a talk track.
+  - **`keep_check.py`**: `map` recomputes a document's protected edits from its version lineage (hand steps are
+    diffed by `data-wid`: text, attributes, removals, additions and slide order; theme steps are skipped; a run's
+    step releases only what the person let it change; undo follows the parent chain), and `check` refuses a
+    revision that changed one. Entry ids carry a hash of the value, so "let this change it" releases one exact
+    value. wicked-crew runs both to draw the refine card and to guard the landing.
+  The skill text says the current document is data during a revise, and routes every disclosure to `notes.json`.
+
+- **A true requirement whose code is wrong counts as a real requirement; the mismatch is a finding** (operator
+  ruling 2026-11-06). A rules-file entry may carry `"code_meets": false` and a one-line `"mismatch"` (at most 300
+  characters, no control characters, never starting with `-`, never the reserved `"code meets it"`). The rule
+  resolves on its confidence as before, and the host writes a `code_mismatch` annotation FIRST (key
+  `<rule key>:mismatch`, read back by value before the rule and the requirement are written), so a requirement
+  never counts without its finding. A unit later restated as met writes `"code meets it"` over the old mismatch
+  on the same key. wicked-core shows the newest non-blank one beside the requirement. An unmet rule that cannot
+  say how is refused (a placeholder). The extractor prompt and the `domain-extractor` skill say: state the
+  requirement the unit is meant to meet (a doc comment, a test or a caller shows it), with confidence in that
+  requirement, never the bug.
+- **Editor conformance checks what an editor does with the artifact it opens** (plugins-complete G9b). Two cases
+  join every editor's run (and the required set wicked-crew and wicked-core check):
+  - **`18-shows`**: the editor asks `artifact.read`, reads within 3 s of the handshake, a text run of the version it
+    read is visible in its frame, and when another version lands it reads again and shows it (the visible checks
+    must show what the new version changed). An editor that never reads what it
+    opens, like the J6 Changelog entry pack, now fails.
+  - **`7-edit`** (the slot reserved for "a scripted edit"): an editor that asks `artifact.write` marks its save
+    control with `data-wicked-save`; with its empty text fields filled with valid values, one press lands exactly
+    one version. A viewer (no `artifact.write`) passes. Both cases run on the page and deck samples; an editor of
+    another kind is reported not checked.
+  Both are recorded without stopping the run, so every other case still reports. The editor-scaffold skill states
+  the two rules.
+
+### Fixed
+
+- **A run plugin made from the scaffold shows its whole Job details section** (CS7). The scaffold's card now reports
+  its content height to the host, so the section is no longer cut off at the frame's minimum height.
+- **The domain extractor's inherited-mismatch example no longer states a direction (e2e-1105).** It said mean
+  "is too low" because `sum` skips the first element, which is wrong when that element is negative
+  (mean([-2,4]) gives 2, not 1); a run's critique caught the extractor copying it. The example now says the
+  numerator omits the first element, and the skill says to describe how the code departs, not which way the
+  result is off.
+- **The domain extractor records an inherited mismatch and edits its rules file with the file tools (e2e-1105).**
+  Two misses repeated in every run:
+  - The first pass missed mean's inherited mismatch: mean's own code is right, but it relies on `sum`, which skips
+    the first element. The skill now says a unit whose intent is shown (by a doc comment, a test or a caller) and
+    whose result is wrong because a callee departs inherits that mismatch: mark it `code_meets: false`, with a
+    mismatch naming the callee. A unit whose intent is unclear still gets no mismatch.
+  - The rework edited `rules.json` with an inline `python3 - <<…`, which the seat's input governance refuses. The
+    skill no longer says "a helper that writes the file is fine". It says to create and change the file with the
+    file write and edit tools, never an inline interpreter.
+- **Re-mapping a map that is already current finishes instead of failing (e2e-1105 F42).** `extract-prepare`
+  framed an empty page ("0 unmapped … 0 changed since the map was built"), the extract step rightly wrote no
+  `.wicked/domain/rules.json`, and `extract-apply` refused ("the extract step left no rules file"), which raised a
+  "step failed" gate. Apply now reads the run's host-side generation record, which prepare already writes beside
+  the store, and never reads the worklist the seat can rewrite. Prepare marks the page it frames as open
+  (`page_open`, cleared when `extract-next` closes it). When this pass's page is open and framed no units, apply
+  writes no rule and applies no rules file, even one an earlier page left in the worktree. It publishes
+  `coverage-report.json` and the apply report (`nothing_to_extract: true`) and says "map already current at
+  <commit>; nothing to extract". It says "current" only when every behaviour is a real requirement and the map
+  was built at the commit the store is indexed at; otherwise it says what is left, or that freshness could not be
+  told. A missing rules file is still refused for a page that framed units, for a page `extract-next` already
+  closed (a coverage send-back's rework), for a record written before the marker, and outside a run.
+- **Refresh map reads the store estate actually writes (e2e-1105 F40).** `refresh.py` queried
+  `meta(key, value)`, but estate's table is `meta(k, v)`. The error was caught and read as "the store records no
+  indexed commit", so a Refresh re-asked nothing, and the map it then rebuilt read as current while `sum` kept its
+  stale "code doesn't meet it". The refresh now reads `meta(k, v)`: the singular `repo_commit`, or
+  `repo:<label>:commit` when the store holds exactly one labelled repository. In each of these cases it fails
+  `extract-prepare` and names the cause, never "no commit":
+  - a store it cannot read (a missing table or column, a non-text value, a build record or commit that does not
+    parse);
+  - a recorded pair of commits the checkout cannot compare (a shallow clone, a rewritten history);
+  - a labelled store with a map: its node paths carry the label, which the mapping steps do not translate. The tests now run on a store real estate built (`tests/domain/fixtures/refresh/`, made by
+  `build.py` with wicked-estate 0.32.1 and wicked-core). The hand-built test stores carry estate's real
+  `meta(k, v)`.
+- **A rework restates a unit the run already applied (e2e-1105, run 672b5c14).** The coverage review sent the run back
+  for mean's inherited mismatch after the page was applied. The extractor added it, but `apply_rules.py` refused mean
+  because it was already resolved, so the finding never reached the store, and the next review passed on the rules
+  file alone. Apply now also accepts the units this run itself framed (its generation record's visited and pending
+  units, host-side), and, as for changed units, only a restatement that resolves is written. The apply report counts
+  them as `reworked`.
+
+- **domain-extraction: Refresh map re-asks the mapped behaviours whose code changed since the map was built**
+  (wicked-garden#1425). `prepare_worklist.py` compares the build's code commit (wicked-core#1327) with the commit the
+  store is indexed at (the run's base) in the registered checkout, and frames the mapped behaviours in changed
+  product files after the unmapped ones and the placeholders, marked `changed_since_build` with their earlier
+  statement. The generation record keeps that set, so `apply_rules.py` accepts those units. A restatement that
+  resolves replaces the rule and writes "code meets it" over a stale mismatch, while anything less keeps the
+  rule, so a real requirement is never degraded. `next_page.py` keeps paging while changed behaviours are left,
+  even at the minimum, under the same budget ask. A map built by an older wicked-core has no code commit, so
+  nothing is re-asked and the step says so.
+
+- **An evaluator judges the change, not the code it did not touch** (wicked-core#1339). `wicked-garden-governed-worker`
+  E7 now says that a change breaks a rule when it introduces or activates the break, by what it adds, modifies,
+  deletes or renames, including through code it did not touch. A break that existing code already had is
+  `N/A — pre-existing: <file:line> is not in this change`. That is a note, never a Critical or a FAIL. A
+  domain-extraction page that wrote only its rules file had been failed on a JSDoc rule broken by the repository's
+  existing functions, which cost the person three answers.
+
+- **"Lower the minimum" restates the page's apply report** (wicked-core e2e F29). After the person lowers a
+  repository's coverage minimum, `next_page.py` rewrites the worktree's `.wicked/domain/apply-report.json`
+  (`minimum_met`, `coverage_line`, `coverage`, plus `lowered_to`) from a fresh `wicked-core coverage` against the
+  lowered minimum, keeping only the page's own short counts (the report is seat-writable). The report
+  `extract-apply` wrote before the answer said "minimum 80%, not met", and the coverage step's judge read it as
+  evidence against the run. It is restated whenever the repository's own target is in force (a retried answer
+  restates it again), and left alone when no share could be lowered to. A report that cannot
+  be read or written safely (a link, not a file, not JSON, over 1 MiB, nested too deep) is left alone and the step
+  says so; the lowered target stands either way.
+- **A Demo video of a normal app now records cleanly on the first take** (DES-DEMO-RECORD-001 §13 A1, e2e F10).
+  - **Ready before it is filmed.** Each chapter gets ready behind its chapter card: the page goes network-quiet,
+    then the storyline's `ready` target and the chapter's first target are visible (up to 60 s each). Only then
+    does the card lift. When getting ready takes longer than the card's usual hold, the extra time is cut from the
+    video. Those frames all show the card, and `record.json` reports the cut per chapter as `load_cut_s`.
+  - **Chrome stays out of the picture.**
+    - A crew app is filmed in its own frame only. Studio's banners, chat and sidebar are hidden by the recorder,
+      so each target in a crew-app storyline is `"in": "content"`, and the check refuses one that is not.
+    - The take fails if the app's own frame does not fill the window, checked at every checkpoint.
+    - Any app can list chrome to hide in the new `hide` field. Each entry is one CSS selector, added as one rule
+      of a constructed style sheet.
+    - `record.json` says which view was filmed (`view`) and lists any hide selector that did not parse
+      (`hide_invalid`).
+  - **Optional steps.** A `click`, `point` or `waitVisible` may be `"optional": true`.
+    - If its target is not there within 5 s, or its action fails within that time, it is skipped and listed in
+      `skipped_steps`. A failed take lists its skips and cuts too.
+    - A refused request, leaving the app, or a stalled capture still fails the take.
+    - A required step that fails names itself (`storyline.segments[i].steps[j] (verb target)`), even when the
+      failure is redacted.
+
+## [12.65.1] — 2026-11-06
+
+Patch: no machine-specific paths or local usernames in the package or the repository.
+
+### Fixed
+
+- **The npm package no longer ships the dev plans.** `docs/plans/` joins the dev artifacts in `.npmignore`, beside
+  `.product/` and `evidence/`; nothing at runtime reads them. The two 2026-06-10 codegraph plans name the wicked-brain
+  checkout as `~/Projects/wicked-brain` instead of an absolute home path, and the AW-25 run-terminal evidence record
+  writes its home directory as `~/`. Twelve more evidence records under `evidence/aw25-golden/chain/` and
+  `evidence/th6-dod/` (never in the package) no longer carry a local username inside a scratch-directory name or the
+  machine's host name. Seven `.wicked-vault` entries record `created_by` as the GitHub handle instead of a local
+  username (outside the envelope hash, so every entry still verifies).
+
+## [12.65.0] — 2026-11-06
+
+Minor: the garden side of the catalog by verb (DES-CATALOG-002 lane B, #1409): `wicked-garden-classify` catalog mode,
+`wicked-garden-engineering` `release` and `scaffold`, and `wicked-garden-draft` kinds, which pair with wicked-crew
+0.17.1's catalog v2; the garden half of the engine-run demo recorder (#1415, wicked-core#1249), whose engine and crew
+halves are not released yet; and `search` never certifies an unresolved target's empty answer as complete (#1414).
+Docs and skill wording for 12.64 (#1400) and a site re-pin (#1411).
+
+### Added
+
+- **Editor conformance on the host: `conformance.py --engine` (e2e F18, DES-EDITOR-CONFORMANCE-HOST).** The garden
+  half of moving an editor-plugin run's conformance cases out of the review seat, which has no headless browser, so
+  the review could never pass. wicked-core runs this mode as the workflow's `conformance` step, in an OS jail whose only
+  network is the script's own loopback port. Every input comes from the environment the engine sets: the run's
+  worktree (the ONE editor pack under it, with no link on the way to its manifest or entries), the port, crew's studio
+  dist (never the daemon), and the out file. It refuses to run without the jail. A non-ok report carries a `cause`:
+  `case_failed` or `pack_invalid` is a verdict on the pack; any other cause kept the cases from running. Engine mode always
+  re-executes under `$WG_EDITOR_CONFORMANCE_PYTHON` (wicked-crew's private Playwright venv) with `-I` and never
+  probes PATH; a hand run considers that interpreter first when its own cannot import Playwright. Each editor's report carries its `protocol`. The editor-scaffold skill's build and
+  test steps cite the engine's record instead of running the harness in the seat. The run's pack search moved to
+  `_pack.find_editor_packs`, which `install.py --from-run` shares.
+- **The engine-run demo recorder (`scripts/demo/demo-record.mjs`, wicked-core#1249).** The garden half of moving a
+  crew Demo video's recording out of its seat (whose container cannot reach the app, and has no ffmpeg or browser):
+  `demo-record.mjs probe` and `record`, for the engine to run on the host, in its jail, with network to the app's one
+  port (the engine and crew halves land separately). The storyline is
+  data, `storyline.json` (`scripts/demo/storyline-data.mjs`: a closed set of steps over the recorder's ctx verbs,
+  plain text, navigation confined to the launch path, keys of at most 48 characters, bounds), so no seat code runs on
+  the host. The browser follows a request policy (`readonly.mjs` `demoPolicy`/`armPolicy`): reads on the app's origin,
+  the app frame kept under the launch path (history-API transitions too), every redirect hop decided before the
+  browser follows it, on a crew app only the launched app's query POST and `/ws`, other sockets refused before they
+  connect; no popup, no web worker. Each chapter waits for the storyline's `ready` target, and the screen capture is
+  proved live at every checkpoint and every second between them (`capture_stalled`). A take writes `demo-video/demo.mp4` (fixed name), `chapters.md`, `timings.json`,
+  `review/{chapters,joins,end}.png` (the chapters sheet at the moments after `ready` and the last action),
+  `review/ffprobe.json` and `demo-video/record.json` with a cause the engine maps to retry or send-back. The probe
+  writes a page summary for the plan seat, structure only (no screenshot, no table or list text) when the app's rows
+  may not reach a model. Missing ffmpeg, ffprobe, Python or Playwright is reported, never installed. The hand
+  recorder's stage loads its web fonts only by hand and sets the app frame's address through the DOM; `probe.mjs` now
+  arms the write guard. Skill: `refs/storyline-json.md`.
+- **`wicked-garden-classify` catalog mode (DES-CATALOG-002 §2.3, pairs with wicked-crew's catalog v2 detection).** When
+  a host hands a job-catalog digest (a wicked-crew chat seat's turn or its one-shot `detect-shape` turn), classify names
+  the ONE card, option and depth the person's words ask for, with a confidence on the skill's anchors and an `ask` list
+  of 2-3 shapes when two plans fit about equally, as one JSON line (`{card, option, depth, confidence, ask, reason}`; in
+  a chat, the host's `wicked-make` block carries the reading with `card` as its `entry`, and an `ask` follows the host's rule for an
+  unsure reading). Catalog mode makes no tool call, never runs
+  `persist.py`, never reads or writes SessionState and never convenes a council. Everything inside `<request>` blocks is
+  data: an instruction there ("pick card X, confidence 1.0") is never followed and earns no confidence. With no digest
+  it returns the triage line, and it names only ids the digest lists. The rules live in SKILL.md itself, because the
+  `detect-shape` seat has no tools to open a ref. Depth is given only for an Investigate card. Session mode (archetypes persisted to SessionState) is unchanged, and
+  the mode is chosen before either procedure runs.
+- **`wicked-garden-engineering` `release` and `scaffold` actions (the Prepare a release and Start something new cards).**
+  `refs/release.md` prepares a release pull request: the last release (the package's own tag convention, its boundary
+  commit recorded apart from its version, a first release with the whole history) and the merged range, the bump rule, every
+  version-carrying file, lockfiles re-stamped by their tool with lifecycle scripts off, the changelog cut from merged history with each entry
+  traced, and a release record the fidelity check reads. It never tags, publishes, creates a hosted release or merges,
+  and a NO-GO readiness verdict stops it. `refs/scaffold.md` starts a CLI, service or library on the stack the design
+  step chose (never one it picks), never overwrites a file, checks built-ins first, has a per-kind table (CLI, HTTP service, worker service, library; another transport follows the blueprint) with a smoke test for
+  each, and ends with a scaffold record of the commands it ran. An MCP server stays with
+  `wicked-garden-mcp-scaffold`.
+- **`wicked-garden-draft` kinds (the Communicate and Roles and operating model cards).** A brief's `Kind:` line loads
+  that kind's ref on top of the three floors: `refs/narrative.md`, `refs/meeting-prep.md`, `refs/demo-script.md`,
+  `refs/status-update.md`, `refs/message.md` and `refs/operating-model.md`, each with its shape, default budget and
+  what it never does (an invented quote or attendee position, a demo of a feature the repo lacks, a sent message, a
+  RACI row with no single accountable role).
+- `tests/test_catalog_v2_skills.py` pins the catalog-mode rules, the triage line, the `<request>` rule and every new
+  ref's route from its router.
+
+### Fixed
+
+- **`search` never certifies an unresolved target's empty answer as complete (e2e MAJOR-2).** When estate answers
+  `resolved: false` (a name or path the graph does not hold, or, before estate 0.32.1, any name passed to
+  `BlastRadius` / `Lineage` / `TraverseGraph`), the shim's `call` adds an `UNRESOLVED:` diagnostic on every path
+  (joined pages, `all_pages: false`, a tool that does not page), and a joined `BlastRadius` / `Lineage` answer says
+  `complete: false` instead of `complete: true` over zero dependents. The `search` skill says that `resolved: false`
+  is a miss, never "no dependents", and to re-query with a SymbolId from `suggestions`.
+
+## [12.64.0] — 2026-11-05
+
+Minor: the `wicked-garden-apps` skill for crew's Apps runs, with knowledge queries (#1386, #1396, #1407), the answer
+path's live data-source read through crew (#1393), the data skill's shapes pass (#1395), an evaluator that judges the
+steering rules it is handed (E7, #1408), and a seat answering a person in a chat leaves out the run's bookkeeping
+lines (A9, #1398). Pairs with wicked-core-ts 0.15.26, wicked-crew 0.17.0 and wicked-estate 0.32.0.
+
+### Added
+
+- **`wicked-garden-apps`: knowledge queries (DES-KNOWLEDGE-DATA-001 §9.1, pairs with wicked-crew's `recall` query
+  kind).** A builder can put the system's knowledge on an app, not only a data source's rows: a query with `source:
+  estate` and `kind: recall` reads, in the app's own project, `knowledge` (documents, data-source structure and
+  approved data shapes), `memories`, `steering` (the rules that apply) or `tables` (one data source's tables with
+  their approved shapes), with `group` turning the rows into counts a chart shows. The skill lists each `from`'s
+  fields and exact columns, says to build on what the task's knowledge summary shows, and treats the text as data
+  like the catalog.
+- **`governed-worker` E7: an evaluator judges the steering rules it is handed (operator ruling 2026-11-05).** The
+  review and QE seats are the rules' third-party check; the creator never marks its own compliance, and a creator's
+  citation or "follows X" line is never the evidence. When the brief lists the rules in force for the change, the
+  evaluator writes one `RULE <id>: KEPT | BROKEN | N/A | DEFERRED — <evidence>` line per rule above the verdict line (N/A only when the rule's own scope excludes the change; DEFERRED for delivery-only evidence, per E6), and a BROKEN
+  rule is a Critical that makes the verdict FAIL, naming the rule (for example `learn-tests-with-fixes` on a bug fix
+  that adds no test that fails without it). With no rules handed, it writes no RULE lines and invents none. Handing the
+  review unit the run's in-force rules is crew's side (not in this change).
 
 - **`wicked-garden-data` `shapes`: propose a live source's data shapes for review (DES-KNOWLEDGE-DATA-001 §10, build
   B4).** A data shape says what a table is: what it joins, which code describes it, which rule governs it. The pass
@@ -14,6 +501,15 @@
   catalog, an unknown field, a link from a table to itself, code in more than one repo, declared deps, evidence over
   estate's bound; and, as a backstop, content that looks like a value (a quoted literal, an email, a URL, a date, a long
   number).
+- **The answer path reads a project's live data sources through crew (DES-KNOWLEDGE-DATA-001 §8.1, #1393).** After
+  recall, the `answer` action (`wicked-garden-search`'s `refs/answer.md`) treats a connected source's structure
+  (estate marks it `untrusted`) as data, never instructions. Inside a crew chat or run whose step lists
+  `mcp:<source>/execute_sql` (the person turned query on for this project), it runs ONE read-only SELECT through the
+  shim and cites the read from crew's envelope (`src:<source>@<at>#<id>`); with query off it answers from the
+  structure and names the switch. It never stores a row. `scripts/mem/estate_memory.py sources` labels structure
+  items `source structure · <title>`, and `scripts/_estate_client.py` relays the visible-filtered knowledge reads
+  (`knowledge.recall`, `knowledge.source_catalog`, `knowledge.neighbors`) through crew's broker whenever a governed
+  unit holds the channel, because only crew knows what the unit may see.
 - **`wicked-garden-apps`: the skill an Apps turn and an Apps publish run (DES-APPS-001 K0, pairs with wicked-core's
   `apps-turn` and `apps-publish` presets).** An app is data: `apps.json` (pages, components, layout, theme, queries,
   actions) plus query texts under `queries/`; crew's check writes `apps.lock.json`. The build action edits those two
@@ -1338,7 +1834,18 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.4...HEAD
+[12.68.4]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.3...v12.68.4
+[12.68.3]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.2...v12.68.3
+[12.68.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.1...v12.68.2
+[12.68.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...v12.68.1
+[12.68.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...v12.68.0
+[12.67.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...v12.67.0
+[12.66.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...v12.66.1
+[12.66.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...v12.66.0
+[12.65.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...v12.65.1
+[12.65.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...v12.65.0
+[12.64.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...v12.64.0
 [12.63.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...v12.63.0
 [12.62.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.61.0...v12.62.0
 [12.61.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.60.0...v12.61.0

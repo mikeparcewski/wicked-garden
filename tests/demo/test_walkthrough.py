@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -85,16 +86,21 @@ def _write_story(sl: Path, text: str) -> None:
 
 @pytest.fixture(scope="session")
 def session_ledger(tmp_path_factory):
-    """Install wicked-ledger once for the session; return NODE_PATH value (or skip)."""
+    """Install wicked-ledger once for the session (opt-in: WICKED_GARDEN_E2E_NPM=1); return NODE_PATH or skip."""
+    if os.environ.get("WICKED_GARDEN_E2E_NPM") != "1":
+        pytest.skip("needs the npm registry: set WICKED_GARDEN_E2E_NPM=1")
     if shutil.which("npm") is None:
         pytest.skip("npm not installed")
     ledger_dir = tmp_path_factory.mktemp("ledger_modules", numbered=False)
     ver = _ledger_version()
-    r = subprocess.run(
-        ["npm", "install", "--prefix", str(ledger_dir), "--ignore-scripts",
-         f"wicked-ledger@{ver}"],
-        capture_output=True, text=True, timeout=180,
-    )
+    try:
+        r = subprocess.run(
+            ["npm", "install", "--prefix", str(ledger_dir), "--ignore-scripts",
+             f"wicked-ledger@{ver}"],
+            capture_output=True, text=True, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip("npm install wicked-ledger timed out")
     if r.returncode != 0:
         pytest.skip(f"npm install wicked-ledger failed: {r.stderr[-500:]}")
     node_modules = ledger_dir / "node_modules"
@@ -1307,6 +1313,8 @@ def test_console_error_before_first_check_makes_guard_fail(tmp_path):
 
 
 @needs_node
+@pytest.mark.skipif(not (ROOT / ".git").exists(),
+                    reason="needs the checkout's .git metadata (git status of the repo is the oracle)")
 def test_repo_not_modified_by_walkthrough_run(tmp_path):
     """Walkthrough must not write any files into the garden repo (e.g. no vault leak).
 
@@ -2172,6 +2180,97 @@ export default {
     assert out.returncode == 0, out.stderr
     assert json.loads((root / "result.json").read_text())["cause"] == "fixture_unavailable"
     assert json.loads((root / "data" / "progress-at-ready.json").read_text()) == {"state": "starting_app"}
+
+
+def _port_tree(tmp: Path) -> tuple[Path, str]:
+    """The fixture tree plus `mark.mjs`, a start script that records the PORT it was spawned with
+    (synchronously, before anything else) and then serves app.mjs on it."""
+    repo, _ = _make_tree(tmp)
+    (repo / "mark.mjs").write_text(
+        'import fs from "node:fs";\n'
+        'import path from "node:path";\n'
+        'fs.writeFileSync(path.join(process.env.DATA_DIR, "spawned.txt"), String(process.env.PORT));\n'
+        'await import("./app.mjs");\n'
+    )
+    env = {**os.environ, "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "t@t",
+           "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "t@t"}
+    subprocess.run(["git", "add", "mark.mjs"], cwd=repo, check=True, env=env)
+    subprocess.run(["git", "commit", "-q", "-m", "mark"], cwd=repo, check=True, env=env)
+    out = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                         capture_output=True, text=True, check=True, env=env)
+    return repo, out.stdout.strip()
+
+
+def _origin_story(sl: Path) -> None:
+    """A storyline whose ready() hook waits for the fixture to answer at the origin the recorder hands
+    it, writes that origin, then stops the take (no browser or encoder needed)."""
+    _write_story(sl, """import fs from "node:fs";
+import path from "node:path";
+export default {
+  title: "Port",
+  fixture: {
+    start: ["node", "mark.mjs"],
+    ready: async (origin) => {
+      const deadline = Date.now() + 20000;
+      for (;;) {
+        try { if ((await fetch(origin + "/ready")).ok) break; } catch { /* not up yet */ }
+        if (Date.now() > deadline) throw new Error("the fixture never answered at " + origin);
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      fs.writeFileSync(path.join(process.env.WICKED_EVIDENCE_ROOT, "data", "origin.txt"), origin);
+      throw new Error("stop here: the test only wants the origin");
+    },
+  },
+  segments: [{ key: "01-first", title: "First", checks: [{ id: "g", kind: "guard" }], async run(ctx) { await ctx.check("g"); } }],
+};
+""")
+
+
+@needs_node
+def test_record_serves_the_fixture_on_the_port_the_engine_reserved(tmp_path):
+    """core#1297: the engine's jail opens one loopback port, handed over as WICKED_WALKTHROUGH_PORT;
+    the fixture is spawned with PORT=<that port> and answers there, not on a port of the recorder's
+    choosing."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _port_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _origin_story(sl)
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = _wt_env(root, tree, repo, WICKED_WALKTHROUGH_PORT=str(port))
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=90)
+    assert out.returncode == 0, out.stderr
+    assert (root / "data" / "spawned.txt").read_text() == str(port)
+    assert (root / "data" / "origin.txt").read_text() == f"http://127.0.0.1:{port}", (
+        json.loads((root / "result.json").read_text())
+    )
+
+
+@needs_node
+@pytest.mark.parametrize("bad", ["0", "65536", "80a", "-1", " 8080"])
+def test_record_refuses_an_engine_port_that_is_not_a_port(tmp_path, bad):
+    """core#1297: a WICKED_WALKTHROUGH_PORT that is not a TCP port is refused by name before the
+    fixture is spawned (the jail would refuse a guessed port anyway); result, progress and seal agree."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _port_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _origin_story(sl)
+    env = _wt_env(root, tree, repo, WICKED_WALKTHROUGH_PORT=bad)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=90)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["overall"] == "INCONCLUSIVE" and result["cause"] == "fixture_unavailable", result
+    assert "WICKED_WALKTHROUGH_PORT" in result["reason"], result
+    assert [c["verdict"] for c in result["chapters"]] == ["INCONCLUSIVE"], result
+    progress = json.loads((root / "progress.json").read_text())
+    assert progress["overall"] == "INCONCLUSIVE" and progress["cause"] == "fixture_unavailable", progress
+    seal = _parse_seal(out.stdout)
+    assert seal.get("overall") == "INCONCLUSIVE" and seal.get("cause") == "fixture_unavailable", seal
+    assert not (root / "data" / "spawned.txt").exists(), "the fixture must never be spawned"
+    assert not (root / "data" / "origin.txt").exists()
 
 
 @needs_recorder

@@ -90,6 +90,8 @@ def test_the_fixture_origin_is_a_loopback_http_origin_or_it_is_refused():
 
 
 @needs_node
+@pytest.mark.skipif(not (ROOT / ".git").exists(),
+                    reason="needs the checkout's .git metadata (git grep searches tracked files)")
 def test_there_is_no_env_switch_that_lifts_the_guard():
     got = json.loads(_node(
         "import * as m from './readonly.mjs';"
@@ -101,6 +103,7 @@ def test_there_is_no_env_switch_that_lifts_the_guard():
     for sub in ("scripts", "skills", "tests", "docs"):
         assert (ROOT / sub).is_dir(), sub  # a negative grep over an absent path proves nothing
         hits = subprocess.run(["git", "grep", "-l", name, "--", sub], cwd=ROOT, capture_output=True, text=True)
+        assert hits.returncode in (0, 1), hits.stderr  # 1 is "no match"; anything else is git failing
         assert hits.stdout == "", f"{name} still named in {hits.stdout}"
 
 

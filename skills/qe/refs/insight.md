@@ -144,4 +144,5 @@ commands are now questions you ask it (routing per the dispatch table above):
 manifest building. Import-style snippets above must run where the package
 resolves: the target project's `node_modules` (`npm i --no-save wicked-ledger`)
 or any directory with it installed. The pinned range lives in
-`.claude-plugin/plugin.json` → `wicked_ledger_version`.
+`.claude-plugin/plugin.json` → `wicked_ledger_version`
+(`wicked-garden path .claude-plugin/plugin.json` prints where it is on any host).
