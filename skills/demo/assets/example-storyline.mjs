@@ -44,7 +44,7 @@ export default {
       intro: true,
       async run(ctx) {
         await ctx.card(`<div data-logo></div><h1>From request<br>to <span>resolution</span>.</h1>
-<p>Acme Console reads every request, checks it against your records and prepares the next step. People approve every change.</p>
+<p>Every request gets checked against your records, with the next step ready for you. You still approve every change.</p>
 <div class="meta"><b>Recorded live</b><b>Synthetic data</b></div>`, 6000);
       },
     },
@@ -52,17 +52,17 @@ export default {
     {
       key: "01-dashboard",
       title: "Start of the day",
-      blurb: "The day starts ranked: what needs a decision, what's stuck, and what's new.",
+      blurb: "Sam's morning starts with what needs a decision, what's stuck and what's new.",
       tags: ["Dashboard", "Next actions"],
       persona: "Sam Rivera",
       async run(ctx) {
-        await ctx.caption("Start of the day", "The day starts ranked, not read",
-          "Sam doesn't open two hundred emails. The console has already sorted <em>what needs a decision and what's stuck</em>.");
+        await ctx.caption("Start of the day", "Here's what needs Sam first",
+          "Before he opens a single email, he can see <em>what needs a decision and what's stuck</em>. It's already sorted.");
         // Point at a KPI row: find one label, then its grid container.
         await ctx.point(ctx.app.getByText("Needs a decision", { exact: true }).locator("xpath=ancestor::*[contains(@class,'grid')][1]"),
-          "Live counts, one click to each list", { below: true, hold: 3800 });
+          "Click a count to open that list", { below: true, hold: 3800 });
         await ctx.unpoint();
-        await ctx.point(ctx.section("Your next actions"), "Ranked by urgency", { hold: 4000 });
+        await ctx.point(ctx.section("Your next actions"), "Most urgent at the top", { hold: 4000 });
         await ctx.unpoint();
       },
     },
@@ -74,11 +74,11 @@ export default {
       tags: ["Search", "Knowledge"],
       async run(ctx) {
         // Caption first, short read time: the words change as the new screen arrives.
-        await ctx.caption("Search", "Find anything in one box", "Customers, requests and policy, ranked together.", 900);
+        await ctx.caption("Search", "Let's look something up", "You don't need to know where it lives. One box covers customers, requests and policy.", 900);
         const box = ctx.app.getByPlaceholder(/Search/);
         await ctx.type(box, "renewal policy for expired units");
         await box.press("Enter");
-        await ctx.point(ctx.section("Best match"), "The policy section, not just the page", { hold: 4200 });
+        await ctx.point(ctx.section("Best match"), "Here's the exact section you need", { hold: 4200 });
         await ctx.unpoint();
         await ctx.click(ctx.button(/^Knowledge\s*\d*/)); // a filter tab: role may be radio, so match by visible text
         await ctx.hold(2500);
@@ -87,13 +87,14 @@ export default {
 
     {
       key: "03-report",
-      title: "A report in a minute",
-      blurb: "A month-end report that used to take an afternoon, built while you watch, with every number traceable.",
+      title: "Build the month-end report",
+      blurb: "We build the month-end report while you watch, and you can trace every number back to the ledger.",
       tags: ["Long-running job", "Traceable numbers"],
       resets: ["REPORT-SEPT"],
       async run(ctx) {
         await ctx.go("/reports/REPORT-SEPT");
-        await ctx.caption("Reports", "Month-end, one click", "The job reads the ledger, reconciles it and drafts the summary.", 2600);
+        await ctx.caption("Reports", "Now let's build the month-end report",
+          "It has to match the ledger, so the draft you get is already checked against it.", 2600);
         // Writes: needs --fixture-origin naming a disposable app you started (see the header).
         // Register the wait before the click that triggers the POST, so a fast response can't be missed.
         const done = ctx.waitForPost(/\/api\/reports\/[^/]+\/build/);
@@ -101,8 +102,8 @@ export default {
         // Real wait: badge on screen, span compressed 8x in post, real seconds measured for the closing card.
         await ctx.time("Build report", () => ctx.fast("Building the report", 8, () => done));
         await ctx.hold(1500);
-        await ctx.caption("Result", "Every figure links to its source", "Open any number to see the ledger rows behind it.");
-        await ctx.point(ctx.section("Summary"), "Drafted, with sources", { hold: 4500 });
+        await ctx.caption("Result", "You can check every number", "Click any figure and you'll see the ledger rows it came from.");
+        await ctx.point(ctx.section("Summary"), "Each figure shows where it came from", { hold: 4500 });
         await ctx.unpoint();
       },
     },
@@ -110,12 +111,12 @@ export default {
     {
       key: "04-assistant",
       title: "Ask the assistant",
-      blurb: "Plain-language answers about this record, with the sources they came from and suggested next questions.",
+      blurb: "Ask about this request in plain words, and see where each part of the answer came from.",
       tags: ["Assistant", "Cited sources", "Suggestions"],
       resets: ["REQ-1042"],
       async run(ctx) {
         await ctx.go("/requests/REQ-1042");
-        await ctx.caption("Assistant", "Ask in plain language", "Suggested questions are tailored to the record.", 2400);
+        await ctx.caption("Assistant", "Just ask it", "Ask about this request the way you'd ask a colleague.", 2400);
         // Writes: needs --fixture-origin naming a disposable app you started (see the header).
         const answered = ctx.waitForPost(/\/chat$/);
         const starter = ctx.button(/^What is blocking this/);
@@ -141,10 +142,10 @@ export default {
     ].filter(Boolean).join("");
     return `<div data-logo></div><h1>How Acme Console <span>saves the day</span></h1>
 <ol>
-<li><b>01</b>A ranked day instead of an inbox</li>
-<li><b>02</b>One search across records and policy</li>
-<li><b>03</b>Month-end reports built in minutes</li>
-<li><b>04</b>Answers with their sources</li>
+<li><b>01</b>You see what needs you first</li>
+<li><b>02</b>You search records and policy from one box</li>
+<li><b>03</b>You can trace every number in the report</li>
+<li><b>04</b>Answers show where they came from</li>
 </ol><div class="meta">${chips}</div>`;
   },
 };

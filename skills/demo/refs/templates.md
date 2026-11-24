@@ -118,7 +118,8 @@ Short on time? <Which segments can be dropped and how the rest still flows.>
 <!-- Omit "Case" for read-only chapters and say "(read-only)" in the heading instead. -->
 
 1. **Click:** <what to open or press, exact UI labels in bold>.
-   **Say:** "<one or two sentences for the presenter>"
+   **Say:** "<one or two sentences, as you'd say them to a colleague: why before what, you and we, contractions.
+   Read it aloud; if you wouldn't say it at your desk, rewrite it.>"
 2. **Click:** **<Button>**. **Measured: <seconds> s** (<where measured: rehearsal / recording, date>).
 3. **The audience sees:**
    - **<Section label>**: "<key sentence as shown on screen>"

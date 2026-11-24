@@ -53,7 +53,8 @@ cut it and record the cut when expected; never invent a generic fact to take its
 `Kind: rework-convert.` changes to the requested form, such as deck, document or one-pager.
 Restructure the same sourced statements for that form: a slide needs a clear point, a document
 connected prose, a one-pager a tight hierarchy. Apply that form's own readability and page or slide
-budget floor. Speaker notes are a sourced talk track, not a place for extra facts or process notes.
+budget floor. Speaker notes are a sourced talk track in a person's voice (`refs/spoken-voice.md`), not a place for
+extra facts or process notes.
 
 ## Refresh
 

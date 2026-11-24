@@ -21,7 +21,7 @@ storyline at the plan gate; the recorder reads the approved copy, not your later
   "segments": [
     {"key": "01-board", "title": "The board", "blurb": "Where the day starts", "tags": ["read-only"],
      "steps": [
-       {"caption": {"kicker": "Board", "title": "Everything open, by region", "readMs": 3000}},
+       {"caption": {"kicker": "Board", "title": "Here's everything that's open, by region", "readMs": 3000}},
        {"point": {"target": {"section": "Open tickets"}, "label": "Open now"}},
        {"time": {"label": "load", "steps": [
          {"click": {"target": {"role": "tab", "name": "How it counts"}}},

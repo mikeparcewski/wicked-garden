@@ -29,7 +29,10 @@ brief's `Kind: demo script.` line selects this ref. The skill's three floors sti
 - **Real actions.** Name the exact button, menu item, field and input value, as the code or the
   running app spells them. Do not paraphrase a label.
 - **One path.** The happy path, with the fallbacks beside it. Branches belong in a second script.
-- **Say lines are spoken:** short sentences, no reading of the screen aloud.
+- **Say lines are spoken:** write them the way you'd talk a colleague through your screen, with
+  "you" and "we", contractions and the why before the what. No slogans, no reading the screen
+  aloud, no product as the subject of every sentence. Read each one aloud; rewrite any you
+  wouldn't say. Rules and before/after pairs: `refs/spoken-voice.md`.
 - **Sized:** no page budget unless the brief names one (self-check `--no-pages`); the time budget
   is the run of show's total.
 
