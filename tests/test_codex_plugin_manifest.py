@@ -335,7 +335,7 @@ def test_npm_package_ships_the_manifest_and_exactly_the_codex_skills():
                          capture_output=True, text=True, timeout=300, check=True).stdout
     files = {f["path"].replace("\\", "/") for f in json.loads(out)[0]["files"]}
     for required in (".codex-plugin/plugin.json", ".codex-plugin/mcp.json", "scripts/estate_mcp.mjs",
-                     ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
+                     ".claude-plugin/marketplace.json"):
         assert required in files, f"{required} is not in the npm package"
     shipped = {f for f in files if f.startswith("skills/") and f.endswith("/SKILL.md")}
     names, _ = codex_skill_names(REPO, [REPO / "skills"])
@@ -349,7 +349,7 @@ def test_npm_package_ships_the_manifest_and_exactly_the_codex_skills():
 @needs_node
 def test_sync_plugin_version_bumps_the_codex_manifest(tmp_path):
     for rel in ("package.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
-                ".codex-plugin/plugin.json", ".agents/plugins/marketplace.json"):
+                ".codex-plugin/plugin.json", ".claude-plugin/release-marketplace.json"):
         dest = tmp_path / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(REPO / rel, dest)
