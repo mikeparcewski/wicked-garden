@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectRevealed, clickCopyChip, hydrated } from './utils';
+import { expectRevealed, expectStageSettled, clickCopyChip, hydrated } from './utils';
 
 /**
  * Smoke coverage for the React islands mounted on index.astro (all
@@ -297,19 +297,8 @@ test('CopyChip: copying never moves or cuts the command', async ({ page }) => {
     for (const sel of ['#install .cc', '#hero .hs-foot .cc', '#graph .gx-patch .cc', '#extend .xp-cta .cc']) {
       const chip = page.locator(sel).first();
       await chip.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }));
-      // A section's stage plays its arrival entrance (translateY + scale .98 -> none, section-enter.ts) the
-      // first time it scrolls in. Measure only once it has settled: a box read mid-transition is a scaled box,
-      // and the next read differs by a pixel or two with no change from the chip.
-      await expect
-        .poll(
-          () =>
-            chip.evaluate((el) => {
-              const stage = el.closest('.sx-stage');
-              return !stage || (stage.getAnimations().length === 0 && getComputedStyle(stage).transform === 'none');
-            }),
-          { timeout: 10_000, message: `${sel} stage should finish its entrance before the chip is measured` },
-        )
-        .toBe(true);
+      // the first scroll to a chip is its stage's arrival: measure once the entrance has settled
+      await expectStageSettled(chip);
       const box = () => chip.locator('.cc-cmd').evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), cut: el.scrollWidth > el.clientWidth + 1 };
