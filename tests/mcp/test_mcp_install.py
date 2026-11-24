@@ -649,6 +649,9 @@ def test_a_choice_approved_with_no_cli_writes_none_after_an_installer_appears(ri
     assert rig.calls("wicked-installer") == [], "no CLI config the approved plan did not list"
     for field in ("clis", "operatorClis"):
         assert out[field].startswith("skipped: the approved install plan listed no CLI config"), out[field]
+        # garden#1543: the installer may already work (it appeared after the plan), so the remedy is a fresh plan.
+        assert out[field].endswith("To add the server to the CLIs: start the run again once wicked-installer "
+                                   "--version runs on this host (npm install -g wicked-installer@latest)"), out[field]
 
 
 def test_the_plan_lists_the_install_record_and_the_roll_back_copy(rig):
@@ -709,7 +712,7 @@ def test_a_relative_wicked_home_installs_to_an_absolute_launch_path(rig):
 
 NO_INSTALLER_CARD = ("wicked-installer is not installed on this host. To add the server to the CLIs: decline, "
                      "run npm install -g wicked-installer, then start the run again")
-NO_VERB_CARD = ("the installed wicked-installer is too old to add MCP servers. To add the server to the CLIs: "
+NO_VERB_CARD = ("the installed wicked-installer is too old to manage MCP servers. To add the server to the CLIs: "
                 "decline, run npm install -g wicked-installer@latest, then start the run again")
 
 
@@ -755,6 +758,19 @@ def test_the_uninstall_record_names_the_uninstall(rig):
     assert code == 0, out
     assert out["clis"] == ("skipped: wicked-installer is not installed on this host. To remove the server from the "
                            "CLIs: run npm install -g wicked-installer, then run the uninstall again")
+
+
+def test_the_uninstall_record_with_a_too_old_installer_names_the_uninstall(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        assert rig.run("--from-run", "--crew-url", daemon.origin)[0] == 0
+        daemon.routes[("DELETE", "/api/v1/mcp/servers/acme-notes")] = (200, {"ok": True})
+        code, out = rig.run("--uninstall", "acme-notes", "--crew-url", daemon.origin, STUB_INSTALLER_MODE="noverb")
+
+    assert code == 0, out
+    assert out["clis"] == ("skipped: the installed wicked-installer is too old to manage MCP servers. To remove the "
+                           "server from the CLIs: run npm install -g wicked-installer@latest, then run the uninstall "
+                           "again")
 
 
 def test_no_reason_asks_for_a_step_the_reader_cannot_rerun():

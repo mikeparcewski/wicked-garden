@@ -89,7 +89,7 @@ SKIPPED = "skipped: "
 # Each is (the reason, the fix). ``skip`` says it once, with a remedy the reader can act on where they read it
 # (garden#1543): the consent card offers no rerun of its own step, so the plan's remedy is decline, fix, start over.
 NO_INSTALLER = ("wicked-installer is not installed on this host", "run npm install -g wicked-installer")
-NO_VERB = ("the installed wicked-installer is too old to add MCP servers",
+NO_VERB = ("the installed wicked-installer is too old to manage MCP servers",
            "run npm install -g wicked-installer@latest")
 ON_PLAN = "To add the server to the CLIs: decline, {fix}, then start the run again"
 ON_INSTALL = "To add the server to the CLIs: {fix}, then install the server again"
@@ -618,8 +618,8 @@ def do_install(args) -> tuple[int, dict]:
         out["clis"] = "skipped: --cli none"
     elif args.no_cli:
         out["clis"] = (f"{SKIPPED}the approved install plan listed no CLI config (wicked-installer could not be "
-                       "asked when it was planned). To add the server to the CLIs: install wicked-installer, then "
-                       "start the run again")
+                       "asked when it was planned). To add the server to the CLIs: start the run again once "
+                       "wicked-installer --version runs on this host (npm install -g wicked-installer@latest)")
         if args.target == "operator":
             out["operatorClis"] = out["clis"]
     else:
