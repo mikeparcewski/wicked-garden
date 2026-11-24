@@ -214,6 +214,7 @@ describe("REST surface", () => {
 
   it("answers a thrown error as fastmcp's tool error, a UserError's extras as structuredContent, a timeout as 504", async () => {
     const config = restConfig();
+    const seen: AbortSignal[] = [];
     const app = serve(config, (server) => {
       defineTool(server, config, {
         name: "conflict",
@@ -237,8 +238,20 @@ describe("REST surface", () => {
         parameters: z.object({}),
         timeoutMs: 50,
         execute: async (_args, context) => {
+          seen.push(context.signal);
           await new Promise((resolve) => setTimeout(resolve, 2_000));
-          return context.signal.aborted ? "aborted" : "late";
+          return "late";
+        },
+      });
+      defineTool(server, config, {
+        name: "untimed",
+        description: "timeoutMs 0 is no timeout, as in fastmcp.",
+        parameters: z.object({}),
+        timeoutMs: 0,
+        execute: async (_args, context) => {
+          seen.push(context.signal);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return "done";
         },
       });
     });
@@ -250,7 +263,51 @@ describe("REST surface", () => {
     expect(await boom.json()).toEqual({ content: [{ type: "text", text: "Tool 'boom' execution failed: disk full" }], isError: true });
     const slow = await post(app, "/api/tools/slow", "{}");
     expect(slow.status).toBe(504);
-    expect(((await slow.json()) as { isError: boolean }).isError).toBe(true);
+    expect(await slow.json()).toEqual({
+      content: [{ type: "text", text: "Tool 'slow' timed out after 50ms. Consider increasing timeoutMs or optimizing the tool implementation." }],
+      isError: true,
+    });
+    expect(seen[0]?.aborted).toBe(true); // the tool's signal aborts at the timeout
+    const untimed = await post(app, "/api/tools/untimed", "{}");
+    expect(untimed.status).toBe(200);
+    expect(seen[1]?.aborted).toBe(false);
+  });
+
+  it("checks structured output as fastmcp does: a schema failure is a 422 tool error naming the issue", async () => {
+    const config = restConfig();
+    const out = z.object({ answer: z.number() });
+    const app = serve(config, (server) => {
+      const tool = (name: string, value: unknown, outputSchema: unknown = out) =>
+        defineTool(server, config, { name, description: name, parameters: z.object({}), outputSchema: outputSchema ?? undefined, execute: async () => value } as any);
+      tool("wrong", { answer: "x" });
+      tool("explicit_wrong", { content: [], structuredContent: { answer: "x" } });
+      tool("named_content", { content: ["hello"] }, z.object({ content: z.array(z.string()) }));
+      tool("bad_item", { type: "text" }, null); // no outputSchema
+    });
+    const wrong = await post(app, "/api/tools/wrong", "{}");
+    expect(wrong.status).toBe(422);
+    expect(await wrong.json()).toEqual({
+      content: [{ type: "text", text: expect.stringMatching(/^Tool 'wrong' structured output validation failed: answer: .+\. Please check the result matches the tool's outputSchema\.$/) }],
+      isError: true,
+    });
+    expect((await post(app, "/api/tools/explicit_wrong", "{}")).status).toBe(422);
+    expect(await (await post(app, "/api/tools/named_content", "{}")).json()).toEqual({
+      content: [{ type: "text", text: '{"content":["hello"]}' }],
+      structuredContent: { content: ["hello"] },
+    });
+    const bad = await post(app, "/api/tools/bad_item", "{}");
+    expect(bad.status).toBe(500);
+    expect(((await bad.json()) as { isError: boolean }).isError).toBe(true);
+  });
+
+  it("lists in the document only the tools the caller may run", async () => {
+    const config = restConfig();
+    const app = serve(config, (server) =>
+      defineTool(server, config, { name: "hidden", description: "Denied.", parameters: z.object({}), canAccess: () => false, execute: async () => "no" }),
+    );
+    const doc = (await (await app.request("/api/openapi.json", { headers: AUTH })).json()) as { paths: Record<string, unknown> };
+    expect(Object.keys(doc.paths)).toEqual(["/tools/echo"]);
+    expect((await post(app, "/api/tools/hidden", "{}")).status).toBe(404);
   });
 
   it("answers a UserError as 422 with the MCP tool-error result", async () => {

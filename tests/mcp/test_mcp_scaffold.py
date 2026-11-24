@@ -334,6 +334,7 @@ def _rest_journey(npm: str, built: Path, out: Path) -> None:
     """The `--rest` journey (garden#1339): scaffold with --rest, build and run the project's own
     suite, then the report's run line on a free port and its two smoke calls (document, tool).
     It reuses `built`'s node_modules: the two projects differ only in mcp-server.config.json."""
+    import shlex
     import time
     import urllib.error
     import urllib.request
@@ -349,14 +350,15 @@ def _rest_journey(npm: str, built: Path, out: Path) -> None:
         done = subprocess.run([npm, *step], cwd=out, capture_output=True, text=True, timeout=600,
                               env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
         assert done.returncode == 0, (step, done.stdout[-4000:], done.stderr[-4000:])
-    assert report["run"].startswith("MCP_TRANSPORT=httpStream node ")
+    # The report's run line itself: its leading VAR=value words are its environment.
+    words = shlex.split(report["run"])
+    run_env = dict(w.split("=", 1) for w in words if re.fullmatch(r"[A-Z_][A-Z0-9_]*=.*", w))
+    argv = [w for w in words if not re.fullmatch(r"[A-Z_][A-Z0-9_]*=.*", w)]
+    assert run_env == {"MCP_TRANSPORT": "httpStream"} and argv == ["node", str(out / "dist" / "server.js")]
     port, bearer = _free_port(), "e2e-rest-bearer"  # ggignore: a made-up local test bearer
-    child = subprocess.Popen(["node", str(out / "dist" / "server.js")], stdout=subprocess.DEVNULL,
-                             stderr=subprocess.DEVNULL, env={
-                                 **os.environ, "ACME_NOTES_TOKEN": "dummy", "MCP_TRANSPORT": "httpStream",
-                                 "MCP_PORT": str(port), "MCP_SERVER_BEARER": bearer})
+    env = {**os.environ, **run_env, "ACME_NOTES_TOKEN": "dummy", "MCP_PORT": str(port), "MCP_SERVER_BEARER": bearer}
+    child = subprocess.Popen(argv, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
     openapi = report["openapi"].replace(":8080/", f":{port}/")
-    base = openapi.rsplit("/", 1)[0]
     auth = {"Authorization": f"Bearer {bearer}"}
     try:
         doc = None
@@ -368,11 +370,16 @@ def _rest_journey(npm: str, built: Path, out: Path) -> None:
             except (urllib.error.URLError, ConnectionError):
                 time.sleep(0.25)
         assert doc is not None and doc["openapi"] == "3.1.0" and "/tools/echo" in doc["paths"]
-        assert report["smoke"][1].endswith(" http://127.0.0.1:8080/api/tools/echo")
-        call = urllib.request.Request(f"{base}/tools/echo", data=b'{"text":"hi"}', method="POST",
-                                      headers={**auth, "content-type": "application/json"})
-        with urllib.request.urlopen(call, timeout=10) as r:
-            assert json.loads(r.read()) == {"content": [{"type": "text", "text": "hi"}]}
+        # The report's two smoke lines, run as printed (only the port differs), with the bearer
+        # in the environment by name.
+        answers = []
+        for line in report["smoke"]:
+            done = subprocess.run(["bash", "-c", line.replace(":8080/", f":{port}/")], capture_output=True,
+                                  text=True, timeout=30, env=env)
+            assert done.returncode == 0, (line, done.stderr[-2000:])
+            answers.append(json.loads(done.stdout))
+        assert answers[0] == doc
+        assert answers[1] == {"content": [{"type": "text", "text": "hi"}]}
         with pytest.raises(urllib.error.HTTPError) as refused:
             urllib.request.urlopen(urllib.request.Request(openapi), timeout=5)
         assert refused.value.code == 401

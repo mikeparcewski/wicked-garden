@@ -12,6 +12,7 @@
 import { randomUUID } from "node:crypto";
 import { UserError, type FastMCP } from "fastmcp";
 import { bearerMatches, type Session } from "./auth.js";
+import { getLogger } from "./logging.js";
 import type { ServerConfig } from "./config.js";
 import { RateLimited, REST_SESSION, TimedOut, type CatalogEntry, type StandardSchema } from "./tools/registry.js";
 
@@ -28,22 +29,47 @@ export interface CallToolResult {
   [key: string]: unknown;
 }
 
+function issuePath(path: ReadonlyArray<PropertyKey | { key: PropertyKey }> | undefined): string {
+  return (path ?? []).map((p) => String(typeof p === "object" ? p.key : p)).join(".");
+}
+
+/** A content item MCP can carry: an object with a string `type`, and a string `text` on text. */
+function isContentItem(item: unknown): boolean {
+  if (typeof item !== "object" || item === null) return false;
+  const { type, text } = item as { type?: unknown; text?: unknown };
+  return typeof type === "string" && (type !== "text" || typeof text === "string");
+}
+
+/** fastmcp's structured-output check: a UserError naming each issue as `path: message`. */
+async function structured(name: string, outputSchema: StandardSchema, value: unknown): Promise<unknown> {
+  const checked = await outputSchema["~standard"].validate(value);
+  if (checked.issues === undefined) return checked.value;
+  const issues = checked.issues.map((i) => `${issuePath(i.path) || "root"}: ${i.message}`).join(", ");
+  throw new UserError(`Tool '${name}' structured output validation failed: ${issues}. Please check the result matches the tool's outputSchema.`);
+}
+
 /**
  * A tool's return value as fastmcp's tools/call handler carries it: nothing is `content: []`, a
- * string one text item, a `{content}` result itself, a value with an `outputSchema` its JSON as
- * text plus `structuredContent`, a content item (`{type}`) one item. Anything else throws, as it
- * fails fastmcp's own result check (a tool error over both surfaces).
+ * string one text item, a `{content}` result itself (with an `outputSchema`, only when every item
+ * is a content item; its `structuredContent` is checked), a value with an `outputSchema` its JSON
+ * as text plus `structuredContent`, a content item (`{type}`) one item. Anything else throws, as
+ * it fails fastmcp's own result check (a tool error over both surfaces).
  */
-export async function toCallToolResult(value: unknown, outputSchema?: StandardSchema): Promise<CallToolResult> {
+export async function toCallToolResult(name: string, value: unknown, outputSchema?: StandardSchema): Promise<CallToolResult> {
   if (value === undefined || value === null) return { content: [] };
   if (typeof value === "string") return { content: [{ type: "text", text: value }] };
-  if (typeof value === "object" && Array.isArray((value as { content?: unknown }).content)) return value as CallToolResult;
-  if (outputSchema !== undefined) {
-    const checked = await outputSchema["~standard"].validate(value);
-    if (checked.issues !== undefined) throw new Error("the result does not match the tool's outputSchema");
-    return { content: [{ type: "text", text: JSON.stringify(checked.value) }], structuredContent: checked.value };
+  const content = typeof value === "object" ? (value as { content?: unknown }).content : undefined;
+  if (Array.isArray(content) && (outputSchema === undefined || content.every(isContentItem))) {
+    if (!content.every(isContentItem)) throw new Error("the result holds an item that is not MCP content");
+    const result = value as CallToolResult;
+    if (outputSchema === undefined || result.structuredContent === undefined) return result;
+    return { ...result, structuredContent: await structured(name, outputSchema, result.structuredContent) };
   }
-  if (typeof value === "object" && value !== null && "type" in value) return { content: [value] };
+  if (outputSchema !== undefined) {
+    const checked = await structured(name, outputSchema, value);
+    return { content: [{ type: "text", text: JSON.stringify(checked) }], structuredContent: checked };
+  }
+  if (isContentItem(value)) return { content: [value] };
   throw new Error("the result is not a string, a content result or a content item");
 }
 
@@ -106,7 +132,8 @@ export function openApiDocument(config: ServerConfig, tools: readonly CatalogEnt
           "200": response("The tool's result, as MCP tools/call returns it", "CallToolResult"),
           "400": response("The body is not JSON, or the arguments fail the tool's schema", "Error"),
           "401": response("No valid bearer", "Error"),
-          "404": response("No such tool", "Error"),
+          // fastmcp answers a 404 from these routes as an unmatched request: no body
+          "404": { description: "No such tool (no body)" },
           "413": response(`The body is over ${REST_BODY_MAX} bytes`, "Error"),
           "422": response("The tool refused the call (an MCP tool error, isError: true)", "CallToolResult"),
           "429": response("The tool's rate limit (shared with MCP calls)", "CallToolResult"),
@@ -129,10 +156,6 @@ export function openApiDocument(config: ServerConfig, tools: readonly CatalogEnt
   };
 }
 
-function issuePath(path: ReadonlyArray<PropertyKey | { key: PropertyKey }> | undefined): string {
-  return (path ?? []).map((p) => String(typeof p === "object" ? p.key : p)).join(".");
-}
-
 /** Mount the REST surface on fastmcp's HTTP app. `tools` is read per request (the catalog). */
 export function mountRestApi(app: App, config: ServerConfig, tools: () => readonly CatalogEntry[]): void {
   const base = config.rest.basePath;
@@ -142,7 +165,8 @@ export function mountRestApi(app: App, config: ServerConfig, tools: () => readon
       c.header("WWW-Authenticate", "Bearer");
       return c.json({ error: "unauthorized" }, 401);
     }
-    return c.json(openApiDocument(config, tools()), 200);
+    // the tools this caller may run, as fastmcp lists only those a session may access
+    return c.json(openApiDocument(config, tools().filter((t) => t.canAccess(REST_SESSION))), 200);
   });
 
   app.post(`${base}/tools/:name`, async (c) => {
@@ -168,14 +192,16 @@ export function mountRestApi(app: App, config: ServerConfig, tools: () => readon
     }
     try {
       const value = await tool.invoke(checked.value, `rest-${randomUUID()}`);
-      return c.json(await toCallToolResult(value, tool.outputSchema), 200);
+      return c.json(await toCallToolResult(tool.name, value, tool.outputSchema), 200);
     } catch (err) {
       if (err instanceof UserError) {
         const status = err instanceof RateLimited ? 429 : err instanceof TimedOut ? 504 : 422;
         return c.json(toolError(err.message, err.extras), status);
       }
-      // fastmcp's text for a failed tool; the wrapped execute logged the error itself
+      // fastmcp's text for a failed tool (a thrown tool error is logged by the wrapped execute;
+      // a result that fails conversion is logged here)
       const message = err instanceof Error ? err.message : String(err);
+      getLogger().withError(err as Error).error("REST tool call failed");
       return c.json(toolError(`Tool '${tool.name}' execution failed: ${message}`), 500);
     }
   });

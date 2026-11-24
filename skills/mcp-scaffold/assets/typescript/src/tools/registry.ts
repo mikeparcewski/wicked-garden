@@ -91,6 +91,11 @@ function jsonSchemaOf(parameters: unknown): Record<string, unknown> {
 /** The principal of a REST call: the same bearer the httpStream MCP endpoint takes. */
 export const REST_SESSION: Session = { principal: "bearer" };
 
+/** The request logger, carrying a tool's optional log data as metadata. */
+function logWith(data: unknown) {
+  return data === undefined ? getLogger() : getLogger().withMetadata({ data });
+}
+
 /** The context a REST call hands the tool: every fastmcp field, with no MCP client behind it. */
 function restContext(requestId: string, signal: AbortSignal): Context<Session> {
   return {
@@ -99,10 +104,10 @@ function restContext(requestId: string, signal: AbortSignal): Context<Session> {
       throw new UserError("elicitation needs an MCP client: this call came over REST");
     },
     log: {
-      debug: (message: string) => getLogger().debug(message),
-      error: (message: string) => getLogger().error(message),
-      info: (message: string) => getLogger().info(message),
-      warn: (message: string) => getLogger().warn(message),
+      debug: (message, data) => logWith(data).debug(message),
+      error: (message, data) => logWith(data).error(message),
+      info: (message, data) => logWith(data).info(message),
+      warn: (message, data) => logWith(data).warn(message),
     },
     reportProgress: async () => undefined,
     requestId,
@@ -180,7 +185,7 @@ export function defineTool<P extends ToolParameters>(
     invoke: async (args, requestId) => {
       const timeout = new AbortController();
       const run = call(args as Args, restContext(requestId, timeout.signal), "rest");
-      if (tool.timeoutMs === undefined) return run;
+      if (!tool.timeoutMs) return run; // fastmcp's condition: no timeout when unset or 0
       run.catch(() => undefined); // a late failure after the timeout answered is already logged
       let timer: NodeJS.Timeout | undefined;
       try {
@@ -188,7 +193,9 @@ export function defineTool<P extends ToolParameters>(
           run,
           new Promise<never>((_, reject) => {
             timer = setTimeout(() => {
-              const err = new TimedOut(`Tool '${tool.name}' timed out after ${tool.timeoutMs}ms.`);
+              const err = new TimedOut(
+                `Tool '${tool.name}' timed out after ${tool.timeoutMs}ms. Consider increasing timeoutMs or optimizing the tool implementation.`,
+              );
               timeout.abort(err);
               reject(err);
             }, tool.timeoutMs);
