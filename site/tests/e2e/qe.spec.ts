@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectRevealed, hydrated } from './utils';
+import { expectRevealed, expectStageSettled, hydrated } from './utils';
 
 /**
  * The qe-domain bands — the mechanics absorbed from the retired
@@ -63,6 +63,7 @@ test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ 
 
   // light the writer — the lit copy swaps in (in the same reserved cell), the reviewer dims
   const writer = stage.locator('[data-role="writer"]');
+  await expectStageSettled(writer); // a height read during the stage's entrance is a scaled height
   const h = await writer.evaluate((el) => el.getBoundingClientRect().height);
   await expect(writer.locator('.qw-role-lit')).toBeHidden();
   await writer.getByRole('button').click();
