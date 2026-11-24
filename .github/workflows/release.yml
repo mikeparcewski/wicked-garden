@@ -6,7 +6,8 @@
 # plugin.json + marketplace.json, then publishes to npm via OIDC trusted
 # publishing (+ provenance).
 #
-# Order (#1413): the Claude marketplace entry on main installs the tag its
+# Order (#1413): the published catalog on main
+# (.claude-plugin/release-marketplace.json, added by URL) installs the tag its
 # `ref` names (`v<version>`), so the tagged commit must already carry the
 # version files (the release metadata commit on the cut), and the tag is
 # pushed BEFORE that metadata reaches main. Merged first, main would name a

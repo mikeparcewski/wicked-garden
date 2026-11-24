@@ -210,9 +210,6 @@ class ReleaseManager:
             for plugin in data.get("plugins", []):
                 if plugin.get("name") == component_name:
                     plugin["version"] = new_version
-                    # The entry installs the release tag (#1413): its ref moves with the version.
-                    if isinstance(plugin.get("source"), dict) and "ref" in plugin["source"]:
-                        plugin["source"]["ref"] = f"v{new_version}"
                     updated = True
                     break
             if updated and "version" in data:
@@ -230,14 +227,15 @@ class ReleaseManager:
             print(f"Warning: Failed to update marketplace.json: {e}")
 
     def update_other_version_anchors(self, new_version: str):
-        """Set the `"version"` key of package.json, .codex-plugin/plugin.json and the Codex-side
-        .agents/plugins/marketplace.json (format-preserving).
+        """Set the `"version"` key of package.json, .codex-plugin/plugin.json and the published
+        catalog .claude-plugin/release-marketplace.json, whose entry's `"ref"` also moves to the
+        release tag `v<version>` (#1413) (format-preserving).
 
         Same rule as .github/scripts/sync-plugin-version.mjs: only the exact `"version"` key moves,
         never peer keys such as `wicked_vault_version`."""
         import re
 
-        for rel in ("package.json", ".codex-plugin/plugin.json", ".agents/plugins/marketplace.json"):
+        for rel in ("package.json", ".codex-plugin/plugin.json", ".claude-plugin/release-marketplace.json"):
             path = self.component_path / rel
             if not path.exists():
                 continue
@@ -246,7 +244,10 @@ class ReleaseManager:
                 continue
             text = path.read_text()
             count = 0 if rel.endswith("marketplace.json") else 1  # a marketplace carries two version keys
-            path.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{new_version}"', text, count=count))
+            text = re.sub(r'("version"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{new_version}"', text, count=count)
+            if rel.endswith("release-marketplace.json"):
+                text = re.sub(r'("ref"\s*:\s*)"v[^"]*"', lambda m: f'{m.group(1)}"v{new_version}"', text)
+            path.write_text(text)
             print(f"✓ Updated {rel} to version {new_version}")
 
     def generate_changelog_content(

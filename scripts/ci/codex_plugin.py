@@ -2,9 +2,7 @@
 """Structural check for garden's Codex plugin manifest (`.codex-plugin/plugin.json`).
 
 Codex (codex-cli >= 0.163) loads garden as a plugin: `codex plugin marketplace add <garden root>`
-reads `.agents/plugins/marketplace.json` (before `.claude-plugin/marketplace.json`, whose entry
-installs the release tag from GitHub, a source Codex lists no plugin for — #1413; validate.py
-checks both), and `codex plugin add wicked-garden@wicked-garden` copies
+reads `.claude-plugin/marketplace.json`, and `codex plugin add wicked-garden@wicked-garden` copies
 the root into `$CODEX_HOME/plugins/cache/wicked-garden/wicked-garden/<version>/` and reads
 `.codex-plugin/plugin.json` (it is preferred over `.claude-plugin/plugin.json`). This module
 mirrors the rules Codex applies to that manifest and to the skills under it, so a manifest Codex

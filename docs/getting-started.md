@@ -11,9 +11,11 @@ This guide gets it installed and shows five ways to start your first session.
 ## Installation
 
 ```bash
-claude plugins marketplace add mikeparcewski/wicked-garden
+claude plugins marketplace add https://raw.githubusercontent.com/mikeparcewski/wicked-garden/main/.claude-plugin/release-marketplace.json
 claude plugins install wicked-garden
 ```
+
+That catalog installs the release tag (`v<version>`), the same tree npm ships under that version, and `claude plugins update wicked-garden` moves to the next tag. To run a local checkout instead, add its directory: `claude plugins marketplace add <path to the checkout>`.
 
 No API keys, no external services, no cloud — everything runs locally.
 

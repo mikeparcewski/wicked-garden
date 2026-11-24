@@ -3,10 +3,11 @@
 // shared release workflow runs from the tag) bumps every anchor at once:
 //   package.json  +  .claude-plugin/plugin.json  +  .claude-plugin/marketplace.json
 //                 +  .codex-plugin/plugin.json (the Codex plugin manifest)
-//                 +  .agents/plugins/marketplace.json (the marketplace Codex reads first)
-// The Claude marketplace entry installs the release TAG (#1413): its github source's `"ref"`
-// moves with the version (`v<version>`), so `claude plugin marketplace add` installs exactly
-// what npm ships under that version instead of main's tree labelled as the release.
+//                 +  .claude-plugin/release-marketplace.json (the published catalog)
+// The published catalog's entry installs the release TAG (#1413): its github source's `"ref"`
+// moves with the version (`v<version>`), so a Claude Code user who adds that catalog by URL gets
+// exactly what npm ships under that version. marketplace.json keeps `"./"` (a local add installs
+// the checkout it names) and only its version keys move.
 // marketplace.json carries TWO version fields (plugins[0].version and a top-level version),
 // and plugin.json also carries peer-version keys (wicked_testing_version, …) that must NOT
 // move — so we replace only the exact `"version":` key, format-preserving, never the peers.
@@ -26,6 +27,6 @@ function bump(path, { tag = false } = {}) {
 
 console.log(`Syncing plugin manifests to ${version}`);
 bump(".claude-plugin/plugin.json");
-bump(".claude-plugin/marketplace.json", { tag: true });
+bump(".claude-plugin/marketplace.json");
+bump(".claude-plugin/release-marketplace.json", { tag: true });
 bump(".codex-plugin/plugin.json");
-bump(".agents/plugins/marketplace.json");
