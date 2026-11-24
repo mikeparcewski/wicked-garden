@@ -269,6 +269,109 @@ def test_typescript_refuses_a_collision_before_writing_anything(tmp_path):
     assert not (tmp_path / "package.json").exists(), "nothing is written when one file collides"
 
 
+def test_typescript_default_has_rest_off_and_no_rest_report(tmp_path):
+    made = _scaffold_ts(tmp_path)
+    assert made.returncode == 0, made.stderr
+    assert "rest" not in json.loads(made.stdout)
+    config = json.loads((tmp_path / "mcp-server.config.json").read_text(encoding="utf-8"))
+    assert config["transport"] == "stdio"
+    assert config["rest"] == {"enabled": False, "basePath": "/api"}
+
+
+def test_rest_flag_turns_rest_on_and_keeps_the_stdio_transport(tmp_path):
+    """garden#1339: `--rest` changes ONE committed field. The transport stays stdio, so the server
+    still installs for MCP clients (they spawn it); REST is served under MCP_TRANSPORT=httpStream."""
+    plain, rest = tmp_path / "plain", tmp_path / "rest"
+    assert _scaffold_ts(plain).returncode == 0
+    made = _scaffold_ts(rest, "acme-notes", "--rest")
+    assert made.returncode == 0, made.stderr
+    report = json.loads(made.stdout)
+
+    want = json.loads((plain / "mcp-server.config.json").read_text(encoding="utf-8"))
+    want["rest"]["enabled"] = True
+    assert json.loads((rest / "mcp-server.config.json").read_text(encoding="utf-8")) == want
+    assert report["files"] == json.loads(_scaffold_ts(tmp_path / "again").stdout)["files"]
+    assert {"src/http-api.ts", "test/rest-api.test.ts"} <= set(report["files"])
+    assert report["probe"] == json.loads(_scaffold_ts(tmp_path / "p2").stdout)["probe"].replace(
+        str(tmp_path / "p2"), str(rest))
+    block = report["rest"]
+    assert block["enabled"] is True and block["envNames"] == ["MCP_SERVER_BEARER"]
+    assert block["run"] == f'MCP_TRANSPORT=httpStream node "{rest / "dist" / "server.js"}"'
+    assert block["openapi"] == "http://127.0.0.1:8080/api/openapi.json"
+    assert len(block["smoke"]) == 2
+    for line in block["smoke"]:  # the bearer by NAME only
+        assert line.startswith('curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER"')
+    assert block["smoke"][0].endswith("/api/openapi.json")
+    assert block["smoke"][1].endswith("-d '{\"text\":\"hi\"}' http://127.0.0.1:8080/api/tools/echo")
+
+
+@pytest.mark.parametrize("lang", sorted(TEMPLATES))
+def test_rest_flag_refuses_the_one_file_templates_before_writing(tmp_path, lang):
+    made = subprocess.run(
+        [sys.executable, str(SCAFFOLD), "--name", "acme-notes", "--lang", lang, "--rest", "--out", str(tmp_path)],
+        capture_output=True, text=True, timeout=TIMEOUT_S,
+    )
+    assert made.returncode == 2
+    assert "--rest needs --lang typescript" in made.stderr
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_skill_and_template_readme_document_the_rest_option():
+    skill = SKILL.read_text(encoding="utf-8")
+    assert "[--rest]" in skill and "MCP-only stays the default" in skill
+    readme = (REPO / "skills" / "mcp-scaffold" / "assets" / "typescript" / "README.md").read_text(encoding="utf-8")
+    assert "## REST API (optional)" in readme and "GET /api/openapi.json" in readme
+
+
+def _free_port() -> int:
+    import socket
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        return sock.getsockname()[1]
+
+
+def _rest_smoke(out: Path) -> None:
+    """The `--rest` journey on the BUILT server: the config as `--rest` stamps it, run under
+    MCP_TRANSPORT=httpStream, then the report's two smoke calls (document, one tool)."""
+    import urllib.error
+    import urllib.request
+    import time
+
+    config_path = out / "mcp-server.config.json"
+    committed = config_path.read_text(encoding="utf-8")
+    config = json.loads(committed)
+    config["rest"]["enabled"] = True
+    config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+    port, bearer = _free_port(), "e2e-rest-bearer"  # ggignore: a made-up local test bearer
+    child = subprocess.Popen(["node", str(out / "dist" / "server.js")], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, env={
+                                 **os.environ, "ACME_NOTES_TOKEN": "dummy", "MCP_TRANSPORT": "httpStream",
+                                 "MCP_PORT": str(port), "MCP_SERVER_BEARER": bearer})
+    base = f"http://127.0.0.1:{port}/api"
+    auth = {"Authorization": f"Bearer {bearer}"}
+    try:
+        doc = None
+        for _ in range(120):
+            try:
+                with urllib.request.urlopen(urllib.request.Request(f"{base}/openapi.json", headers=auth), timeout=5) as r:
+                    doc = json.loads(r.read())
+                break
+            except (urllib.error.URLError, ConnectionError):
+                time.sleep(0.25)
+        assert doc is not None and doc["openapi"] == "3.1.0" and "/tools/echo" in doc["paths"]
+        call = urllib.request.Request(f"{base}/tools/echo", data=b'{"text":"hi"}', method="POST",
+                                      headers={**auth, "content-type": "application/json"})
+        with urllib.request.urlopen(call, timeout=10) as r:
+            assert json.loads(r.read()) == {"content": [{"type": "text", "text": "hi"}], "isError": False}
+        with pytest.raises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(urllib.request.Request(f"{base}/openapi.json"), timeout=5)
+        assert refused.value.code == 401
+    finally:
+        child.kill()
+        child.wait(timeout=10)
+        config_path.write_text(committed, encoding="utf-8")
+
+
 def test_probe_passes_only_the_named_variable_and_reports_it_by_name(tmp_path, monkeypatch):
     server = tmp_path / "needs_token.py"
     server.write_text(textwrap.dedent('''
@@ -322,6 +425,7 @@ def test_typescript_template_installs_builds_tests_and_probes(tmp_path):
     probed = json.loads(proc.stdout)
     assert probed["ok"] is True, probed
     assert {t["name"]: t["class"] for t in probed["tools"]} == {"echo": "read"}
+    _rest_smoke(out)  # garden#1339: the same built server, REST on, under httpStream
 
     # Branch A (garden#1249): with a generated tools.json the BUILT server must still start and
     # list exactly the generated tools — a raw JSON Schema handed to fastmcp kills it at startup.
