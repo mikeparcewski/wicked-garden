@@ -2,9 +2,11 @@
 
 ## [Unreleased]
 
-## [12.68.6] - 2026-11-23
+## [12.68.6] - 2026-11-24
 
-Patch release on the train-12 re-cut 4 280af4d4, carrying 12 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534, #1538, #1539.
+Patch release on the train-13 cut 6461c352, carrying 16 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534, #1538, #1539, #1541, #1542, #1550, #1552.
+
+Known limitation (domain mapping accuracy): `/analyze domain` keeps its current mapping loop. On the train-12 certification an independent codex judge read 30 of its statements against the CardDemo source: 21 accurate, 9 overreached (the statement claims more than the code shows, most often by dropping a guarding condition; #1544) and 0 wrong. Its coverage figure (80.6% on CardDemo) counts the behaviours that were given a statement, not whether each statement is accurate. A redesigned mapping, measured at 2 of 30 overreached on the same judge, replaces this loop in a later release.
 
 ### Changed
 
@@ -24,6 +26,10 @@ Patch release on the train-12 re-cut 4 280af4d4, carrying 12 PRs since 12.68.5: 
 - build-guide catches up with core's floor schema: parser.count, the complete probe, bound {q} (#1529)
 - A re-asked placeholder can resolve, and the card recommends asking again while that moves the share (#1538)
 - A later page may add a business area the stored catalog lacks, so a forced pick can be fixed within the rework cap (#1539)
+- The MCP install plan opens with no wicked-installer on PATH; install roots follow WICKED_HOME (#1541)
+- Process rules are reported, never a Critical; STACK-CHECK line has both halves (core#1316) (#1542)
+- Claims scan keeps data-source citations inside their --repo folder (#1550)
+- A coverage send-back can restate a unit an earlier page framed (#1552)
 
 ## [12.68.5] - 2026-11-22
 
