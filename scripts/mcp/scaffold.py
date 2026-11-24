@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Scaffold an MCP server from a wicked-garden-mcp-scaffold template.
 
-    wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescript|node|python] --out <dir>
+    wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescript|node|python] [--rest] --out <dir>
 
 Copies the chosen template (``skills/mcp-scaffold/assets/<lang>/``) into ``<dir>``, stamping
 the server name. ``typescript`` (the default) is a whole project directory — fastmcp,
@@ -10,7 +10,12 @@ and ``python`` are dependency-free one-file servers. ``<dir>`` may already exist
 root or a subdirectory) but every file the scaffold would write must be absent: it never
 overwrites, and refuses naming the first collision before writing anything. Prints one JSON
 object on stdout: the written path, the command that runs the server, and the probe command
-that proves it answers ``initialize`` and ``tools/list``. Standard library only.
+that proves it answers ``initialize`` and ``tools/list``. ``--rest`` (TypeScript only, garden#1339)
+also exposes every tool as a REST API with an OpenAPI 3.1 document, from the same tool definitions:
+it sets ``rest.enabled`` in ``mcp-server.config.json`` and prints the HTTP run and REST smoke
+commands. The committed transport stays ``stdio`` (an MCP client spawns the server, so it stays
+installable); the REST routes ride fastmcp's HTTP server, served under ``MCP_TRANSPORT=httpStream``.
+Standard library only.
 """
 
 from __future__ import annotations
@@ -68,7 +73,18 @@ def _template_files(source: Path) -> list[tuple[Path, Path]]:
     return out
 
 
-def _scaffold_directory(name: str, lang: str, out: Path) -> int:
+CONFIG_FILE = "mcp-server.config.json"
+
+
+def _rest_config(text: str) -> str:
+    """The stamped config with ``rest.enabled`` on. Every other committed field, the stdio
+    transport included, is kept as the template has it."""
+    config = json.loads(text)
+    config["rest"] = {**config.get("rest", {}), "enabled": True}
+    return json.dumps(config, indent=2) + "\n"
+
+
+def _scaffold_directory(name: str, lang: str, out: Path, rest: bool = False) -> int:
     source = ASSETS / lang
     if not source.is_dir():
         return _fail(f"template missing: {source}")
@@ -81,11 +97,14 @@ def _scaffold_directory(name: str, lang: str, out: Path) -> int:
     for src, rel in files:
         target = out / rel
         target.parent.mkdir(parents=True, exist_ok=True)
+        text = _stamp(src.read_text(encoding="utf-8"), name)
+        if rest and rel.as_posix() == CONFIG_FILE:
+            text = _rest_config(text)
         with target.open("x", encoding="utf-8", newline="\n") as fh:
-            fh.write(_stamp(src.read_text(encoding="utf-8"), name))
+            fh.write(text)
     env_name = f"{env_prefix(name)}_TOKEN"  # a variable NAME; the value is never read here
     server = out / "dist" / "server.js"
-    print(json.dumps({
+    report = {
         "ok": True,
         "name": name,
         "lang": lang,
@@ -94,7 +113,23 @@ def _scaffold_directory(name: str, lang: str, out: Path) -> int:
         "envNames": [env_name],
         "run": "npm install && npm run build && node dist/server.js",
         "probe": f'wicked-garden run scripts/mcp/probe.py --env {env_name} -- node "{server}"',
-    }, indent=2))
+    }
+    if rest:
+        config = json.loads((out / CONFIG_FILE).read_text(encoding="utf-8"))
+        base = f"http://127.0.0.1:{config.get('port', 8080)}{config['rest']['basePath']}"
+        report["rest"] = {
+            "enabled": True,
+            "envNames": ["MCP_SERVER_BEARER"],  # the bearer every HTTP request carries (REST and MCP)
+            "run": f'MCP_TRANSPORT=httpStream node "{server}"',  # with {env_name} and MCP_SERVER_BEARER set
+            "openapi": f"{base}/openapi.json",
+            # Smoke the REST surface beside MCP: the document, then one tool call, both with the bearer.
+            "smoke": [
+                f'curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER" {base}/openapi.json',
+                f'curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER" -H "content-type: application/json"'
+                f' -d \'{{"text":"hi"}}\' {base}/tools/echo',
+            ],
+        }
+    print(json.dumps(report, indent=2))
     return 0
 
 
@@ -105,13 +140,17 @@ def main(argv: list[str] | None = None) -> int:
                         choices=sorted([*TEMPLATES, *DIRECTORY_TEMPLATES]),
                         help=f"template (default {DEFAULT_LANG})")
     parser.add_argument("--out", required=True, type=Path, help="directory to write into")
+    parser.add_argument("--rest", action="store_true",
+                        help="also expose every tool as a REST API + OpenAPI 3.1 (typescript only)")
     args = parser.parse_args(argv)
 
     if not NAME_RE.match(args.name):
         return _fail(f"invalid name {args.name!r}: use lowercase letters, digits and '-', "
                      "starting with a letter, at most 64 characters")
+    if args.rest and args.lang not in DIRECTORY_TEMPLATES:
+        return _fail("--rest needs --lang typescript: the REST surface is part of the TypeScript template")
     if args.lang in DIRECTORY_TEMPLATES:
-        return _scaffold_directory(args.name, args.lang, args.out)
+        return _scaffold_directory(args.name, args.lang, args.out, rest=args.rest)
     filename, interpreter = TEMPLATES[args.lang]
     source = ASSETS / args.lang / filename
     if not source.is_file():

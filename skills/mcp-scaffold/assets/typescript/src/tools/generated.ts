@@ -77,7 +77,7 @@ export function registerGeneratedTools(
         if (result.status >= 400) throw new UserError(upstreamError(result.status, text, result.sent));
         return text;
       },
-    });
+    }, t.inputSchema);
   }
   return tools.length;
 }

@@ -42,6 +42,23 @@ Optional overrides: `MCP_TRANSPORT` (`stdio` | `httpStream`), `MCP_HOST` (defaul
 URL, so a different host is a reviewed edit to `mcp-server.config.json`). httpStream requires `MCP_SERVER_BEARER`: every request must carry
 `Authorization: Bearer <it>` or is refused with 401.
 
+## REST API (optional)
+
+`"rest": {"enabled": true, "basePath": "/api"}` in `mcp-server.config.json` (what
+`scaffold.py --rest` writes; off by default) also serves every tool as REST on the httpStream
+server, from the same tool definitions:
+
+- `POST /api/tools/<name>` with the arguments as a JSON body returns exactly what MCP
+  `tools/call` returns. A bad body or bad arguments get 400 (with `issues`), an unknown tool 404,
+  a body over 1 MiB 413, a tool refusal 422 and the shared rate limit 429.
+- `GET /api/openapi.json` is an OpenAPI 3.1 document: one operation per tool, its request
+  schema the tool's input schema.
+
+Both routes take the same `MCP_SERVER_BEARER` as the MCP endpoint. A REST call runs the same
+wrapped tool as an MCP call: the same span, logs, metrics and rate limit. Run it with
+`MCP_TRANSPORT=httpStream`. A stdio launch (an MCP client spawning the server) has no HTTP
+server and serves MCP only, so a REST-enabled server stays installable as a stdio server.
+
 ## Telemetry
 
 Off by default: the OpenTelemetry SDK runs with no exporter unless

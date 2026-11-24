@@ -33,11 +33,24 @@ const ConfigSchema = z
     baseUrl: z.url({ protocol: /^https?$/ }),
     auth: AuthSchema,
     rateLimitPerMin: z.number().int().positive(),
+    // The REST surface (garden#1339): every tool also as POST <basePath>/tools/<name>, plus
+    // GET <basePath>/openapi.json. Off by default. It rides fastmcp's own HTTP server, so it is
+    // served when the server runs httpStream; a stdio launch (an MCP client spawning the server)
+    // has no HTTP server and serves MCP only, which keeps a REST-enabled server installable.
+    rest: z
+      .object({
+        enabled: z.boolean().default(false),
+        basePath: z.string().regex(/^\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/, "a path like /api").default("/api"),
+      })
+      .default({ enabled: false, basePath: "/api" }),
   })
   .superRefine((cfg, ctx) => {
     const u = new URL(cfg.baseUrl);
     if (u.username || u.password || u.search || u.hash) {
       ctx.addIssue({ code: "custom", path: ["baseUrl"], message: "no credentials, query or fragment" });
+    }
+    if (cfg.rest.enabled && (cfg.endpoint === cfg.rest.basePath || cfg.endpoint.startsWith(`${cfg.rest.basePath}/`))) {
+      ctx.addIssue({ code: "custom", path: ["rest", "basePath"], message: "must not contain the MCP endpoint" });
     }
     if (cfg.auth.queryParam !== null && cfg.auth.scheme !== "api-key") {
       ctx.addIssue({ code: "custom", path: ["auth", "queryParam"], message: "a query-parameter key is the api-key scheme only" });

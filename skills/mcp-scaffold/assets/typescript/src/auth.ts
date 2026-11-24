@@ -85,14 +85,22 @@ export function configureAuth(config: ServerConfig): void {
   stdioTrusted = config.transport === "stdio";
 }
 
-/** httpStream: every request must carry `Authorization: Bearer <MCP_SERVER_BEARER>`. */
-export async function authenticate(request: IncomingMessage): Promise<Session> {
+/**
+ * True when `header` is `Bearer <MCP_SERVER_BEARER>` (constant-time; never with an unset bearer).
+ * The ONE bearer check: the MCP endpoint and the REST surface both use it.
+ */
+export function bearerMatches(header: string | undefined): boolean {
   const expected = process.env.MCP_SERVER_BEARER ?? "";
-  const header = request.headers.authorization ?? "";
-  const presented = header.startsWith("Bearer ") ? header.slice("Bearer ".length) : "";
+  const value = header ?? "";
+  const presented = value.startsWith("Bearer ") ? value.slice("Bearer ".length) : "";
   const a = Buffer.from(presented);
   const b = Buffer.from(expected);
-  if (expected === "" || a.length !== b.length || !timingSafeEqual(a, b)) {
+  return expected !== "" && a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** httpStream: every request must carry `Authorization: Bearer <MCP_SERVER_BEARER>`. */
+export async function authenticate(request: IncomingMessage): Promise<Session> {
+  if (!bearerMatches(request.headers.authorization)) {
     throw new Response(null, { status: 401, statusText: "Unauthorized" });
   }
   return { principal: "bearer" };

@@ -38,7 +38,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 ## 1. Scaffold
 
 ```
-wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescript|node|python] --out <dir>
+wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescript|node|python] [--rest] --out <dir>
 ```
 
 - `--name` becomes the registry key and the `mcp:<server>/<tool>` subject segment:
@@ -55,6 +55,13 @@ wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescrip
   `<dir>/server.py`) — for a one-file server with no build step. Same no-overwrite rule.
 - It prints JSON with the written path, the run command, the probe command and (TypeScript)
   the secret variable's NAME.
+- **`--rest`** (TypeScript only; off by default, MCP-only stays the default): also serves every
+  tool as `POST /api/tools/<name>` plus an OpenAPI 3.1 document at `GET /api/openapi.json`,
+  from the same tool definitions, behind the same `MCP_SERVER_BEARER`. It sets `rest.enabled`
+  and keeps the stdio transport, so the server still installs for MCP clients; REST is served
+  under `MCP_TRANSPORT=httpStream`. The report's `rest` block holds that run command and the
+  smoke: after the step 4 probe, run both `smoke` lines and check the tool's answer is the
+  probe's.
 - **Manual alternative:** copy `assets/typescript/` (renaming `gitignore` → `.gitignore` and
   `env.example` → `.env.example`), `assets/node/server.mjs` or `assets/python/server.py` into
   `<dir>`, replacing every `__SERVER_NAME__` with the server name, `__SERVER_ENV__` with its
