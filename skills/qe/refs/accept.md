@@ -75,7 +75,15 @@ path. That works on every seat, including ones with no sub-agent. Two halves:
    your own phase's verdict, never the QE verdict. With `--resume <dir>`,
    step 0 reuses that run instead of creating one, and empties `<dir>` first
    (the previous `manifest.json` included) so the reviewer sees only this
-   attempt's artifacts (see step 0).
+   attempt's artifacts (see step 0). Inside a governed run the engine creates
+   the attempt's QE run and evidence dir itself and hands you
+   `--resume <dir>`: write the plan, the scenario copy and every artifact in
+   exactly that dir, never in a dir you create or name. This phase writes no
+   `manifest.json`: the public manifest is built only by step 6, after the
+   verdict exists. If your own evidence steps left one in the dir (no
+   `scenario_evidence` block, `status` missing or `running`, or no verdict),
+   delete that `{EVIDENCE_DIR}/manifest.json` before your reply; leave any
+   other manifest in place for the reviewer to validate.
 2. **`--phase review --evidence <dir>`**: when `WICKED_QE_REVIEW_SESSION` is set,
    wicked-core started this session for this review alone. It holds no plan
    writing or test execution, so it IS the separate worker. Resume the run
@@ -559,4 +567,5 @@ the one resolver the gate shares:
    would change the tree under review.
 2. otherwise, an install the target repo resolves (`npm i --no-save wicked-ledger`).
 
-The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`.
+The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`
+(`wicked-garden path .claude-plugin/plugin.json` prints where it is on any host).

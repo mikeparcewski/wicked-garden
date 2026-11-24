@@ -7,6 +7,8 @@ ffprobe next to it).
 
   python3 contact_sheet.py demo.mp4 --at 5,62,118.5          # stills at these seconds (m:ss also accepted)
   python3 contact_sheet.py demo.mp4 --every 30               # one still every 30 s
+  python3 contact_sheet.py demo.mp4 --holds --every 20       # survey plus midpoints of the longest freezes
+  python3 contact_sheet.py demo.mp4 --holds --print-times    # chosen seconds (2 dp), then the output path
   python3 contact_sheet.py demo.mp4 --chapters               # a still ~2 s into every MP4 chapter
   python3 contact_sheet.py demo.mp4 --joins                  # just before and just after every chapter boundary
   python3 contact_sheet.py demo.mp4 --end                    # the last seconds (is the closing card there, full length?)
@@ -14,6 +16,8 @@ ffprobe next to it).
 
 On Windows use `python` if `python3` is not on PATH. Each tile is labelled with its timestamp (and chapter title
 when known) so findings can be reported as "03:12 · Search".
+--holds detects freezes of at least --hold-min seconds (default 0.5) and samples the longest --max-holds
+(default 12), including a freeze that continues to the end. Sampling options can be combined.
 """
 from __future__ import annotations
 
@@ -30,14 +34,14 @@ from pathlib import Path
 
 
 def tools() -> tuple[str, str]:
-    ffmpeg = os.environ.get("FFMPEG") or shutil.which("ffmpeg")
+    ffmpeg = shutil.which(os.environ.get("FFMPEG") or "ffmpeg")
     if not ffmpeg:
-        sys.exit("ffmpeg not found: install it or set FFMPEG=/path/to/ffmpeg")
+        sys.exit("COULD-NOT-RUN: ffmpeg not found: install it or set FFMPEG=/path/to/ffmpeg")
     p = Path(ffmpeg)
-    probe_name = p.name.replace("ffmpeg", "ffprobe")
-    ffprobe = str(p.with_name(probe_name)) if p.parent != Path(".") and p.with_name(probe_name).exists() else shutil.which("ffprobe")
+    probe_name = "ffprobe.exe" if p.suffix.lower() == ".exe" else "ffprobe"
+    ffprobe = shutil.which(str(p.with_name(probe_name))) or shutil.which("ffprobe")
     if not ffprobe:
-        sys.exit("ffprobe not found: install it next to ffmpeg or on PATH")
+        sys.exit("COULD-NOT-RUN: ffprobe not found: install it next to ffmpeg or on PATH")
     return ffmpeg, ffprobe
 
 
@@ -74,8 +78,32 @@ def chapter_at(chapters: list[dict], t: float) -> str | None:
     return chapters[-1]["title"] if chapters and t >= chapters[-1]["start"] else None
 
 
-def pick(args, duration: float, chapters: list[dict]) -> list[float]:
-    times: list[float] = []
+def hold_moments(ffmpeg: str, video: Path, duration: float, hold_min: float, max_holds: int) -> list[float]:
+    """Midpoints of the longest freezes; a final open interval runs to the video's end."""
+    result = subprocess.run(
+        [ffmpeg, "-i", str(video), "-vf", f"freezedetect=n=-50dB:d={hold_min}",
+         "-map", "0:v:0", "-an", "-f", "null", "-"],
+        capture_output=True, text=True, check=True, timeout=300,
+    )
+    intervals: list[tuple[float, float]] = []
+    start = None
+    for match in re.finditer(r"\b(?:lap_)?freeze_(start|end):\s*([-+\d.eE]+)", result.stderr):
+        kind, value = match.groups()
+        t = min(max(float(value), 0.0), duration)
+        if kind == "start":
+            start = t
+        elif start is not None:
+            if t > start:
+                intervals.append((start, t))
+            start = None
+    if start is not None and duration > start:
+        intervals.append((start, duration))
+    longest = sorted(intervals, key=lambda interval: interval[1] - interval[0], reverse=True)[:max_holds]
+    return [(start + end) / 2 for start, end in longest]
+
+
+def pick(args, duration: float, chapters: list[dict], holds: list[float] | None = None) -> list[float]:
+    times: list[float] = list(holds or [])
     if args.at:
         times += [parse_time(x) for x in args.at.split(",") if x.strip()]
     if args.every:
@@ -93,7 +121,7 @@ def pick(args, duration: float, chapters: list[dict]) -> list[float]:
     if args.end:
         times += [duration - x for x in (args.end_span, args.end_span / 2, 0.3)]
     if not times:
-        sys.exit("choose what to sample: --at, --every, --chapters, --joins and/or --end")
+        sys.exit("choose what to sample: --at, --every, --holds, --chapters, --joins and/or --end")
     clamped = sorted({round(min(max(t, 0.0), max(duration - 0.05, 0.0)), 2) for t in times})
     return clamped
 
@@ -120,6 +148,10 @@ def main() -> None:
     ap.add_argument("video", type=Path)
     ap.add_argument("--at", help="comma-separated timestamps in seconds or m:ss")
     ap.add_argument("--every", type=float, help="one still every N seconds")
+    ap.add_argument("--holds", action="store_true", help="sample the midpoints of the longest frozen intervals")
+    ap.add_argument("--hold-min", type=float, default=0.5, help="minimum freeze duration in seconds for --holds (default 0.5)")
+    ap.add_argument("--max-holds", type=int, default=12, help="maximum frozen intervals to sample with --holds (default 12)")
+    ap.add_argument("--print-times", action="store_true", help="print chosen seconds (2 dp), one per line before the output path")
     ap.add_argument("--chapters", action="store_true", help="one still OFFSET seconds into every chapter")
     ap.add_argument("--offset", type=float, default=2.0, help="seconds into each chapter for --chapters (default 2)")
     ap.add_argument("--joins", action="store_true", help="stills just before and after every chapter boundary")
@@ -130,12 +162,17 @@ def main() -> None:
     ap.add_argument("--width", type=int, default=640, help="tile width in pixels (default 640)")
     ap.add_argument("--out", type=Path, help="output PNG (default: <video>-sheet.png next to the video)")
     args = ap.parse_args()
+    if not math.isfinite(args.hold_min) or args.hold_min <= 0:
+        ap.error("--hold-min must be a positive number of seconds")
+    if args.max_holds < 1:
+        ap.error("--max-holds must be at least 1")
 
     if not args.video.exists():
         sys.exit(f"no such video: {args.video}")
     ffmpeg, ffprobe = tools()
     duration, chapters = probe(ffprobe, args.video)
-    times = pick(args, duration, chapters)
+    holds = hold_moments(ffmpeg, args.video, duration, args.hold_min, args.max_holds) if args.holds else []
+    times = pick(args, duration, chapters, holds)
     out = args.out or args.video.with_name(args.video.stem + "-sheet.png")
 
     unlabelled: list[str] = []
@@ -181,6 +218,9 @@ def main() -> None:
         legend = out.with_suffix(".txt")
         legend.write_text("\n".join(f"{i + 1:2d}. {lab}" for i, lab in enumerate(unlabelled)) + "\n", encoding="utf-8")
         print(f"note: ffmpeg has no drawtext and Pillow is not installed; tile labels are in {legend}", file=sys.stderr)
+    if args.print_times:
+        for t in times:
+            print(f"{t:.2f}")
     print(out.resolve())
     print(f"{len(times)} stills: " + ", ".join(fmt(t) for t in times), file=sys.stderr)
 

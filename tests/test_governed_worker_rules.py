@@ -74,6 +74,8 @@ def test_c8_checks_the_chosen_stack_before_writing_code():  # operator ruling 20
     assert "Record the check in your output" in rule
     assert "say why the built-in does not fit" in rule
     assert "fastmcp" in rule
+    # wicked-core#1381: one citable line, the shape the engine's prompt asks for.
+    assert "`STACK-CHECK: looked at <docs or source> :: offers <what it provides for this job, or nothing this change needs>`" in rule
 
 
 def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 2026-10-12, POL-2101
@@ -82,6 +84,25 @@ def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 
     assert "judge the creator's reason" in rule
     assert "An unjustified duplicate is at least a Concern" in rule
     assert "records no built-in check (C8)" in rule
+    # wicked-core#1381: the evaluator's own check is a record the rule judge accepts.
+    assert "Record your own check of the change the same way, on one line: `STACK-CHECK:" in rule
+    assert 'A bare "kept" or "no duplicate" is not a record.' in rule
+    # wicked-core#1316/#1836: the reviewer's line in the exact form the record judge reads, both halves.
+    assert (
+        "`STACK-CHECK: looked at <docs or source> :: offers <what it provides for this change, "
+        "or nothing this change needs>`, both halves" in rule
+    )
+
+
+def test_e7_process_rules_are_reported_never_critical():  # wicked-core#1316
+    rule = _rule("E7")
+    assert "A BROKEN rule is a Critical, and the verdict is FAIL" in rule
+    assert "Shipped `RVWL-*` process rules (how the loop ran, not the change) are only reported" in rule
+    assert "the engine's rule check judges a rewritten one like any other rule" in rule
+    # The description (shown before the body loads) carries the same exception.
+    head = FLOOR.read_text(encoding="utf-8").split("\n---", 1)[0]
+    assert "a broken rule fails, a shipped RVWL process rule is only reported" in head
+    assert "a BROKEN one is a Concern, never a Critical, and never makes the verdict FAIL on its own" in rule
 
 
 def test_engineering_review_and_plan_carry_the_built_in_check():  # POL-2101
@@ -115,6 +136,12 @@ def test_e6_delivery_only_criteria_are_deferred_not_failed():  # operator-approv
     assert "a DEFERRED item (E6) is neither, so it never makes the verdict FAIL" in body
 
 
+def test_the_output_contract_carries_the_stack_check_line():  # wicked-core#1381
+    body = " ".join(FLOOR.read_text(encoding="utf-8").split())
+    assert "the built-in check (C8) as its one `STACK-CHECK:` line" in body
+    assert "an evaluator of code adds its own `STACK-CHECK:` line (E5)" in body
+
+
 def test_new_rules_have_provenance_rows():
     body = FLOOR.read_text(encoding="utf-8")
     for rule_id in ("A7", "A9", "C6", "C7", "C8", "E3", "E4", "E5", "E6"):
@@ -127,9 +154,15 @@ def test_a7_every_role_proposes_what_it_witnessed():  # operator report 2026-10-
     # A fixed moment to check, power mode included: a soft "when you learn something" was read and skipped
     # by both a power-mode claude orchestrator and a codex evaluator on the rig (run e0ba4073).
     assert "Before your final message (in power mode, before each `CHECKPOINT:` or `HANDOFF:` line)" in rule
-    for what in ("failed because of the toolchain, the environment or the repository's setup",
-                 "and what made it pass", "a trap in a tool", "a ruling or steer the operator gave"):
+    for what in ("failed because of the repository's own setup",
+                 "and what made it pass", "a trap in the repository's own tools",
+                 "a rule the operator stated that holds beyond this run"):
         assert what in rule, what
+    # Sandbox limits and per-run verdicts are not memories (approve-queue triage 2026-11-18): seats re-filed
+    # the same ones every run. The seat image owns sandbox limits; the run record owns a verdict.
+    assert "toolchain, the environment" not in rule and "a ruling or steer the operator gave in this run" not in rule
+    assert "a limit of the seat's own sandbox" in rule and "which belongs to the seat image" in rule
+    assert "a verdict or ruling on this run" in rule
     # A reviewer's finding with an environmental cause is a memory too (the codex evaluator's miss).
     assert "A finding you report is a memory as well" in rule and "so an evaluator proposes it too" in rule
     assert "`wicked-garden run scripts/mem/estate_memory.py --readonly propose '" in rule
@@ -282,3 +315,80 @@ def test_a9_a_chat_answer_carries_no_run_counts():  # knowledge journey 2026-11-
     floor = FLOOR.read_text(encoding="utf-8")
     assert "a chat answer carries no run counts" in floor.split("---", 2)[1]  # the description a host loads
 
+
+
+def test_a9_a_chat_answer_carries_no_notes_about_the_seat():  # garden#1406: skill-loading and shim notes in answers
+    rule = _rule("A9")
+    for what in ("not which skills you loaded or did not re-invoke", "how a result reached you",
+                 "or what your instructions describe"):
+        assert what in rule, what
+    # HIDE: what could not be checked still reaches the person, as a fact about the answer.
+    assert "Say in one line what could not be checked" in rule
+    # Scope unchanged: the chat seat only; a governed unit keeps its contract.
+    assert "only when you are the seat answering a person in a studio chat" in rule
+    assert "A unit of a governed run keeps the Output contract, Counts included (A4, A7)" in rule
+    floor = FLOOR.read_text(encoding="utf-8")
+    assert "no run counts or seat notes" in floor.split("---", 2)[1]
+    assert re.search(r"^\| A9 \|.*garden#1406", floor, re.M)
+
+
+def test_e7_evaluators_judge_the_rules_they_are_handed():  # operator ruling 2026-11-05, run 9d2b6565
+    rule = _rule("E7")
+    # A third-party check: the creator's own claim is never the evidence.
+    assert "the creator never marks its own compliance" in rule
+    assert "is never the evidence" in rule
+    # One verdict per rule, each with its evidence; BROKEN fails the gate.
+    for verdict in ("`RULE <id>: KEPT", "`RULE <id>: BROKEN", "`RULE <id>: N/A"):
+        assert verdict in rule, verdict
+    assert "A BROKEN rule is a Critical, and the verdict is FAIL, naming the rule" in rule
+    # The corpus case: a bug fix with no test that fails without it breaks learn-tests-with-fixes.
+    assert "RULE learn-tests-with-fixes: BROKEN" in rule and "`VERDICT: FAIL`" in rule
+    assert "the rule is KEPT, citing the test" in rule
+    # A rule outside the change is not applicable, and nothing is invented.
+    assert "outside it" in rule and "never invent a rule" in rule
+    # (xreview r1) N/A needs the rule's own scope to exclude the change: no file names means every file.
+    assert "N/A needs the rule itself to exclude the change" in rule
+    assert "a rule that names no files covers every file" in rule
+    assert "files it does not name" not in rule
+    # (xreview r1) A delivery-only rule is DEFERRED per E6, never a FAIL by itself; one VERDICT line stays last.
+    assert "`RULE <id>: DEFERRED" in rule and "(E6)" in rule and "never fails the unit by itself" in rule
+    assert "the last line stays one `VERDICT:` line" in rule
+    desc = FLOOR.read_text(encoding="utf-8").split("\n", 3)[2]
+    assert "judge the steering rules they are handed" in desc
+
+
+PULL_COMMAND = (
+    "`wicked-garden run scripts/_estate_client.py --readonly call "
+    """'{"tool":"rules.recall","arguments":{"ids":["<id>"]}}'`"""
+)
+
+
+def test_e7_pulls_each_rule_statement_and_an_unreadable_rule_is_unassessed():  # ctx-pull, run 8d005505 units 7-8
+    """The brief names rules by id; the evaluator pulls each statement before judging it. Run 8d005505
+    unit 8 could not read a rule and wrote N/A. Falsifier: drop the pull line or the UNASSESSED line."""
+    rule = _rule("E7")
+    # The exact command, spelled in the skill's own text (portable: no other file needed).
+    assert PULL_COMMAND in rule
+    assert "pull each rule's whole statement before you judge it" in rule
+    assert "the same set the run's rule judge reads" in rule
+    # A rule it cannot read is UNASSESSED, never N/A or KEPT, and never guessed from its id.
+    assert "`RULE <id>: UNASSESSED — <why it could not be read>`" in rule
+    assert "never N/A and never KEPT" in rule
+    assert "`missing`" in rule
+    assert "never guess what a rule says from its id" in rule
+    # The command is the one the read-only fence allows: the shim, `--readonly`.
+    assert "_estate_client.py --readonly" in PULL_COMMAND
+
+
+def test_e7_judges_this_change_not_the_code_it_did_not_touch():  # wicked-core#1339, run 92749083
+    """A mapping page that wrote only its rules file was failed on a JSDoc rule broken by existing
+    code. Falsifier: drop the wording and an evaluator reads "covers every file" as licence to fail
+    a change for lines it never touched."""
+    rule = _rule("E7")
+    flat = " ".join(rule.split())
+    assert "judge THIS change" in flat
+    assert "it breaks a rule when it introduces or activates the break" in flat
+    assert "adds, modifies, deletes or renames" in flat
+    assert "including through code it did not touch" in flat
+    assert "`RULE <id>: N/A — pre-existing: <file:line> is not in this change`" in flat
+    assert "never a Critical or a FAIL" in flat

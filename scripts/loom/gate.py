@@ -55,7 +55,7 @@ def _build_argv(vault_prefix: list, produces: str, scope: str, *,
 def run_gate(produces: str, *, scope: str,
              with_attestations: bool = False,
              verifier_spec: Optional[str] = None,
-             run: Runner = _default_run,
+             run: Runner | None = None,
              timeout: int = _DEFAULT_TIMEOUT) -> dict:
     """Re-derive ``produces`` via ``vault cross-check`` and return the verdict.
 
@@ -63,6 +63,8 @@ def run_gate(produces: str, *, scope: str,
     output all yield ``satisfied: False`` with ``gate: "unavailable"`` (or
     overall "ERROR") — never an invented pass.
     """
+    if run is None:
+        run = _default_run
     vault_prefix = resolve("vault")
     if vault_prefix is None:
         return {

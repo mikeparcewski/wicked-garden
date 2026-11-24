@@ -1,7 +1,7 @@
 {
   "manifest_version": "1.0",
   "scope": "repo",
-  "source_dir": "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/wicked-garden-aw25/evidence/aw25-golden/ruleset",
+  "source_dir": "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/wicked-garden-aw25/evidence/aw25-golden/ruleset",
   "generated_at": 1788067608,
   "enforcement": {
     "transport": "crew-api",
@@ -11,13 +11,13 @@
   },
   "discovery": [
     {
-      "db": "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db",
+      "db": "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db",
       "verified": true
     }
   ],
   "knowledge": [
     {
-      "db": "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db",
+      "db": "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db",
       "verified": true
     }
   ],
@@ -29,10 +29,10 @@
       "source": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#PAT-2501",
       "enforcement": "crew-api:http://127.0.0.1:7907/api/v1 (pending)",
       "discovery": [
-        "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db"
+        "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db"
       ],
       "knowledge": [
-        "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db#kchunk:rule-rationale/PAT-2501"
+        "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db#kchunk:rule-rationale/PAT-2501"
       ]
     },
     "POL-2500": {
@@ -42,10 +42,10 @@
       "source": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#POL-2500",
       "enforcement": "crew-api:http://127.0.0.1:7907/api/v1 (pending)",
       "discovery": [
-        "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db"
+        "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db"
       ],
       "knowledge": [
-        "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db#kchunk:rule-rationale/POL-2500"
+        "/private/tmp/claude-501/-Users-me-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db#kchunk:rule-rationale/POL-2500"
       ]
     }
   },

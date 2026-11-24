@@ -1,0 +1,103 @@
+{
+  "spec": 2,
+  "name": "fixture-hostile-dom",
+  "vendor": "fixture",
+  "version": "0.1.0",
+  "description": "Hostile DOM probe: an artifact editor plugin for wicked-studio.",
+  "editors": [
+    {
+      "id": "fixture-hostile-dom",
+      "title": "Hostile DOM probe",
+      "version": "0.1.0",
+      "protocol": [
+        1,
+        2
+      ],
+      "kinds": [
+        "page"
+      ],
+      "entry": "editors/fixture-hostile-dom/index.html",
+      "sha256": "f74dd18fae814e406bf359e95eccba879df7532cff5c8433b15bf6e743c9b14b",
+      "sizes": [
+        "inline",
+        "pane",
+        "full"
+      ],
+      "surfaces": {
+        "card": {
+          "interactive": true,
+          "aspect": "auto",
+          "actions": [
+            {
+              "id": "next",
+              "label": "Next part",
+              "verb": "plugin"
+            },
+            {
+              "id": "ask",
+              "label": "Ask about it",
+              "verb": "host:ask"
+            }
+          ]
+        },
+        "options": {
+          "tabs": [
+            {
+              "id": "parts",
+              "label": "Parts",
+              "render": "plugin"
+            },
+            {
+              "id": "view",
+              "label": "View",
+              "render": "controls",
+              "controls": [
+                {
+                  "id": "density",
+                  "label": "Density",
+                  "type": "segmented",
+                  "options": [
+                    {
+                      "id": "roomy",
+                      "label": "Roomy"
+                    },
+                    {
+                      "id": "compact",
+                      "label": "Compact"
+                    }
+                  ]
+                },
+                {
+                  "id": "numbers",
+                  "label": "Show numbers",
+                  "type": "toggle"
+                }
+              ]
+            }
+          ]
+        },
+        "full": {
+          "modes": [
+            "simple",
+            "advanced"
+          ],
+          "default": "simple"
+        }
+      },
+      "permissions": [
+        {
+          "id": "artifact.read",
+          "why": "to read the artifact it opens"
+        },
+        {
+          "id": "selection.chip",
+          "why": "to point at parts of it in your message box"
+        },
+        {
+          "id": "ui.fullscreen",
+          "why": "to go full screen"
+        }
+      ]
+    }
+  ]
+}

@@ -107,31 +107,35 @@ class InternalDispatchTests(unittest.TestCase):
 
     def test_doctor_dispatches_internally(self):
         """run_json(['doctor']) calls internal compose module."""
-        out = _loom.run_json(["doctor"])
+        peers = [{"peer": "bus", "status": "ok", "capability_ok": True}]
+        with patch("loom.compose.check_all", return_value=peers) as check_all:
+            out = _loom.run_json(["doctor"])
+        check_all.assert_called_once_with()
         self.assertIsNone(out["error"])
         payload = out["json"]
-        self.assertIn("peers", payload)
+        self.assertEqual(payload["peers"], peers)
         self.assertIn("all_reachable", payload)
         self.assertIn("all_capable", payload)
 
     def test_compose_install_dispatches_internally(self):
         """run_json(['compose', 'install']) calls internal compose module."""
-        # We're not actually installing; just verify it dispatches in-process
-        # and returns the right shape.
+        from loom import manifest
+
         with patch("loom.compose._default_run") as mock_run:
             from loom.compose import RunResult
             mock_run.return_value = RunResult(returncode=0, stdout="", stderr="")
             out = _loom.run_json(["compose", "install", "--peer", "bus"])
         self.assertIsNone(out["error"])
-        self.assertIn("results", out["json"])
+        mock_run.assert_called_once_with(manifest.get("bus").install_cmd, timeout=300)
+        self.assertEqual(out["json"]["results"],
+                         [{"peer": "bus", "status": "installed"}])
 
     def test_gate_dispatches_internally(self):
         """run_json(['gate', 'test-report', '--scope', 'proj-1']) goes in-process.
 
         Patch _loom._loom_gate_mod.run_gate directly — the internal gate module
-        is imported by name into _loom, so this is the correct seam. Patching
-        loom.gate._default_run would not work because the default parameter is
-        bound at function-definition time, not at call time.
+        is imported by name into _loom, so this isolates dispatch from the
+        vault subprocess.
         """
         gate_verdict = {
             "satisfied": True, "re_derived": True,

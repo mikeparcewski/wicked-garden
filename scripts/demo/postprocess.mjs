@@ -19,6 +19,9 @@ export const CAPTURE = "capture.mp4";
 /** ffprobe beside a given ffmpeg binary (`FFMPEG=/path/to/ffmpeg` is honoured for both). */
 export const ffprobeOf = (ffmpeg) => ffmpeg.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
 
+/** A value for an FFMETADATA line: `=`, `;`, `#` and `\` escaped with a backslash (as the format says), newlines as spaces. */
+export const ffmetaValue = (v) => String(v ?? "").replace(/\r?\n/g, " ").replace(/[=;#\\]/g, (c) => `\\${c}`);
+
 /**
  * The video clock of a timeline, in master frames so it agrees with the cut to the frame: `inFrame`, the first
  * master frame kept; `spans`, the time-lapse spans as [a, b) frame ranges with their factor; `keptBefore(k)`, how many
@@ -34,9 +37,11 @@ export function videoClock(tl, trimStart = 0) {
   // Inside a span only frame a and every frame where floor((k - a) / factor) advances are kept: one in `factor`.
   // Spans never overlap here: a later span starts where the one before it ends (a nested Stage.fast() counts once).
   const spans = [];
+  // A `cut` span (a chapter card held while the app got ready behind it) keeps only its first frame.
   for (const s of [...tl.marks.speed].sort((x, y) => x.start - y.start)) {
     const a = Math.max(inFrame, toFrame(s.start), spans.length ? spans[spans.length - 1].b : 0), b = toFrame(s.end);
-    if (b > a && s.factor > 1) spans.push({ a, b, f: s.factor });
+    const f = s.cut ? b - a + 1 : s.factor;
+    if (b > a && f > 1) spans.push({ a, b, f });
   }
   const keptIn = (a, b, f) => (b > a ? Math.floor((b - a - 1) / f) + 1 : 0);
   const keptBefore = (k) => {
@@ -86,10 +91,10 @@ export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ff
 
   // A chapter marked after the master's last frame (a take killed within the second) sits at the end, not past it.
   const chapters = tl.marks.chapters.map((c) => ({ ...c, out: Math.min(Math.max(0, outAt(c.t)), kept / fps) }));
-  const meta = [";FFMETADATA1", `title=${(tl.title || "Demo").replace(/[=;#\\\n]/g, " ")}`];
+  const meta = [";FFMETADATA1", `title=${ffmetaValue(tl.title || "Demo")}`];
   chapters.forEach((c, i) => {
     const start = Math.round(c.out * 1000), end = Math.round((i + 1 < chapters.length ? chapters[i + 1].out : total) * 1000);
-    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${start}`, `END=${end}`, `title=${c.title.replace(/[=;#\\\n]/g, " ")}`);
+    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${start}`, `END=${end}`, `title=${ffmetaValue(c.title)}`);
   });
   fs.writeFileSync(path.join(outDir, "chapters.ffmeta"), meta.join("\n") + "\n");
 
@@ -104,7 +109,7 @@ export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ff
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
   const md = ["| Time | Chapter |", "|---|---|", ...chapters.map((c) => `| ${fmt(c.out)} | ${c.title} |`)];
   fs.writeFileSync(path.join(outDir, "chapters.md"), md.join("\n") + "\n");
-  return { seconds: total, chapters: chapters.map((c) => ({ at: fmt(c.out), title: c.title })), speedups: speed.length, frames: nFrames - inFrame };
+  return { seconds: total, chapters: chapters.map((c) => ({ at: fmt(c.out), title: c.title })), speedups: speed.filter((x) => !x.cut).length, frames: nFrames - inFrame };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

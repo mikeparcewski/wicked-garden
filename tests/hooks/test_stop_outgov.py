@@ -22,6 +22,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
+from _estate_client import EstateUnavailable
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _HOOKS_SCRIPTS = _REPO_ROOT / "hooks" / "scripts"
 if str(_HOOKS_SCRIPTS) not in sys.path:
@@ -212,6 +216,27 @@ class ShimSeam(unittest.TestCase):
 
         with patch("subprocess.run", lambda *a, **k: _Proc()):
             self.assertIsNone(stop._recall_policy_rules())
+
+
+@pytest.mark.parametrize("failure", ["unavailable", "cli_failure"])
+def test_rules_helpers_are_silent_when_shim_fails(monkeypatch, capsys, failure):
+    """#1492/#1493: failed shim responses and exceptions remain advisory."""
+    import subprocess
+
+    def fail(argv, **kwargs):
+        if failure == "unavailable":
+            raise EstateUnavailable("estate broker did not answer")
+        return subprocess.CompletedProcess(
+            argv, 1,
+            stdout=json.dumps({"ok": False, "reason": "estate broker did not answer"}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fail)
+    assert stop._recall_policy_rules() is None
+    assert _run(recall=stop._recall_policy_rules)[0] == []
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
 
 
 if __name__ == "__main__":

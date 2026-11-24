@@ -22,6 +22,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from html.parser import HTMLParser
 
 import pytest
 
@@ -98,6 +99,67 @@ def test_tools_call_leaves_only_from_the_call_buttons_click():
     # on a timer or from host.action calls a tool.
     assert src.count("'tools/call'") == 1 and "run('Call ' + String(x.name), 'tools/call'" in src
     assert "setTimeout" not in src and "setInterval" not in src
+
+
+# ── the third-party authoring sample ──────────────────────────────────────────────────────────
+
+TERMS_PACK = REPO / "tests" / "fixtures" / "packs" / "acme-terms"
+TERMS_ENTRY = TERMS_PACK / "editors" / "acme-terms" / "index.html"
+
+
+def test_the_terms_sample_keeps_the_scaffolds_protocol_and_its_existing_pack_parts(tmp_path):
+    m = json.loads((TERMS_PACK / "wicked-pack.json").read_text(encoding="utf-8"))
+    e = m["editors"][0]
+    out = tmp_path / "terms"
+    done = run("scaffold.py", "--vendor", m["vendor"], "--id", e["id"], "--title", e["title"],
+               "--kinds", ",".join(e["kinds"]), "--permissions", ",".join(p["id"] for p in e["permissions"]),
+               "--out", str(out))
+    assert done.returncode == 0, done.stderr
+    made = json.loads((out / "wicked-pack.json").read_text(encoding="utf-8"))["editors"][0]
+    assert {k: e.get(k) for k in ("protocol", "sizes", "surfaces")} == {
+        k: made[k] for k in ("protocol", "sizes", "surfaces")}
+    stamped = SURFACES_RE.search((out / e["entry"]).read_text(encoding="utf-8"))
+    shipped = SURFACES_RE.search(TERMS_ENTRY.read_text(encoding="utf-8"))
+    assert stamped and shipped and stamped.group(1) == shipped.group(1)
+    assert e["sha256"] == hashlib.sha256(TERMS_ENTRY.read_bytes()).hexdigest()
+    assert m["blocks"][0]["id"] == "acme-terms-review"
+    assert sorted(p.parent.name for p in (TERMS_PACK / "skills").glob("*/SKILL.md")) == [
+        "acme-terms", "acme-terms-checker"]
+
+
+class _SampleHtml(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.scripts = 0
+        self.handlers = []
+        self.script_urls = []
+        self.saves = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "script":
+            self.scripts += 1
+            assert "src" not in attrs
+        self.handlers.extend(k for k in attrs if k.startswith("on"))
+        self.script_urls.extend(v for v in attrs.values() if v and v.strip().lower().startswith("javascript:"))
+        if "data-wicked-save" in attrs:
+            self.saves.append(tag)
+
+
+def test_the_terms_sample_exercises_its_permissions_and_is_clean_under_hash_only_scripts():
+    src = TERMS_ENTRY.read_text(encoding="utf-8")
+    parsed = _SampleHtml()
+    parsed.feed(src)
+    assert parsed.scripts == 1 and parsed.handlers == [] and parsed.script_urls == []
+    assert parsed.saves == ["button"] and "Replace everywhere" in src
+    assert "req('artifact.read'" in src and "req('version.write'" in src
+    assert "send('checks.contribute'" in src and "send('selection.set'" in src
+    assert "eval(" not in src and "new Function" not in src and "innerHTML" not in src
+    m = json.loads((TERMS_PACK / "wicked-pack.json").read_text(encoding="utf-8"))
+    e = m["editors"][0]
+    assert e["description"] and e["visuals"] == {"icon": "editors/acme-terms/icon.svg", "color": "#224a5e"}
+    assert (TERMS_PACK / e["visuals"]["icon"]).is_file()
+    assert check_pack(TERMS_PACK, garden_root=REPO) == []
 
 
 # ── conformance: the page-load bound ─────────────────────────────────────────────────────────
@@ -218,6 +280,57 @@ needs_browser = pytest.mark.skipif(not _browser_ready(), reason="needs playwrigh
 def conform(pack: Path, dist: str | None = None) -> tuple[int, dict]:
     done = run("conformance.py", "--pack", str(pack), "--studio-dist", dist or os.environ["WICKED_STUDIO_DIST"])
     return done.returncode, json.loads(done.stdout)
+
+
+@needs_browser
+def test_the_terms_sample_passes_every_conformance_case():
+    code, report = conform(TERMS_PACK)
+    cases = report["editors"][0]["cases"]
+    assert code == 0 and all(row["ok"] for row in cases.values()), json.dumps(cases, indent=1)
+
+
+@needs_browser
+def test_the_terms_sample_lists_hits_points_at_a_sentence_and_replaces_in_one_version():
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        page = browser.new_page()
+        try:
+            page.set_content(TERMS_ENTRY.read_text(encoding="utf-8"))
+            page.evaluate("""() => {
+              window.sampleMessages = [];
+              const channel = new MessageChannel();
+              channel.port1.onmessage = ({data: d}) => {
+                window.sampleMessages.push(d);
+                if (d.type === 'artifact.read') channel.port1.postMessage({p: 'wicked.editor', v: 1,
+                  re: d.id, ok: true, payload: {version: 3, content: {type: 'html',
+                  html: '<p data-wid="one">We utilize this tool.</p><p data-wid="two">Utilize it again.</p>'}}});
+                if (d.type === 'version.write') channel.port1.postMessage({p: 'wicked.editor', v: 1,
+                  re: d.id, ok: true, payload: {version: 4}});
+              };
+              window.postMessage({p: 'wicked.editor', v: 1, type: 'host.hello', payload: {
+                protocol: 2, surface: 'card', grants: ['artifact.read', 'artifact.write', 'selection.chip',
+                'checks.contribute']}}, '*', [channel.port2]);
+            }""")
+            # The part's number is a hidden span inside the same row, so read the rendered text of the row.
+            page.locator('#view [data-part="one"]').wait_for()
+            assert page.locator('#view [data-part="one"]').inner_text() == 'We utilize this tool.'
+            page.locator('#hits button').filter(has_text='We utilize this tool.').click()
+            page.get_by_role('button', name='Replace everywhere').click()
+            page.wait_for_function("() => sampleMessages.some(d => d.type === 'version.write')")
+            messages = page.evaluate("sampleMessages")
+            notes = [d["payload"]["checks"] for d in messages if d["type"] == "checks.contribute"]
+            assert any(len(n) == 2 and all("utilize" in x["text"].lower() for x in n) for n in notes)
+            assert any(d["type"] == "selection.set" and d["payload"]["anchors"] == [
+                {"kind": "element", "id": "one"}] for d in messages)
+            writes = [d["payload"] for d in messages if d["type"] == "version.write"]
+            assert len(writes) == 1 and writes[0]["base"] == 3
+            assert writes[0]["ops"] == [
+                {"op": "text", "anchor": "one", "before": "We utilize this tool.", "value": "We use this tool."},
+                {"op": "text", "anchor": "two", "before": "Utilize it again.", "value": "Use it again."}]
+        finally:
+            browser.close()
 
 
 @needs_browser

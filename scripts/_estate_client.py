@@ -82,13 +82,23 @@ transport behind the same seam (`_transport`). With neither a pinned local
 store nor the broker channel, a governed unit still fails closed with a reason
 (`governed_refusal`).
 
+Some tools only crew can answer, so a governed unit sends them to the broker
+even with a local store pinned (`CREW_ANSWERED_TOOLS`): the knowledge reads,
+filtered by what the unit may see, and ``rules.recall``, the steering rules in
+force for the run's project (the set the run's rule judge reads). A local store
+in a run is its code graph, which holds no steering rules, so ``rules.recall``
+in a governed unit is never answered locally: without the broker channel it
+comes back empty, with the reason.
+
 Fail-open contract
 ------------------
-Every public function is fail-open: on a missing binary, spawn failure,
-timeout, non-zero exit, malformed JSON, or a tool `isError`, it returns a safe
-empty value (`False` / `None` / `[]`) and never raises. Hooks degrade; they do
-not crash. The governed refusal above is the one deliberate "do not even try":
-it still returns the empty value — the CLI surfaces the reason as
+Low-level calls are fail-open: on a missing binary, spawn failure, timeout,
+non-zero exit, malformed JSON, or a tool `isError`, they return a safe empty
+value (`False` / `None` / `[]`). `last_failure()` distinguishes unavailable,
+refused and errored calls from completed empty answers. The graph consumers
+`search` and `context` raise `EstateUnavailable` when a failure is recorded;
+CLI `call` surfaces a tool `isError` as ``{"error": …, "diagnostics": [...]}``,
+while unavailable/refused and `search`/`context` failures surface as
 ``{"ok": false, "reason": …}``.
 
 Cross-platform
@@ -105,6 +115,7 @@ import queue
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.error
 import urllib.request
@@ -234,6 +245,12 @@ BROKER_TOOLS = (
 # channel always relays these, even with a local estate pinned: crew sets `visible` and re-checks the
 # answer. Locally they answer dep-free knowledge only (estate's empty default set).
 VISIBLE_TOOLS = ("knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors")
+# The steering rules in force for the run's project: crew answers `rules.recall` from the set its
+# rule judge reads (`src/mcp/estate-relay.ts`). The run's local store is its code graph, which holds
+# no steering rules, so a governed unit always asks crew, host seats included.
+RULES_TOOL = "rules.recall"
+# What a governed unit always sends to crew (`use_broker_for`).
+CREW_ANSWERED_TOOLS = VISIBLE_TOOLS + (RULES_TOOL,)
 
 _readonly_flag: bool = False                  # set by --readonly / set_readonly()
 _governed_flag: bool = False                  # set by --governed / set_governed()
@@ -311,7 +328,11 @@ def use_broker() -> bool:
 
 def use_broker_for(tool: Optional[str]) -> bool:
     """`use_broker`, plus: a knowledge read in `VISIBLE_TOOLS` relays whenever this governed unit holds
-    the broker channel, so crew decides what it may see."""
+    the broker channel, so crew decides what it may see; and `rules.recall` in a governed unit always
+    goes to crew (with no channel, `_broker_dispatch` answers nothing and says why), never the local
+    code graph."""
+    if tool == RULES_TOOL and is_governed():
+        return True
     if tool in VISIBLE_TOOLS and is_governed() and broker_channel() is not None:
         return True
     return use_broker()
@@ -319,7 +340,7 @@ def use_broker_for(tool: Optional[str]) -> bool:
 
 def transport_name(tool: Optional[str] = None) -> Optional[str]:
     """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused), for
-    `tool` (default: any tool outside `VISIBLE_TOOLS`)."""
+    `tool` (default: any tool outside `CREW_ANSWERED_TOOLS`)."""
     if use_broker_for(tool):
         return "broker"
     return None if governed_refusal() else "local"
@@ -342,6 +363,61 @@ def governed_refusal() -> Optional[str]:
         f"the worker environment, or run where wicked-crew hands the unit {CREW_URL_ENV} "
         f"and {MCP_TOKEN_ENV} (its estate relay); refusing to spawn wicked-estate-mcp "
         "against an unpinned store (it would resolve the operator's defaults)"
+    )
+
+
+# The tools estate answers from the GRAPH store (the `--db` spec), as its MCP routes them
+# (wicked-estate `crates/wicked-estate-mcp/src/lib.rs`, the graph arm of `tools/call`). Every
+# other tool reads the memory / knowledge stores under WICKED_HOME.
+GRAPH_TOOLS = (
+    "SearchEntity", "RetrieveEntity", "TraverseGraph", "Path", "BlastRadius", "FetchContent",
+    "ContextBundle", "RulesInventory", "rules.recall", "RankHotspots", "Communities", "Lineage",
+    "SemanticSearch",
+)
+
+
+def _is_scheme_spec(spec: str) -> bool:
+    """`sqlite:` / `postgres://` (two or more scheme chars), so `C:\\x` is still a path (as estate judges it)."""
+    head, sep, _ = spec.partition(":")
+    return bool(sep) and len(head) > 1 and all((c.isascii() and c.isalnum()) or c in "+.-" for c in head)
+
+
+def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[str]:
+    """The reason NOT to send a code-graph read, or None (wicked-garden#1478).
+
+    With no graph pinned (`--db`, `WICKED_ESTATE_DB`, or `./.wicked-estate/graph.db`), or a pin
+    naming a file that does not exist, estate answers from an EMPTY store (a read-only server serves
+    a missing store empty in memory), so every symbol reads as absent and every blast radius as 0.
+    That is refused with the fix instead. `WICKED_HOME` / `WICKED_MEMORY_DB` pin the memory and
+    knowledge stores, never the graph. `:memory:` and `scheme:` specs are explicit and pass; a call
+    relayed to crew's broker passes (crew answers from the run's graph).
+    """
+    if tool not in GRAPH_TOOLS or use_broker_for(tool):
+        return None
+    spec = resolve_db()
+    team = os.environ.get("WICKED_RUNTIME", "").strip().lower() == "team"
+    if spec is None and team and os.environ.get("WICKED_STORE_URL", "").strip():
+        # The team profile names its shared store itself (WICKED_STORE_URL) when the shim forwards
+        # no --db: estate resolves it (the CLI serves Postgres; the MCP refuses it, #1480). Not an
+        # absent graph. Without the URL the team profile has no graph either, so it is refused like
+        # local mode (#1482). A plain pin the shim WOULD forward as --db overrides the profile, so it
+        # is checked.
+        return None
+    if spec and (spec == ":memory:" or _is_scheme_spec(spec)):
+        return None
+    try:
+        if spec and Path(spec).is_file():
+            return None
+        where = (f"the pinned graph {spec} does not exist" if spec else
+                 f"no code graph is pinned (no {DB_FLAG}, no WICKED_ESTATE_DB, no ./{_DEFAULT_DB_REL}"
+                 + (", and WICKED_RUNTIME=team has no WICKED_STORE_URL)" if team else ")"))
+    except OSError as exc:  # an unreadable directory on the path: say so, never crash the caller
+        where = f"the pinned graph {spec} could not be checked ({exc.__class__.__name__})"
+    return (
+        f"{where}, so estate would answer {what or tool} from an empty store (no matches is not an answer): "
+        f"pin {DB_FLAG} <path> to the repository's code graph (wicked-crew lists it as code_graph_db "
+        "in GET /api/v1/repos), or set WICKED_ESTATE_DB to it"
+        + (", or set WICKED_STORE_URL to the team store" if team and spec is None else "")
     )
 
 
@@ -397,6 +473,37 @@ def parse_cli_flags(argv: list) -> list:
 # Transport seam — spawn-per-call today; swappable for a broker later
 # ─────────────────────────────────────────────────────────────────────────────
 
+_failure_state = threading.local()
+
+
+class EstateUnavailable(Exception):
+    """A graph consumer could not obtain an answer from estate."""
+
+
+def last_failure() -> Optional[dict]:
+    """Failure from this thread's latest RPC, or None for a completed answer."""
+    return getattr(_failure_state, "value", None)
+
+
+def _set_failure(value: Optional[dict]) -> None:
+    _failure_state.value = value
+
+
+def _get_broker_refusal() -> Optional[str]:
+    """The broker's last reason for not answering in this thread, if any."""
+    return getattr(_failure_state, "broker_refusal", None)
+
+
+def _set_broker_refusal(value: Optional[str]) -> None:
+    _failure_state.broker_refusal = value
+
+
+def _unavailable(stderr: str = "") -> None:
+    detail = next((line.strip()[:300] for line in reversed(stderr.splitlines()) if line.strip()),
+                  "no handshake (binary missing, timed out, or exited)")
+    _set_failure({"kind": "unavailable", "reason": f"estate did not start: {detail}"})
+
+
 def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     """Spawn-per-call transport. Return {id: response} for id-bearing requests.
 
@@ -414,6 +521,7 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
         return {}
     exe = resolve_mcp_bin()
     if not exe:
+        _unavailable()
         return {}
     argv = mcp_argv(exe, db)
     payload = "".join(json.dumps(r, separators=(",", ":")) + "\n" for r in requests)
@@ -422,25 +530,29 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             argv,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace",
         )
     except (OSError, ValueError):
+        _unavailable()
         return {}
     try:
-        out, _ = proc.communicate(input=payload, timeout=timeout)
+        out, stderr = proc.communicate(input=payload, timeout=timeout)
     except subprocess.TimeoutExpired:
         proc.kill()
         try:
-            proc.communicate(timeout=2)
+            _, stderr = proc.communicate(timeout=2)
         except Exception:
-            pass
+            stderr = ""
+        _unavailable(stderr or "")
         return {}
     except (OSError, ValueError):
         try:
             proc.kill()
         except Exception:
             pass
+        _unavailable()
         return {}
 
     # Fail-open contract: a non-zero exit means the server died mid-batch —
@@ -448,6 +560,7 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     # hand back a partial round-trip as success. (A clean stdin-EOF shutdown
     # exits 0; wicked-estate-mcp's main loop returns Ok(()) on EOF.)
     if proc.returncode != 0:
+        _unavailable(stderr or "")
         return {}
 
     responses: dict = {}
@@ -461,6 +574,8 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             continue
         if isinstance(obj, dict) and "id" in obj and obj["id"] is not None:
             responses[obj["id"]] = obj
+    if 1 not in responses:
+        _unavailable(stderr or "")
     return responses
 
 
@@ -507,6 +622,7 @@ class _PersistentBroker:
     def __init__(self) -> None:
         self._lock: threading.Lock = threading.Lock()
         self._proc: Optional[subprocess.Popen] = None   # type: ignore[type-arg]
+        self._stderr: Optional[Any] = None              # startup diagnostics, never a pipe that can fill
         self._init_resp: Optional[dict] = None           # cached after handshake
         self._db: Optional[str] = None                   # db the process was started with
         self._readonly: bool = False                      # mode the process was started in
@@ -521,6 +637,7 @@ class _PersistentBroker:
         """Spawn and handshake. Returns True on success; cleans up on failure."""
         exe = resolve_mcp_bin()
         if not exe:
+            _unavailable()
             return False
         readonly = read_only()
         argv = mcp_argv(exe, db)
@@ -531,14 +648,21 @@ class _PersistentBroker:
         self._q = queue.Queue()
 
         try:
+            stderr = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
+        except OSError as exc:
+            _unavailable(f"cannot capture estate stderr: {exc}")
+            return False
+        try:
             proc = subprocess.Popen(
                 argv,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=stderr,
                 text=True,
             )
         except (OSError, ValueError):
+            stderr.close()
+            _unavailable()
             return False
 
         # Start the reader thread *before* writing so no response line is lost.
@@ -556,33 +680,51 @@ class _PersistentBroker:
             proc.stdin.write(json.dumps(notif, separators=(",", ":")) + "\n")
             proc.stdin.flush()
         except OSError:
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
 
         # Read and validate the initialize response (5 s timeout — not the
         # caller's timeout; this is the one-time startup handshake).
         line = self._dequeue(5.0)
         if line is None:
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
         try:
             resp = json.loads(line)
         except json.JSONDecodeError:
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
         if not (
             isinstance(resp, dict)
             and isinstance(resp.get("result"), dict)
             and resp["result"].get("serverInfo", {}).get("name") == "wicked-estate"
         ):
-            self._kill(proc)
+            self._start_failed(proc, stderr)
             return False
 
         self._proc = proc
+        if self._stderr is not None:
+            self._stderr.close()
+        self._stderr = stderr
         self._init_resp = resp
         self._db = db
         self._readonly = readonly
         return True
+
+    def _start_failed(self, proc: subprocess.Popen, stderr: Any) -> None:
+        self._kill(proc)
+        try:
+            proc.wait(timeout=2)
+        except (subprocess.TimeoutExpired, OSError):
+            pass
+        _unavailable()
+        try:
+            stderr.seek(0)
+            _unavailable(stderr.read())
+        except (OSError, ValueError):
+            pass  # Capturing diagnostics must not hide the startup failure.
+        finally:
+            stderr.close()
 
     @staticmethod
     def _reader_loop(stdout: Any, q: "queue.Queue[tuple]") -> None:
@@ -626,6 +768,9 @@ class _PersistentBroker:
         proc = self._proc
         self._proc = None
         self._init_resp = None
+        if self._stderr is not None:
+            self._stderr.close()
+            self._stderr = None
         if proc is None:
             return
         try:
@@ -743,6 +888,7 @@ class _PersistentBroker:
             result = self._exchange(real, timeout=timeout)
             if result is None:
                 self._failed = True
+                self._close()
                 return {}
 
         return {1: self._init_resp, **result}
@@ -766,11 +912,6 @@ _maybe_install_broker()
 # ─────────────────────────────────────────────────────────────────────────────
 # Broker relay transport (wicked-core#1018) — same contract as `_dispatch`
 # ─────────────────────────────────────────────────────────────────────────────
-
-#: The last reason the broker gave for not answering (a refusal, an unreachable broker), so
-#: the CLI can say WHY a relayed call came back empty instead of a bare empty result.
-_last_broker_refusal: Optional[str] = None
-
 
 def _broker_post(url: str, body: dict, timeout: float) -> "tuple[Optional[int], Optional[dict], Optional[str]]":
     """POST JSON to the broker: ``(status, body, None)``, or ``(None, None, why)`` unreachable."""
@@ -807,15 +948,17 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
       ``ok`` answer hands back the envelope crew relayed; a JSON-RPC error estate raised
       (``result.rpcError``) becomes the same ``error`` a local server would send, code kept
       (``-32602`` = fix the arguments). Any refusal becomes an ``error`` with code None
-      and its reason and remedy, also kept in `_last_broker_refusal`.
+      and its reason and remedy, also kept per thread by `_set_broker_refusal`.
 
     ``db`` is ignored: crew picks the store (the run's own). Fail-open: an unreachable
     broker leaves the ids out, as a dead local server does.
     """
-    global _last_broker_refusal
-    _last_broker_refusal = None
+    _set_broker_refusal(None)
     channel = broker_channel()
     if channel is None:
+        _set_broker_refusal(
+            f"no broker channel ({CREW_URL_ENV} + {MCP_TOKEN_ENV}): in a governed unit only crew answers "
+            f"{RULES_TOOL} (the rules in force for this run), never the local store")
         return {}
     url, token = channel
     calls = [r for r in requests if r.get("id") is not None and r.get("method") == "tools/call"]
@@ -825,7 +968,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
         # token and spends no call budget. A dead broker or a revoked token answers nothing.
         status, body, why = _broker_post(f"{url}/api/v1/mcp/tools", {"token": token}, max(timeout, 5.0))
         if status != 200 or body is None:
-            _last_broker_refusal = why or str((body or {}).get("error") or f"the broker answered {status}")
+            _set_broker_refusal(why or str((body or {}).get("error") or f"the broker answered {status}"))
             return {}
         for req in requests:
             rid = req.get("id")
@@ -847,7 +990,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
             {"token": token, "subject": BROKER_SUBJECT_PREFIX + tool, "args": params.get("arguments") or {}},
             max(timeout, BROKER_MIN_TIMEOUT_S))
         if status is None or body is None:
-            _last_broker_refusal = why
+            _set_broker_refusal(why)
             continue
         reached = True
         result = body.get("result")
@@ -863,7 +1006,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
         reason = body.get("reason") or body.get("error") or "refused"
         remedy = body.get("remedy")
         message = f"broker {outcome}: {reason}" + (f" ({remedy})" if remedy else "")
-        _last_broker_refusal = message
+        _set_broker_refusal(message)
         responses[rid] = {"jsonrpc": "2.0", "id": rid, "error": {"code": None, "message": message}}
     if reached:
         for req in requests:
@@ -909,16 +1052,39 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
       3. <method>                  (id=2)  ← the response we return
     Returns the id=2 response dict, or None if the call did not round-trip.
     """
+    _set_failure(None)
+    tool = params.get("name") if method == "tools/call" else None
+    refusal = graph_refusal(tool) if isinstance(tool, str) else None
+    if refusal:
+        _set_failure({"kind": "refused", "reason": refusal})
+        return None
     requests = [
         _initialize_request(),
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
-    tool = params.get("name") if method == "tools/call" else None
-    responses = _transport(tool if isinstance(tool, str) else None)(requests, db=resolve_db(), timeout=timeout)
-    if 1 not in responses:  # handshake never landed → estate unreachable
+    dispatch = _transport(tool if isinstance(tool, str) else None)
+    refusal = governed_refusal() if dispatch is not _broker_dispatch else None
+    if refusal:
+        _set_failure({"kind": "refused", "reason": refusal})
         return None
-    return responses.get(2)
+    responses = dispatch(requests, db=resolve_db(), timeout=timeout)
+    if 1 not in responses:  # handshake never landed → estate unreachable
+        if last_failure() is None:
+            broker_refusal = _get_broker_refusal()
+            if dispatch is _broker_dispatch and broker_refusal:
+                _set_failure({"kind": "unavailable", "reason": broker_refusal})
+            else:
+                _unavailable()
+        return None
+    response = responses.get(2)
+    if dispatch is not _broker_dispatch and (
+        not isinstance(response, dict)
+        or (not isinstance(response.get("result"), dict) and not isinstance(response.get("error"), dict))
+    ):
+        _set_failure({"kind": "unavailable", "reason": "estate answered the handshake but not the call"})
+        return None
+    return response
 
 
 def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]":
@@ -938,13 +1104,24 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
     """
     if not isinstance(envelope, dict):
         return None, []
+    error = envelope.get("error")
+    if isinstance(error, dict):
+        _set_failure({"kind": "error", "text": error.get("message") or "", "diagnostics": []})
+        return None, []
     result = envelope.get("result")
-    if not isinstance(result, dict) or result.get("isError"):
+    if not isinstance(result, dict):
         return None, []
     content = result.get("content")
-    if not isinstance(content, list) or not content:
+    content = content if isinstance(content, list) else []
+    text = content[0].get("text") if content and isinstance(content[0], dict) else None
+    diagnostics: list[str] = []
+    for block in content[1:]:
+        more = block.get("text") if isinstance(block, dict) else None
+        if isinstance(more, str):
+            diagnostics.extend(line for line in more.split("\n") if line.strip())
+    if result.get("isError"):
+        _set_failure({"kind": "error", "text": text or "", "diagnostics": diagnostics})
         return None, []
-    text = content[0].get("text") if isinstance(content[0], dict) else None
     if text is None:
         return None, []
     try:
@@ -952,11 +1129,6 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
     except (json.JSONDecodeError, TypeError):
         # Some tools may return plain text; hand it back verbatim.
         payload = text
-    diagnostics: list[str] = []
-    for block in content[1:]:
-        more = block.get("text") if isinstance(block, dict) else None
-        if isinstance(more, str):
-            diagnostics.extend(line for line in more.split("\n") if line.strip())
     return payload, diagnostics
 
 
@@ -1042,11 +1214,13 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     from the last page, whose `next_cursor` is null and whose `truncated` then says only whether
     something non-pageable cut the walk (a depth horizon or the node cap).
 
-    The result is complete only if the pages ran out. A page that fails, or a run that hits
-    `MAX_PAGES`, is reported in `diagnostics` with `complete: false` and is never presented as the
-    whole answer. A reply without `next_cursor` (an older estate, or a tool that does not page) is
-    returned as its single page. Fail-open (None) when the first call fails, the same as
-    `call_blocks`.
+    The result is complete only if the pages ran out and estate resolved the target. A page that
+    fails or a run that hits `MAX_PAGES` is reported in `diagnostics` with `complete: false`, and
+    an answer estate marks `resolved: false` (its target is a name or path the graph does not
+    hold) gets `complete: false`; neither is ever presented as the whole answer. A reply with no
+    `next_cursor` key (an older estate, or a tool that does not page) is returned as its single
+    page with no `complete` field; `call` still labels its miss (`flag_unresolved`). Fail-open
+    (None) when the first call fails, the same as `call_blocks`.
     """
     # A caller-supplied cursor is honoured, never dropped: paging resumes there (and a stale one
     # surfaces estate's error) instead of silently restarting at page 1.
@@ -1069,8 +1243,13 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
         page = call_blocks(tool, {**args, "cursor": cursor}, timeout=timeout)
         if page is None or not isinstance(page.get("result"), dict):
             complete = False
+            failure = last_failure() or {}
+            for diagnostic in failure.get("diagnostics", []):
+                if diagnostic not in diagnostics:
+                    diagnostics.append(diagnostic)
+            reason = failure.get("text") or failure.get("reason")
             diagnostics.append(f"PAGING: page {pages + 1} failed; the answer is INCOMPLETE "
-                               f"(only {pages} page(s) joined)")
+                               f"(only {pages} page(s) joined)" + (f": {reason}" if reason else ""))
             break
         pages += 1
         result = page["result"]
@@ -1085,7 +1264,11 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
         cursor = result.get("next_cursor")
     # Resumed from a caller's cursor, the join holds the rest of the answer, not all of it.
     resumed = bool(args.get("cursor"))
-    whole = complete and not merged.get("truncated", False) and not resumed
+    # A target estate could not resolve (`resolved: false`: a name or path the graph does not
+    # hold) answers zero rows that are a MISS, not the whole answer: never `complete: true`.
+    # (`call` adds the UNRESOLVED: line on every path, `flag_unresolved`.)
+    unresolved = merged.get("resolved") is False
+    whole = complete and not merged.get("truncated", False) and not resumed and not unresolved
     if resumed:
         diagnostics.append("PAGING: resumed from the supplied cursor; these rows are the REST of "
                            "the answer, not the whole of it (omit `cursor` for every row)")
@@ -1098,6 +1281,33 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     merged["complete"] = whole
     merged["pages"] = pages
     return {"result": merged, "diagnostics": diagnostics}
+
+
+#: The line `flag_unresolved` adds: zero rows for an unresolved target are a miss, not an answer.
+_UNRESOLVED_LINE = ("UNRESOLVED: estate resolved no symbol for the target (resolved: false); the "
+                    "empty answer is a miss, NOT proof of no dependents. Re-query with a SymbolId "
+                    "from `suggestions` or SearchEntity")
+
+
+def flag_unresolved(blocks: Optional[dict], tool: Optional[str] = None) -> Optional[dict]:
+    """Label an answer estate marks `resolved: false` with the `UNRESOLVED:` diagnostic, on every
+    `call` path (joined pages, one page, or a tool that does not page), so a miss never reads as
+    an empty answer. Anything else is returned unchanged."""
+    if not blocks or not isinstance(blocks.get("result"), dict):
+        return blocks
+    if blocks["result"].get("resolved") is False:
+        diagnostics = list(blocks.get("diagnostics") or [])
+        relayed = _transport(tool) is _broker_dispatch
+        store = ("the run's own graph (answered by crew's broker)" if relayed else
+                 resolve_db() or "estate's default store")
+        line = f"{_UNRESOLVED_LINE}. Store searched: {store}"
+        if not relayed:
+            line += ("; index the repository with `wicked-estate index <repo> --db <path>`, "
+                     "or pin `--db <path>` to its graph")
+        if line not in diagnostics:
+            diagnostics.append(line)
+        return {**blocks, "diagnostics": diagnostics}
+    return blocks
 
 
 def call_raw(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> Optional[dict]:
@@ -1127,9 +1337,13 @@ def search(name: str, limit: int = 20, timeout: float = 8.0) -> list:
 
     NOTE: estate's SearchEntity is graph-symbol search (name substring), which
     is narrower than brain's FTS-over-documents. S4 owns the exact semantic
-    mapping for each hook; S2 only guarantees the seam is reachable. Fail-open.
+    mapping for each hook; S2 only guarantees the seam is reachable.
+    Raises EstateUnavailable when estate failed or refused the read.
     """
     payload = call("SearchEntity", {"name": name, "limit": limit}, timeout=timeout)
+    failure = last_failure()
+    if failure:
+        raise EstateUnavailable(failure.get("reason") or failure.get("text"))
     if isinstance(payload, dict):
         matches = payload.get("matches")
         return matches if isinstance(matches, list) else []
@@ -1145,7 +1359,8 @@ def context(
     """Packed context bundle → estate `ContextBundle`.
 
     Provide exactly one seed: `query` (FTS text; top hit is used) or `symbol`
-    (stable SymbolId). Returns the parsed bundle, or None. Fail-open.
+    (stable SymbolId). Returns the parsed bundle, or None for a completed empty
+    answer. Raises EstateUnavailable when estate failed or refused the read.
     """
     args: dict = {"budget": budget}
     if symbol:
@@ -1154,7 +1369,11 @@ def context(
         args["query"] = query
     else:
         return None
-    return call("ContextBundle", args, timeout=timeout)
+    payload = call("ContextBundle", args, timeout=timeout)
+    failure = last_failure()
+    if failure:
+        raise EstateUnavailable(failure.get("reason") or failure.get("text"))
+    return payload
 
 
 def _worktree_main(git_file: Path) -> Optional[Path]:
@@ -1181,12 +1400,39 @@ def _worktree_main(git_file: Path) -> Optional[Path]:
     return common.parent
 
 
+# Where the engine puts a run's worktree under its repository (wicked-core `repo.rs`
+# `worktrees_root` / `legacy_worktrees_root`): ``<repo>/wicked-worktrees/<run id>``, or
+# ``<repo>/.wicked/worktrees/<run id>`` for a run created before crew#276.
+_RUN_WORKTREE_PARENTS = (("wicked-worktrees",), (".wicked", "worktrees"))
+
+
+def _run_worktree_repo(d: Path) -> Optional[Path]:
+    """The repository a run worktree at ``d`` belongs to, by the engine's layout; else None.
+
+    garden#1519: the layout, not the ``.git`` entry, says whose checkout this is. A seat on the
+    k8s floor works in a replica of the worktree whose ``.git`` is the replica's own directory
+    (no ``gitdir:`` pointer), so the worktree dir, named by the run id, would pass for the repo.
+    """
+    for parts in _RUN_WORKTREE_PARENTS:
+        up = d.parent
+        for name in reversed(parts):
+            if up.name != name:
+                break
+            up = up.parent
+        else:
+            if up != up.parent and up.name:
+                return up
+    return None
+
+
 def checkout_root() -> Optional[Path]:
     """The git checkout the cwd is in, resolved through linked worktrees.
 
     Walks up to the nearest ``.git``. A linked worktree's ``.git`` is a file
     (``gitdir: <main>/.git/worktrees/<name>``): its project is the MAIN checkout,
-    so a run worktree shares the repo's memories. None outside any checkout.
+    so a run worktree shares the repo's memories. A run worktree at the engine's
+    ``<repo>/wicked-worktrees/<run id>`` resolves to ``<repo>`` whatever its ``.git``
+    is (a floor replica's is a plain directory). None outside any checkout.
     """
     try:
         here = Path.cwd().resolve()
@@ -1195,9 +1441,9 @@ def checkout_root() -> Optional[Path]:
     for d in (here, *here.parents):
         git = d / ".git"
         if git.is_dir():
-            return d
+            return _run_worktree_repo(d) or d
         if git.is_file():
-            return _worktree_main(git) or d
+            return _worktree_main(git) or _run_worktree_repo(d) or d
     return None
 
 
@@ -1206,7 +1452,8 @@ def project_scope() -> str:
 
     ``WICKED_ESTATE_MEMORY_SCOPE`` (the configured project) wins; else
     ``project:<checkout name>`` from :func:`checkout_root` (stable across
-    subdirectories and worktrees); else ``project:<cwd-basename>``. Two
+    subdirectories and worktrees); else ``project:<WICKED_RUN_PROJECT>`` when
+    non-blank, falling back to ``project:<cwd-basename>``. Two
     unrelated checkouts with the same name share a scope unless one is
     configured. Recall sees this scope plus its ancestors (root-scoped
     memories included); every project is the explicit ``scope_prefix: ""``.
@@ -1216,7 +1463,9 @@ def project_scope() -> str:
         return pinned
     root = checkout_root()
     try:
-        name = (root.name if root else Path.cwd().name) or "unknown"
+        name = (
+            root.name if root else os.environ.get(RUN_PROJECT_ENV, "").strip() or Path.cwd().name
+        ) or "unknown"
     except OSError:
         name = "unknown"
     return f"project:{name}"
@@ -1371,8 +1620,8 @@ def stats(timeout: float = 8.0) -> Optional[dict]:
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI — the `wicked-estate-call` entry for non-Python / shell / markdown callers
 #   python3 scripts/_estate_client.py [--readonly] [--governed] [--db <path>] <action> [json-args]
-# Prints JSON to stdout; exit 0 always on a clean (even empty) result, 1 only on
-# a usage error. Never crashes a caller.
+# Prints JSON to stdout; completed empty answers exit 0, usage and local estate
+# failures exit 1. Existing pre-dispatch refusals keep their fail-open exit 0.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _USAGE = (
@@ -1411,8 +1660,9 @@ def _propose_arg_problems(args: dict) -> list:
 def _emit(obj: Any) -> None:
     # A relayed call that came back empty says why (the broker's reason and remedy), additively:
     # the fail-open empty value is unchanged.
-    if isinstance(obj, dict) and _last_broker_refusal and "broker_refusal" not in obj:
-        obj = {**obj, "broker_refusal": _last_broker_refusal}
+    broker_refusal = _get_broker_refusal()
+    if isinstance(obj, dict) and broker_refusal and "broker_refusal" not in obj:
+        obj = {**obj, "broker_refusal": broker_refusal}
     sys.stdout.write(json.dumps(obj))
     sys.stdout.write("\n")
 
@@ -1432,7 +1682,8 @@ def main(argv: list) -> int:
         _emit({"governed": is_governed(), "marker": governed_marker(),
                "readonly": read_only(), "store_pinned": store_pinned(),
                "db": resolve_db(), "transport": transport_name(),
-               "broker": broker_channel() is not None, "refusal": governed_refusal()})
+               "broker": broker_channel() is not None, "refusal": governed_refusal(),
+               "graph": resolve_db(), "graph_refusal": graph_refusal("SearchEntity")})
         return 0
     refusal = governed_refusal()
     if refusal:
@@ -1453,6 +1704,21 @@ def main(argv: list) -> int:
     if not isinstance(args, dict):
         _emit({"error": f"json-args must be a JSON object, got {type(args).__name__}; {_USAGE}"})
         return 1
+    if action == "call":
+        unknown = sorted(set(args) - {"tool", "name", "arguments", "all_pages"})
+        if unknown:
+            _emit({"error": "unknown key " + ", ".join(repr(key) for key in unknown)
+                            + '; the call takes "arguments"'})
+            return 1
+    # A code-graph read with no graph behind it is refused, never answered empty (wicked-garden#1478).
+    graph_tool = {"search": "SearchEntity", "context": "ContextBundle", "stats": "SearchEntity"}.get(action)
+    if action == "call":
+        graph_tool = args.get("tool") or args.get("name")
+    no_graph = (graph_refusal(graph_tool, action if action != "call" else None)
+                if isinstance(graph_tool, str) else None)
+    if no_graph:
+        _emit({"ok": False, "reason": no_graph, "graph": resolve_db()})
+        return 0
 
     if action == "health":
         _emit({"reachable": health()})
@@ -1462,11 +1728,27 @@ def main(argv: list) -> int:
         _emit(stats() or {})
     elif action == "search":
         name = args.get("name") or args.get("query") or args.get("_", "")
-        _emit({"matches": search(name, int(args.get("limit", 20)))})
+        try:
+            _emit({"matches": search(name, int(args.get("limit", 20)))})
+        except EstateUnavailable as exc:
+            failure = last_failure() or {}
+            out = {"ok": False, "reason": str(exc)}
+            if failure.get("kind") == "error" and failure.get("diagnostics"):
+                out["diagnostics"] = failure["diagnostics"]
+            _emit(out)
+            return 1
     elif action == "context":
-        _emit(context(query=args.get("query") or args.get("_"),
-                      symbol=args.get("symbol"),
-                      budget=int(args.get("budget", 8000))) or {})
+        try:
+            _emit(context(query=args.get("query") or args.get("_"),
+                          symbol=args.get("symbol"),
+                          budget=int(args.get("budget", 8000))) or {})
+        except EstateUnavailable as exc:
+            failure = last_failure() or {}
+            out = {"ok": False, "reason": str(exc)}
+            if failure.get("kind") == "error" and failure.get("diagnostics"):
+                out["diagnostics"] = failure["diagnostics"]
+            _emit(out)
+            return 1
     elif action == "recall":
         q = args.get("query") or args.get("_", "")
         _emit({"items": recall(q, args.get("scope", ""), int(args.get("token_budget", 2000)),
@@ -1487,6 +1769,14 @@ def main(argv: list) -> int:
             blocks = call_blocks(tool, args.get("arguments", {}))
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
+        failure = last_failure()
+        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _get_broker_refusal()):
+            if failure["kind"] in ("unavailable", "refused"):
+                _emit({"ok": False, "reason": failure["reason"]})
+            else:
+                _emit({"error": failure["text"], "diagnostics": failure["diagnostics"]})
+            return 1
+        blocks = flag_unresolved(blocks, tool)
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":

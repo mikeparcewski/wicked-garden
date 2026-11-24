@@ -6,7 +6,7 @@
 
 **Goal:** Materialize wicked-ecosystem **injected edges** (grep-/static-invisible, string-wired relationships) into the codegraph graph so blast-radius/lineage traverse them — with a pluggable registry so brain ships generic extractors and any plugin can drop in proprietary ones (Decision D3). **Zero garden dependency.**
 
-**Repo:** `/Users/michael.parcewski/Projects/wicked-brain` (worktree `.claude/worktrees/codegraph-phase1a`).
+**Repo:** `~/Projects/wicked-brain` (worktree `.claude/worktrees/codegraph-phase1a`).
 
 ---
 

@@ -98,10 +98,13 @@ Structured evaluation tool that uses real external LLM CLIs — registry-driven
 (20+ CLIs: Codex, Gemini, Copilot, OpenCode, Pi, Aider, Goose, Amp, Droid, …;
 see `scripts/jam/agentic_cli_registry.py`) — to get genuinely independent
 model perspectives. Installed CLIs are detected AND usability-probed via
-`wicked-garden run scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured /
+`wicked-garden run scripts/jam/detect_clis.py --probe --json` (auth-revoked / unconfigured /
 daemon-down CLIs are excluded). When fewer than 2 usable external CLIs are
 present, council seats are filled with separate-worker seats so deliberation
-always happens. Unlike brainstorm (free-form creative exploration), council is
+always happens. Run detection first: if it reports `seat`, do not call or look
+for other CLIs; give one model's view and disclose `seat.reason` in the summary
+instead of naming CLIs as missing or filling council seats. Unlike brainstorm
+(free-form creative exploration), council is
 a **rigid evaluation tool** for when you have defined options and need a
 verdict.
 

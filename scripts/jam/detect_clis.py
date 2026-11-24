@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -285,14 +286,37 @@ def _probe_one(cli: AgenticCLI) -> dict:
     return {"usable": False, "reason": full, "version": version}
 
 
+def seat_context(env=os.environ) -> dict | None:
+    """Describe the one-CLI boundary in a governed seat (wicked-garden#1513)."""
+    cli = env.get("WICKED_RUN_AGENT")
+    run = env.get("WICKED_RUN_ID")
+    if not cli or not run:
+        return None
+    return {
+        "cli": cli,
+        "run": run,
+        "one_cli": True,
+        "reason": (
+            f"This is the run's {cli} seat in a wicked-crew job. Each seat runs one CLI, "
+            "and the job's other CLIs are their own seats: they cannot be called from here "
+            "(a CLI started from inside a governed seat would run outside the job's rules). "
+            "A jam here is one model's view; say so in the summary."
+        ),
+    }
+
+
 def run_detect(probe: bool) -> dict:
     """Detect installed CLIs and, if ``probe``, classify usable vs unusable."""
+    seat = seat_context()
+    if seat is not None:
+        return {"detected": [], "usable": [], "unusable": [], "collisions": [], "seat": seat}
+
     base = registry_detect(probe=False)
     detected = base["detected"]
     collisions = base["collisions"]
 
     if not probe:
-        return {"detected": detected, "collisions": collisions}
+        return {"detected": detected, "collisions": collisions, "seat": None}
 
     usable: list[str] = []
     unusable: list[dict] = []
@@ -317,6 +341,7 @@ def run_detect(probe: bool) -> dict:
         "usable": usable,
         "unusable": unusable,
         "collisions": collisions,
+        "seat": None,
     }
 
 
@@ -343,6 +368,9 @@ def _emit_human_list(reg: dict) -> None:
 
 
 def _emit_human_detect(result: dict, probed: bool) -> None:
+    if result.get("seat") is not None:
+        sys.stdout.write(result["seat"]["reason"] + "\n")
+        return
     detected = result["detected"]
     sys.stdout.write(f"detected {len(detected)} installed CLI(s):\n")
     usable = set(result.get("usable", []))

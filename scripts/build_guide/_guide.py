@@ -39,11 +39,11 @@ if str(_REPO_ROOT / "scripts") not in sys.path:
 from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
-# Where the vendored schema came from: wicked-core main (the file last changed in #1066).
-SCHEMA_SOURCE = "wicked-core main@72da31b schemas/build-guide.v1.json (landed in #1066 as e88ea6a)"
-# The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
-# plus `affected` when the check has that piece.
-REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
+# Where the vendored schema came from: wicked-core main (the file last changed in #1766).
+SCHEMA_SOURCE = "wicked-core main@9ad6493 schemas/build-guide.v1.json (last changed in #1766 as 0df759d)"
+# The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES,
+# src/floor_guide.rs), plus `affected` and `version` when the check has that piece.
+REQUIRED_PROBES = ("list", "run", "complete", "ids", "alone", "deselect", "mutation", "multi")
 SHELLS = {"sh", "bash", "zsh", "dash", "fish", "cmd", "cmd.exe", "powershell", "pwsh"}
 UNAVAILABLE = "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
 # Per-id placeholders (their token repeats once per id) and the all-ids one (its token is added once).
@@ -181,6 +181,8 @@ def _lint_parser(at: str, parser: dict) -> list[str]:
         for key in ("start", "end"):
             errors += _regex_problems(f"{at}.parser.blocks[{b}].{key}", block.get(key, ""), [])
         errors += _regex_problems(f"{at}.parser.blocks[{b}].item", block.get("item", ""), ["id"])
+    if "count" in parser:
+        errors += _regex_problems(f"{at}.parser.count", parser["count"], ["n"])
     return errors
 
 
@@ -220,6 +222,10 @@ def _lint_common(at: str, check: dict, repo: Path | None) -> tuple[list[str], li
     elif any(ALL_IDS in t for t in tokens) and any("{q}" in t for t in tokens):
         errors.append(f"{at}.deselect.append: {load}`{{ids:re|}}` and `{{q}}` in one `deselect.append` (the "
                       "pattern cannot bind ids to qualifiers)")
+    elif any("{q}" in t for t in tokens) and any(
+            ("{q}" in t) != ("{id}" in t or "{id:re}" in t) for t in tokens[first:last]):
+        errors.append(f"{at}.deselect.append: {load}`{{q}}` and `{{id}}` in different `deselect.append` tokens "
+                      "(a qualifier is bound to its id only inside one token: `--skip={{q}}::{{id}}`)")
     cwd = check.get("cwd", ".")
     errors += _repo_relative(f"{at}.cwd", cwd)
     if repo is not None and not (repo / cwd).is_dir():
@@ -271,6 +277,10 @@ def _lint_test(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[li
             errors.append(f"{at}.{key}: missing or empty; the floor will not use this check without it")
     if check.get("results", {}).get("kind") == "text" and check.get("parser") is None:
         errors.append(f"{at}.parser: results.kind=text needs a parser")
+    elif check.get("results", {}).get("kind") == "text" and not check["parser"].get("count"):
+        warnings.append(f"{at}.parser.count: missing; a text check's `complete` probe counts what each run "
+                        "executed with it (e.g. libtest's `^running (?P<n>\\d+) tests?$`), so without it the "
+                        "floor never excludes a red base's failures with this check (it still gates on the exit code)")
     lst = check.get("list", {})
     if "item" in lst:
         errors += _regex_problems(f"{at}.list.item", lst["item"], ["id"])

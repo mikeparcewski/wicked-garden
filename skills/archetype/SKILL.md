@@ -100,7 +100,8 @@ loads `refs/{name}.md` and runs that playbook.
 
 ## Catalog source of truth
 
-`.claude-plugin/archetypes.json` is canonical. The detector lives at
+`.claude-plugin/archetypes.json` is canonical (`wicked-garden path .claude-plugin/archetypes.json`
+prints where it is on any host). The detector lives at
 `scripts/crew/archetypes_v11.py`. The CLI shim:
 
 ```bash

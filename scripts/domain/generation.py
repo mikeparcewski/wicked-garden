@@ -5,7 +5,8 @@ the share of REAL requirements reaches the repository's target or the operator s
 means resolved to a stated, sourced business rule; a risk-flagged placeholder is shown but never
 counts (operator decision 2026-11-01, wicked-core#1233). The host steps keep the generation's
 record here: where it started, the real share after each page and when, the units each page
-framed (so a page never re-asks a unit this generation already asked), and the budget the
+framed (so a page never re-asks a unit this generation already asked unless the operator chose
+to ask the unresolved placeholders again), and the budget the
 operator granted. `prepare_worklist.py` opens it and records the page it framed, `next_page.py`
 adds a point after every page and decides what comes next.
 
@@ -36,6 +37,9 @@ DEFAULT_MAX_PAGES = 20
 DEFAULT_MAX_MINUTES = 240
 # The most points one record keeps (the engine stops a loop at 200 passes).
 MAX_POINTS = 512
+# Set by `frame_page`, removed by `close_page`: a page prepared and not closed yet. Only this
+# marker says a page is in flight (`page_in_flight`); `pending: []` alone is also a closed page.
+PAGE_OPEN = "page_open"
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
@@ -109,9 +113,15 @@ def _valid(doc: Any) -> bool:
                 isinstance(p.get(k), int) and not isinstance(p.get(k), bool)
                 for k in ("page", "pct", "real", "behaviours", "at")):
             return False
-    for key in ("visited", "pending", "answered"):
+    for key in ("visited", "pending", "answered", "changed"):
         ids = doc.get(key) or []
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+            return False
+    if "assign_only" in doc and not isinstance(doc["assign_only"], bool):
+        return False
+    if "assign_framed" in doc:
+        n = doc["assign_framed"]
+        if not isinstance(n, int) or isinstance(n, bool) or n < 0:
             return False
     return (isinstance(grant, dict) and isinstance(grant.get("page"), int)
             and isinstance(grant.get("at"), int))
@@ -159,15 +169,77 @@ def open_record(db: str, run_id: str, coverage: dict[str, Any], repo: str, *,
 
 
 def visited(doc: dict[str, Any] | None) -> set[str]:
-    """Units an earlier, closed page of this generation framed: a page never re-asks one, so a
-    placeholder the seat leaves empty again cannot loop the run. The page in flight (`pending`)
+    """Units an earlier, closed page of this generation framed: a page never re-asks one on its
+    own, so a placeholder the seat leaves empty again cannot loop the run (only the operator's
+    `again` takes asked placeholders out of it, `reopen`). The page in flight (`pending`)
     is not in it, so a retried `extract-prepare` frames the same units again."""
     if not doc:
         return set()
     return set(doc.get("visited") or [])
 
 
-def frame_page(db: str, run_id: str, symbol_ids: list[str]) -> None:
+def asked_again(doc: dict[str, Any] | None) -> set[str]:
+    """Placeholders the operator's "again" reopened in this generation (wicked-garden#1533)."""
+    if not doc:
+        return set()
+    return set(doc.get("asked_again") or [])
+
+
+def asked_unresolved(doc: dict[str, Any] | None, placeholder_ids: set[str]) -> set[str]:
+    """Placeholders a closed page of this generation asked about that are still placeholders
+    (wicked-garden#1533): no page re-asks them on its own, but asking them again can still raise
+    the real share (a new run did: 101 of 263 resolved on the second ask), so the operator may."""
+    return set(placeholder_ids) & visited(doc)
+
+
+def reopen(doc: dict[str, Any], placeholder_ids: set[str]) -> int:
+    """The operator's "again": the asked, unresolved placeholders leave `visited`, so the next page
+    frames them, and are remembered in `asked_again`. Returns how many were reopened."""
+    ids = asked_unresolved(doc, placeholder_ids)
+    doc["visited"] = sorted(visited(doc) - ids)
+    doc["asked_again"] = sorted(asked_again(doc) | ids)
+    return len(ids)
+
+
+def page_in_flight(doc: dict[str, Any] | None) -> list[str] | None:
+    """The units `extract-prepare` framed for the page in flight (possibly none), or None when no
+    page is in flight: no record, a page `extract-next` closed, or a record written before the
+    `page_open` marker (an old close left `pending: []` too, so only the marker says a page is
+    open). `[]` therefore means exactly "this pass's prepare framed an empty page", which is how
+    `extract-apply` tells a map with nothing left to ask (e2e-1105 F42) from an extract step that
+    left its work undone. Host-side: the seat can neither write this record nor shrink the page."""
+    if not doc or doc.get(PAGE_OPEN) is not True:
+        return None
+    pending = doc.get("pending")
+    return list(pending) if isinstance(pending, list) else None
+
+
+def assign_only(doc: dict[str, Any] | None) -> bool:
+    """Whether the next prepared page only assigns business domains to resolved requirements."""
+    return bool(doc and doc.get("assign_only") is True)
+
+
+def assign_framed(doc: dict[str, Any] | None) -> int:
+    """How many assignments the host framed for the page in flight, else zero."""
+    return int(doc.get("assign_framed", 0)) if page_in_flight(doc) is not None else 0
+
+
+def changed(doc: dict[str, Any] | None) -> set[str]:
+    """Mapped units this generation found changed since the map was built (wicked-garden#1425):
+    the only resolved units a page may ask again (prepare frames each once: a closed page's units
+    are `visited`)."""
+    if not doc:
+        return set()
+    return set(doc.get("changed") or [])
+
+
+def changed_left(doc: dict[str, Any] | None) -> int:
+    """Changed mapped units no closed page of this generation has asked yet."""
+    return len(changed(doc) - visited(doc))
+
+
+def frame_page(db: str, run_id: str, symbol_ids: list[str],
+               changed_ids: list[str] | None = None, *, assign_count: int = 0) -> None:
     """Record the units the page being prepared framed (`pending`). Re-preparing the same page
     (a retried step) replaces them, so a failed attempt never hides a unit from the next. Raises
     when the record cannot be saved: it decides what the next page skips and what the page's
@@ -175,7 +247,11 @@ def frame_page(db: str, run_id: str, symbol_ids: list[str]) -> None:
     doc = load(db, run_id)
     if doc is None:
         raise ValueError(f"no generation record for run {run_id}")
+    doc["assign_framed"] = int(assign_count)
     doc["pending"] = list(symbol_ids)
+    doc[PAGE_OPEN] = True  # this page is open until `close_page` (see `page_in_flight`)
+    if changed_ids:  # kept for the whole generation: apply accepts these, next-page counts them
+        doc["changed"] = sorted(set(doc.get("changed") or []) | set(changed_ids))
     doc.pop("answered", None)  # not recorded yet (an empty list is "answered none")
     save(db, run_id, doc)
 
@@ -198,11 +274,14 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     """Close the page in flight; returns (units it framed, of those now REAL requirements), both
     measured on the page's own units (another writer's progress elsewhere never counts as this
     page's yield). The units `extract-apply` recorded as answered join `visited`; without that
-    record, every framed unit that is no longer unmapped does. (0, 0) when an answer to an ask
+    record, every framed unit that is a real requirement now does, except a changed mapped unit
+    (real before the page: it stays open). (0, 0) when an answer to an ask
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
+    doc.pop("assign_framed", None)
     if not pending:
         doc["pending"] = []
+        doc.pop(PAGE_OPEN, None)
         doc.pop("answered", None)
         return 0, 0
     unmapped = {n.get("symbol_id") for n in coverage.get("unaccounted_nodes") or []}
@@ -210,10 +289,13 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     answered = doc.get("answered")
     if isinstance(answered, list):  # recorded by extract-apply, possibly empty
         closed = set(answered) & set(pending)
-    else:  # never recorded: only what is a real requirement now is known to be answered
-        closed = {s for s in pending if s not in unmapped and s not in held}
+    else:  # never recorded: only what is a real requirement now is known to be answered; a
+        # changed mapped unit was real BEFORE the page, so it closes only on the record (codex r2)
+        was_real = changed(doc)
+        closed = {s for s in pending if s not in unmapped and s not in held and s not in was_real}
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
     doc["pending"] = []
+    doc.pop(PAGE_OPEN, None)
     doc.pop("answered", None)
     if "not_product" not in coverage:
         # An older wicked-core lists no placeholders, so "accounted" cannot be told from "real":
@@ -321,34 +403,137 @@ def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
     return " · ".join(parts)
 
 
+def _budget_spent(doc: dict[str, Any], now: int, max_pages: int,
+                  max_minutes: int) -> str | None:
+    """What of the latest grant is spent ("20 pages", "240 minutes"), or None."""
+    grant, page = doc["grant"], doc["points"][-1]["page"]
+    pages_used = page - grant["page"]
+    minutes_used = (now - grant["at"]) / 60000
+    if pages_used >= max_pages:
+        return f"{count(pages_used)} page{'s' if pages_used != 1 else ''}"
+    if minutes_used >= max_minutes:
+        return f"{count(int(minutes_used))} minutes"
+    return None
+
+
+def _asked_text(asked_left: int, asked_once: int) -> str:
+    """What the placeholders this run already asked about are, said as such (wicked-garden#1533:
+    the card read "nothing left to map" with 263 of them left). It claims only what the record
+    shows: every unit left to map was framed by a page of this run."""
+    n = count(asked_left)
+    s = "s" if asked_left != 1 else ""
+    if asked_once >= asked_left:
+        return f"{n} placeholder{s} this run asked about once, unresolved: asking again can help"
+    if asked_once <= 0:
+        return f"{n} placeholder{s} asked again and still unresolved"
+    return f"{n} placeholder{s} this run asked about, unresolved ({count(asked_once)} asked once)"
+
+
+# The longest choice label the engine shows whole (wicked-core `repeat.rs`: `one_line(label, 120)`).
+MAX_LABEL = 120
+
+
+def _lower_label(repo: str, last: dict[str, Any]) -> str:
+    """"Lower the minimum" says what the person gives up (wicked-garden#1536): the behaviours
+    the graph is then built without a requirement for. The repository is left out only when
+    the label would be cut."""
+    left = max(0, int(last["behaviours"]) - int(last["real"]))
+    tail = (f"and build the graph with {count(left)} behaviour{'s' if left != 1 else ''} left "
+            f"without a requirement")
+    label = f"Lower the minimum to {last['pct']}% for {repo} {tail}"
+    return label if len(label) <= MAX_LABEL else f"Lower the minimum to {last['pct']}% {tail}"
+
+
+def _again_can_help(points: list[dict[str, Any]], asked_once: int) -> bool:
+    """Can asking the placeholders again still move the share? Yes while some were asked only
+    once, and while the last page still added real requirements (wicked-garden#1536: re-asks
+    that resolved 11 and 14 units were followed by a card recommending to lower the minimum).
+    The share itself is read, not the page's yield, which also counts a changed mapped unit
+    that was real before the page (codex r1). Only a page that added none leaves lowering as the
+    recommendation."""
+    if asked_once > 0:
+        return True
+    return len(points) >= 2 and points[-1]["real"] > points[-2]["real"]
+
+
 def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: int,
-           max_minutes: int, left_to_map: int) -> dict[str, Any]:
+           max_minutes: int, left_to_map: int, changed_left: int = 0,
+           assign_left: int = 0, assign_progress: bool = False,
+           asked_left: int = 0, asked_once: int = 0) -> dict[str, Any]:
     """The loop's decision after the record's last point (pure). Returns the `wicked-repeat`
-    object: `done` when the REAL share reaches the target; `ask` when nothing is left to map,
+    object: `done` when the REAL share reaches the target and no mapped behaviour that changed
+    since the map was built is left to re-ask (`changed_left`, wicked-garden#1425: those are
+    paged through under the same budget ask); `ask` when nothing is left to map,
     when the last page resolved almost nothing of what it framed, when the last two pages added
-    no real requirement, or when the grant's pages or minutes are spent; `continue` otherwise."""
+    no real requirement, or when the grant's pages or minutes are spent; `continue` otherwise.
+    `asked_left` counts the placeholders a page of this run asked about and left unresolved, of
+    which `asked_once` were never asked again (wicked-garden#1533): when nothing unasked is left,
+    the ask offers to ask them again, recommended while asking again can still move the share
+    (`_again_can_help`, wicked-garden#1536)."""
     points = doc["points"]
     last = points[-1]
     page = last["page"]
     if last["pct"] >= target:
-        return {"next": "done",
-                "line": progress_line(repo, points, target, next_page=None, done=True)}
-    line = progress_line(repo, points, target, next_page=page + 1, left_to_map=left_to_map)
+        line = progress_line(repo, points, target, next_page=None, done=True)
+        if changed_left <= 0:
+            if assign_left > 0:
+                if assign_progress and not _budget_spent(doc, now, max_pages, max_minutes):
+                    return {"next": "continue", "line": line +
+                            f" · {count(assign_left)} requirement(s) left to give a business domain",
+                            "assign_only": True}
+                line += f" · {count(assign_left)} requirement(s) left without a business domain"
+            return {"next": "done", "line": line}
+        line += (f" · {count(changed_left)} mapped behaviour{'s' if changed_left != 1 else ''} "
+                 f"changed since the map was built left to re-ask")
+        choices = [{"id": "continue", "label": f"Map up to {count(max_pages)} more pages"},
+                   FINISH]
+        y = page_yield(points)
+        if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
+                and last["page"] > doc["grant"]["page"]):
+            # The seat answered almost none of the page (pi r2): asked, not paged on silently.
+            return {"next": "ask", "choices": choices, "recommended": "continue",
+                    "line": f"{line} · the last page answered under 1 in {LOW_YIELD_PER} of its "
+                            f"units: read its review before mapping more"}
+        spent = _budget_spent(doc, now, max_pages, max_minutes)
+        if spent:
+            return {"next": "ask", "choices": choices, "recommended": "continue",
+                    "line": f"{line} · budget reached ({spent}; the budget is "
+                            f"{count(max_pages)} pages or {count(max_minutes)} minutes)"}
+        return {"next": "continue", "line": line}
+    # An "again" can reopen the asked placeholders in this run, so they count toward what can
+    # still be asked before a minimum is called out of reach (codex r1 on #1533).
+    line = progress_line(repo, points, target, next_page=page + 1,
+                         left_to_map=left_to_map + asked_left)
     # A target is a whole percentage 1..100 the real share so far must meet: below 1% nothing
     # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
-    lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
-                                      f"the graph"} if last["pct"] >= 1 else None)
+    lower = ({"id": "lower", "label": _lower_label(repo, last)} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {count(max_pages)} more pages"}
+    again = ({"id": "again", "label": f"Ask the {count(asked_left)} placeholder"
+                                      f"{'s' if asked_left != 1 else ''} again"}
+             if asked_left > 0 else None)
+    # With changed units left there is always work, so an ask with no "lower" (a share under 1%)
+    # still offers a way to finish (codex r2).
+    stop = lower if lower is not None else (FINISH if changed_left > 0 else None)
     # Near-zero yield on a full page (domain-real): the page's review passed a page that stated
     # almost nothing (wicked-crew run 4b49cbe1: 3 rules of 500 units). Never mapped on silently,
     # and asked before "nothing left" too (codex on #1375), so the last page is not passed either.
     y = page_yield(points)
     if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
             and last["page"] > doc["grant"]["page"]):
-        if left_to_map > 0:
-            choices = [c for c in (more, lower) if c is not None]
+        if left_to_map > 0 or changed_left > 0:
+            choices = [c for c in (more, stop) if c is not None]
             warn = (f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
                     f"read its review before mapping more")
+        elif again is not None:
+            # Every unit was asked, but placeholders this run asked about are left: asking them
+            # again is a choice, never hidden behind "nothing is left" (wicked-garden#1533).
+            choices = [again, lower if lower is not None else FINISH]
+            head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+            warn = (f"{head} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
+                    f"read its review · {_asked_text(asked_left, asked_once)}")
+            return {"next": "ask", "choices": choices,
+                    "recommended": "again" if _again_can_help(points, asked_once)
+                    else choices[1]["id"], "line": warn}
         else:
             # Nothing left to ask (agy/codex r2 on #1375): still the operator's word, never a
             # silent "done"; going on hands the share to the coverage step.
@@ -358,8 +543,16 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
                     f"resolved under 1 in {LOW_YIELD_PER} of its units and nothing is left to "
                     f"map: read its review")
         return {"next": "ask", "choices": choices, "recommended": choices[0]["id"], "line": warn}
-    if left_to_map <= 0:
+    if left_to_map <= 0 and changed_left <= 0:
         head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+        if again is not None:
+            # wicked-garden#1533: "nothing left to map" with 263 placeholders a second ask could
+            # still resolve steered the operator to lower the minimum. Say what is left and offer it.
+            choices = [again, lower if lower is not None else FINISH]
+            return {"next": "ask", "choices": choices,
+                    "recommended": "again" if _again_can_help(points, asked_once)
+                    else choices[1]["id"],
+                    "line": f"{head} · {_asked_text(asked_left, asked_once)}"}
         rest = (f"{head} · nothing left to map "
                 f"in the files the repository tracks")
         if lower is None:
@@ -371,15 +564,12 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     # operator try again (codex/agy r1 on #1369: "Map more" re-asked at once).
     since = [p for p in points if p["page"] >= grant["page"]]
     if len(since) >= 3 and since[-3]["real"] == last["real"]:
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+        return {"next": "ask", "choices": [c for c in (more, stop) if c is not None],
                 "recommended": "lower" if lower is not None else "continue",
                 "line": f"{line} · the last two pages added no real requirement"}
-    pages_used = page - grant["page"]
-    minutes_used = (now - grant["at"]) / 60000
-    if pages_used >= max_pages or minutes_used >= max_minutes:
-        spent = (f"{count(pages_used)} page{'s' if pages_used != 1 else ''}"
-                 if pages_used >= max_pages else f"{count(int(minutes_used))} minutes")
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+    spent = _budget_spent(doc, now, max_pages, max_minutes)
+    if spent:
+        return {"next": "ask", "choices": [c for c in (more, stop) if c is not None],
                 "recommended": "continue",
                 "line": f"{line} · budget reached ({spent}; the budget is {count(max_pages)} pages "
                         f"or {count(max_minutes)} minutes)"}
