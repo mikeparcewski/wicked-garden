@@ -1181,3 +1181,68 @@ def test_an_inline_citation_covers_its_own_figure_under_an_inherited_one(tmp_pat
     html = ('<body><section data-source="run-x.md:1"><p>Overview: rate '
             '<b data-source="run-x.md:2">80%</b></p></section></body>')
     assert _kinds(html, [str(repo)]) == []
+
+
+# ── #1551 round-1 delta folds ────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("claim, record", [
+    ("Revenue changed by -<strong>80</strong>%", "Revenue changed by 80%"),   # markup keeps the sign
+    ("Coverage reached 9<strong>9</strong>%", "Coverage reached 9% and 9%"),  # and the digits
+    ("Rate 80 Percent", "Rate 80 s"),                                         # unit words, any case
+    ("Latency 80-90ms", "Latency 80s; 90ms"),                                 # a range shares its unit
+    ("Latency 3ms", "Latency 1e−3 ms"),                                  # no suffix of an exponent
+    ("Speedup 10<sup>3</sup>x", "Speedup 10x"),                               # a superscript exponent
+    ("Count 10000000000000000000000000000000000000000000000000000000000000001",
+     "Count 10000000000000000000000000000000000000000000000000000000000000000"),
+])
+def test_a_wrong_figure_does_not_pass_through_markup_case_or_notation(tmp_path: Path, claim, record):
+    html = f'<body><p data-source="run-x.md:1">{claim}</p></body>'
+    assert _one(tmp_path, record + "\n", html) == ["cite-off"]
+
+
+@pytest.mark.parametrize("claim, record", [
+    ("Rate 80%", "Rate 80 Percent"),
+    ("Latency 0.001 ms", "Latency 1e−3 ms"),
+])
+def test_a_right_figure_passes_in_case_and_notation(tmp_path: Path, claim, record):
+    html = f'<body><p data-source="run-x.md:1">{claim}</p></body>'
+    assert _one(tmp_path, record + "\n", html) == []
+
+
+def test_a_wrapped_source_range_keeps_the_unit(tmp_path: Path):
+    html = '<body><p data-source="run-x.md:1-2">Median latency 80 ms per call</p></body>'
+    assert _one(tmp_path, "Median latency 80\nms per call\n", html) == []
+
+
+def test_a_leading_zero_section_number_is_not_a_figure_under_an_inherited_citation(tmp_path: Path):
+    html = '<body><section data-source="run-x.md:1"><h2><span>01</span> Overview</h2></section></body>'
+    assert _one(tmp_path, "Overview\n", html) == []
+
+
+def test_canonical_figure_tokens_do_not_let_another_line_outscore_the_cited_one(tmp_path: Path):
+    html = '<body><p data-source="run-x.md:1">Latency 80.0 ms</p></body>'
+    assert _one(tmp_path, "Latency 80 ms\nLatency 8e1 s; 0 ms\n", html) == []
+
+
+@pytest.mark.parametrize("hidden", ['<span hidden>run-x.md</span>', '<span hidden>[1]</span>'])
+def test_a_hidden_path_or_footnote_does_not_exempt_inherited_figures(tmp_path: Path, hidden):
+    html = (f'<body><section data-source="run-x.md:1"><p>Coverage reached 99%.{hidden}</p></section>'
+            '<footer data-sources>Sources: run-x.md</footer></body>')
+    assert "cite-off" in _one(tmp_path, "Coverage reached 80%\n", html)
+
+
+def test_a_huge_exponent_never_crashes_the_scan(tmp_path: Path):
+    repo = _record(tmp_path, "Unrelated 1e1000000 line\nLatency 80 ms\n")
+    html = '<body><p data-source="run-x.md:2">Latency 1e1000000 ms</p></body>'
+    assert _kinds(html, [str(repo)]) == ["cite-off"]
+    assert _kinds('<body><p data-source="run-x.md:2">Latency 80 ms</p></body>', [str(repo)]) == []
+
+
+def test_a_path_only_ancestor_file_is_read_only_when_a_figure_needs_it(tmp_path: Path, monkeypatch):
+    repo = _record(tmp_path, "Coverage reached 80%\n")
+    (repo / "big.md").write_text("x\n", encoding="utf-8")
+    reads: list[str] = []
+    monkeypatch.setattr(cs, "_whole_file", lambda s, r, c: reads.append(s) or "x")
+    html = ('<body><section data-source="big.md run-x.md:1">'
+            '<p>Coverage reached 80%</p><p>Also 80%</p></section></body>')
+    assert _kinds(html, [str(repo)]) == [] and reads == []

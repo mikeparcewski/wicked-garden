@@ -72,7 +72,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, Inexact, localcontext
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -137,7 +137,7 @@ you your
 # of a unit mapped to one canonical form. Byte/bit case is kept (MB is not Mb); words are not.
 _UNIT_SPELLINGS = {
     "%": "% percent pct",
-    "x": "x ×",
+    "x": "x × times",
     "ns": "ns nanosecond nanoseconds",
     "us": "us µs μs microsecond microseconds",
     "ms": "ms msec msecs millisecond milliseconds",
@@ -159,8 +159,13 @@ _UNIT_PATTERN = "|".join(a if a.startswith("[") else re.escape(a) for a in _UNIT
 # A figure starts at a word boundary that is not inside another number ("v12", "1.5", "4xx" are
 # not figures of their own); a sign counts only there ("80-90" is a range, " -80" is negative).
 FIGURE_RE = re.compile(
-    r"(?<![\w.,])(?P<sign>[-\u2212+]?)(?P<num>\d+(?:[.,]\d+)*(?:[eE][-+]?\d+)?)"
-    rf"(?:[ \t\u00a0]*(?P<unit>{_UNIT_PATTERN})(?![A-Za-z0-9_]))?(?![A-Za-z0-9_])")
+    r"(?<![\w.,])(?P<sign>[-\u2212+]?)(?P<num>\d+(?:[.,]\d+)*(?:[eE][-+\u2212]?\d+)?)"
+    rf"(?:\s*(?P<unit>(?i:{_UNIT_PATTERN}))(?![A-Za-z0-9_]))?(?![A-Za-z0-9_])")
+# Two figures joined as a range ("80-90 ms", "80 to 90 ms") share the second one's unit.
+_RANGE_JOIN_RE = re.compile(r"^\s*(?:[-\u2013\u2014]|to)\s*$", re.IGNORECASE)
+# The largest number the scan canonicalises: beyond it a value is compared as written (a huge
+# exponent never expands into a huge string, and never raises).
+_MAX_DIGITS = 60
 
 
 def _canon_unit(unit: str | None) -> str | None:
@@ -179,20 +184,32 @@ def _canon_number(sign: str, number: str) -> str:
     version (12.64.0) or a comma that is not a thousands separator stays as written."""
     if re.fullmatch(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?", number):
         number = number.replace(",", "")
+    number = number.replace("\u2212", "-")
     if re.fullmatch(r"\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", number):
         try:
-            number = format(Decimal(number).normalize(), "f")
-        except InvalidOperation:  # pragma: no cover - the pattern above admits only valid numbers
-            pass
-        if "." in number:
+            with localcontext() as ctx:
+                ctx.prec, ctx.traps[Inexact] = _MAX_DIGITS, True
+                value = Decimal(number)
+                if value.adjusted() < _MAX_DIGITS and value.as_tuple().exponent > -_MAX_DIGITS:
+                    number = format(value.normalize(), "f")
+        except ArithmeticError:            # too many digits to be exact: compare as written
+            number = number.lower()
+        if "." in number and "e" not in number:
             number = number.rstrip("0").rstrip(".")
     return ("-" if sign in ("-", "\u2212") else "") + number
 
 
-def _figures(text: str) -> list[tuple[str, tuple[str, str | None]]]:
-    """(as written, (value, unit)) for every figure in ``text``."""
-    return [(m.group(0).strip(), (_canon_number(m.group("sign"), m.group("num")), _canon_unit(m.group("unit"))))
-            for m in FIGURE_RE.finditer(text)]
+def _figures(text: str, drop_ordinals: bool = False) -> list[tuple[str, tuple[str, str | None]]]:
+    """(as written, (value, unit)) for every figure in ``text``. The first figure of a range takes
+    the second one's unit ("80-90ms" is 80 ms and 90 ms). ``drop_ordinals`` leaves out ``01``-style
+    section numbers, judged on the number as written."""
+    found = list(FIGURE_RE.finditer(text))
+    units = [_canon_unit(m.group("unit")) for m in found]
+    for i in range(len(found) - 1):
+        if units[i] is None and units[i + 1] and _RANGE_JOIN_RE.match(text[found[i].end():found[i + 1].start()]):
+            units[i] = units[i + 1]
+    return [(m.group(0).strip(), (_canon_number(m.group("sign"), m.group("num")), unit))
+            for m, unit in zip(found, units) if not (drop_ordinals and ORDINAL_RE.match(m.group("num")))]
 
 
 def _claim_text(text: str) -> str:
@@ -209,7 +226,7 @@ def _claim_text(text: str) -> str:
 
 def _claim_figures(text: str) -> list[tuple[str, tuple[str, str | None]]]:
     """The figures ``text`` claims (structure numbers, footnote markers and ``01`` ordinals out)."""
-    return [f for f in _figures(FOOTNOTE_RE.sub(" ", _claim_text(text))) if not ORDINAL_RE.match(f[1][0])]
+    return _figures(FOOTNOTE_RE.sub(" ", _claim_text(text)), drop_ordinals=True)
 
 
 def _missing_figures(figures: list[tuple[str, tuple[str, str | None]]], cited: str) -> list[str]:
@@ -234,10 +251,12 @@ def _figure_detail(source: str, missing: list[str], lines: list[str], figures) -
 _FOOTNOTE_SUP_RE = re.compile(r"^\s*\[?(?:\d{1,3}|[*†‡§¶])\]?\s*$")
 
 
-def _figure_text(node: Node, skip_cited: bool = False) -> str:
+def _figure_text(node: Node, skip_cited: bool = False, markers: bool = False) -> str:
     """The rendered text a citation on ``node`` asserts figures of: its own text and its rendered
-    INLINE descendants — never a nested block (it is judged by its own citations), never a hidden
-    element, never a footnote marker (``<sup>1</sup>``). ``skip_cited`` also leaves out an inline
+    INLINE descendants, joined as the reader sees them (``-<b>80</b>%`` reads ``-80%``) — never a
+    nested block (it is judged by its own citations), never a hidden element. A ``<sup>`` right
+    after a digit is an exponent (``10<sup>3</sup>`` reads ``10^ 3``, both figures checked); any other small ``<sup>`` is
+    a footnote marker, left out unless ``markers``. ``skip_cited`` also leaves out an inline
     descendant that carries its own ``data-source`` (that one covers its text)."""
     out: list[str] = []
 
@@ -245,13 +264,23 @@ def _figure_text(node: Node, skip_cited: bool = False) -> str:
         for c in n.children:
             if c.tag == "#text":
                 out.append(c.text)
-            elif (c.tag in _INLINE_TAGS and "hidden" not in c.attrs
-                  and not (c.tag == "sup" and _FOOTNOTE_SUP_RE.match(c.all_text()))
-                  and not (skip_cited and _direct_sources_on(c))):
+            elif c.tag == "#comment":
+                continue
+            elif c.tag not in _INLINE_TAGS:
+                out.append(" ")             # a nested block or a <br> breaks the run of text
+            elif "hidden" in c.attrs or (skip_cited and _direct_sources_on(c)):
+                continue
+            elif c.tag == "sup" and _FOOTNOTE_SUP_RE.match(c.all_text()):
+                after_digit = bool(out) and out[-1][-1:].isdigit()
+                if after_digit and c.all_text().strip().isdigit():
+                    out.append("^ " + c.all_text().strip())   # not "^3": that spells a footnote
+                elif markers:
+                    out.append(c.all_text())
+            else:
                 walk(c)
     if is_rendered(node):
         walk(node)
-    return re.sub(r"\s+", " ", " ".join(out)).strip()
+    return re.sub(r"\s+", " ", "".join(out)).strip()
 
 
 @dataclass
@@ -287,14 +316,12 @@ def _direct_sources_on(node: Node) -> list[str]:
 
 def _cite_tokens(text: str) -> set[str]:
     """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase —
-    plus each figure's value and unit, so ``80ms`` and ``80 ms``, ``1,200`` and ``1200`` share
-    tokens on both sides (#1551)."""
-    tokens = {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
-    for _, (value, unit) in _figures(text):
-        tokens.add(value)
-        if unit:
-            tokens.add(unit.lower())
-    return tokens
+    with every figure read as its canonical value and unit first, so ``80ms`` and ``80 ms``,
+    ``1,200`` and ``1200`` give the same tokens on both sides (#1551)."""
+    def canon(m: re.Match) -> str:
+        unit = _canon_unit(m.group("unit"))
+        return f" {_canon_number(m.group('sign'), m.group('num'))} {unit or ''} "
+    return {t.lower() for t in re.split(r'\W+', FIGURE_RE.sub(canon, text)) if len(t) >= 2 or t.isdigit()}
 
 
 def _best_span(lines: list[str], content_tokens: set[str], width: int) -> tuple[int | None, int]:
@@ -344,16 +371,24 @@ def _cited_span(source: str, repos: list[str]) -> tuple[list[str], int, int] | s
     return _UNVERIFIABLE                # file not found in any repo
 
 
-def _whole_file(source: str, repos: list[str]) -> str | None:
-    """The text of the file a path-only ``source`` names inside a folder, or ``None``."""
+_WHOLE_FILE_MAX = 2_000_000             # the same bound the URL check reads files under
+
+
+def _whole_file(source: str, repos: list[str], cache: dict[str, str | None]) -> str | None:
+    """The text of the file a path-only ``source`` names inside a folder (at most
+    ``_WHOLE_FILE_MAX`` bytes, read once per scan), or ``None``."""
+    if source in cache:
+        return cache[source]
+    cache[source] = None
     for repo in repos:
         p = _confined(repo, _source_path(source))
-        if p is not None and p.is_file():
-            try:
-                return p.read_text(encoding="utf-8", errors="ignore")
-            except OSError:
-                continue
-    return None
+        try:
+            if p is not None and p.is_file() and p.stat().st_size <= _WHOLE_FILE_MAX:
+                cache[source] = p.read_text(encoding="utf-8", errors="ignore")
+                break
+        except OSError:
+            continue
+    return cache[source]
 
 
 def _check_cite_off(source: str, claim_text: str, repos: list[str],
@@ -595,6 +630,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
     # carry the same source are two distinct checks, a block-level citation is checked once (#1184)
     checked_cite_off: set[tuple] = set()
     checked_blocks: set[int] = set()    # blocks whose inherited citations were checked (#1551)
+    whole_files: dict[str, str | None] = {}
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -666,10 +702,16 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                     stats["cite_off"] += 1
                     add("cite-off", anc, anc.all_text(),
                         span if isinstance(span, str) else f"data-source {s} could not be verified")
-            own_cite = bool(_direct_sources_on(block)) or bool(inline_paths) or footnoted
+            # The block's own citation forms count only as a reader sees them: a path or a
+            # footnote marker in a hidden element or a nested block cites nothing here.
+            shown = _figure_text(block, skip_cited=True, markers=True)
+            own_cite = (bool(_direct_sources_on(block)) or bool(PATH_RE.search(shown))
+                        or (has_sources and bool(FOOTNOTE_RE.search(shown))))
             figures = _claim_figures(_figure_text(block, skip_cited=True)) if spans and not own_cite else []
-            texts = spans + [t for t in (_whole_file(w, repos) for w in whole) if t is not None]
-            missing = [f for f in figures if all(_missing_figures([f], t) for t in texts)]
+            missing = [f for f in figures if all(_missing_figures([f], t) for t in spans)]
+            if missing and whole:           # only then read a file an ancestor cites whole
+                texts = [t for t in (_whole_file(w, repos, whole_files) for w in whole) if t is not None]
+                missing = [f for f in missing if all(_missing_figures([f], t) for t in texts)]
             if missing:
                 stats["cite_off"] += 1
                 cited_by = ", ".join(s for s, _ in inherited)
