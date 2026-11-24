@@ -52,6 +52,9 @@ SOURCE_CAP = 4000
 REASK_SOURCE_CAP = 12000
 # How much of a placeholder's stored answer (its RISK requirement) a re-ask shows the model.
 MAX_PRIOR_ANSWER = 800
+# The worklist's list of units OFF the page that the host's apply still takes a rule for
+# (`prepare_worklist.py`, wicked-garden#1535): a coverage review's send-back restates one there.
+OFF_PAGE_KEY = "off_page_ids"
 # wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
 CODE_MISMATCH_ANN = "code_mismatch"
 # wicked-core's `CODE_MEETS`: the value a restatement writes over an earlier mismatch (estate's CLI
@@ -1050,7 +1053,16 @@ def read_worklist(base: Path, rel: str) -> dict:
     if not isinstance(units, list) or not all(
             isinstance(u, dict) and isinstance(u.get("symbol_id"), str) for u in units):
         raise rules_file.RulesFileRefused(f"{rel!r} has no list of units with symbol ids")
+    off = doc.get(OFF_PAGE_KEY, [])
+    if not isinstance(off, list) or not all(isinstance(s, str) for s in off):
+        raise rules_file.RulesFileRefused(f"{rel!r} has an {OFF_PAGE_KEY} that is not a list of ids")
     return doc
+
+
+def off_page_ids(worklist: dict) -> set[str]:
+    """Units off this page a rule may still name: an earlier page's unit of this run, a
+    placeholder, an unmapped behaviour (the host decides again when it applies)."""
+    return set(worklist.get(OFF_PAGE_KEY) or [])
 
 
 def _source_cap(unit: dict) -> int:
@@ -1196,7 +1208,10 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
     except rules_file.RulesFileRefused as e:
         print(f"[extract-loop] starting {rules_rel} afresh: {e}", file=sys.stderr)
     unit_ids = {u["symbol_id"] for u in units}
-    done = [e for e in done if e["symbol_id"] in unit_ids]  # an earlier pass's leftovers drop out
+    # An earlier pass's leftovers drop out; a restatement of a unit off the page stays (a coverage
+    # review's send-back about an earlier page's rule, wicked-garden#1535).
+    keep = unit_ids | off_page_ids(worklist)
+    done = [e for e in done if e["symbol_id"] in keep]
     # The business domains (reqgraph Fix B): the stored catalog the worklist carries, else the one
     # the seat proposed in this rules file. What the seat wrote beside the rules is kept on rewrite.
     extra = _domain_extras(base, rules_rel)
@@ -1405,11 +1420,18 @@ def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
         refused += check_domains(rules_file.read_json_file(base, rules_rel), worklist, accepted,
                                  base)
         unit_ids = {u["symbol_id"] for u in units}
+        off = off_page_ids(worklist) - unit_ids
         refused += [{"index": None, "symbol_id": e["symbol_id"],
-                     "why": "is not a unit of the worklist (copy the symbol_id verbatim)"}
-                    for e in accepted if e["symbol_id"] not in unit_ids]
+                     "why": f"is not a unit of this page and not in its {OFF_PAGE_KEY} (copy the "
+                            "symbol_id verbatim). A unit that is in neither is a real requirement "
+                            "this run never asked, so this run cannot restate it: leave it out and "
+                            "say so in your report"}
+                    for e in accepted if e["symbol_id"] not in unit_ids and e["symbol_id"] not in off]
         have = {e["symbol_id"] for e in accepted}
         left = f"; {sum(1 for u in units if u['symbol_id'] not in have)} worklist unit(s) not stated"
+        restated = sum(1 for e in accepted if e["symbol_id"] in off)
+        if restated:
+            left += f"; {restated} entr(ies) restate units off this page"
     for r in refused[:50]:
         print(f"[extract-loop] entry {r['index'] if r['index'] is not None else '-'} "
               f"({r['symbol_id'] or '?'}): {r['why']}", file=sys.stderr)

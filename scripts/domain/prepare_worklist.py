@@ -148,6 +148,16 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
 
         n_hubs = min(len(hubs), extract_loop.hub_count(store))
         order_line = f"hub-first from {n_hubs} hub(s) by {how}, over {tail} node(s)"
+    # The units OFF this page that `extract-apply` still takes a rule for (wicked-garden#1535): the
+    # unmapped and placeholders in tracked files, and the mapped units this run asked on an earlier
+    # page or found changed. A coverage review that sends the run back about one of them (an earlier
+    # page's rule) gets it restated on this page's file. Only the ids: the seat's `--check-rules`
+    # reads them; the host decides again from its own record and the store, never from this list.
+    framed = {u["symbol_id"] for u in units}
+    off_page = sorted(({n["symbol_id"] for n in [*unmapped, *placeholders]
+                        if n.get("file") in tracked}
+                       | generation.visited(record) | generation.changed(record) | set(restate))
+                      - framed)
     doc = {
         "schema": rules_file.WORKLIST_SCHEMA,
         "order": order_line,
@@ -159,6 +169,7 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         "asked_before": len(seen),
         "not_in_repo": skipped,
         "units": units,
+        extract_loop.OFF_PAGE_KEY: off_page,
     }
     # The repository's business domains (reqgraph Fix B): the stored catalog to pick from, or the
     # ask to propose one, and the resolved requirements with no domain yet to assign. A page
