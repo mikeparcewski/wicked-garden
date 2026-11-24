@@ -118,16 +118,17 @@ def check_statement(repo, st, t, call):
             errs.append(f"M1 claim {k} type {c.get('type') if isinstance(c, dict) else c!r} not in {sorted(TYPES)}")
             continue
         i = c.setdefault("i", k)  # a claim without `i` is claim k, so the checker's table names it
-        if not isinstance(i, int) or i in idx:
+        if not isinstance(i, int) or isinstance(i, bool) or i in idx:
             errs.append(f"M1 claim {k} has a missing or duplicate integer `i`")
+            continue
         idx[i] = c
     conds = {i for i, c in idx.items() if c.get("type") == "condition"}
     for i, c in idx.items():
         for key in ("when", "unless"):
             v = c.get(key) or []
-            if not isinstance(v, list) or any(x not in conds for x in v):
+            if not isinstance(v, list) or any(not isinstance(x, int) or x not in conds for x in v):
                 errs.append(f"M1 claim {i} `{key}` {v} must list indices of this statement's condition claims")
-        if c.get("type") == "value" and c.get("of") is not None and c.get("of") not in idx:
+        if c.get("type") == "value" and c.get("of") is not None and (not isinstance(c.get("of"), int) or c.get("of") not in idx):
             errs.append(f"M1 claim {i} `of` {c.get('of')} names no claim")
     if an.get("file") != t["file"]:
         errs.append(f"M2 anchor.file {an.get('file')} is not the target's file {t['file']}")
@@ -138,6 +139,9 @@ def check_statement(repo, st, t, call):
         errs.append(f"M2 anchor.lines {ln} not inside the target lines {t['lines']}")
     for i, c in idx.items():
         refs = c.get("lines") or []
+        if not isinstance(refs, list):
+            errs.append(f"M2 claim {i} lines {refs!r} is not a list of path:N[-M]")
+            continue
         if not refs:
             errs.append(f"M2 claim {i} cites no lines")
         for r in refs:
@@ -147,7 +151,7 @@ def check_statement(repo, st, t, call):
             elif not in_batch(repo, call, p):
                 errs.append(f"M2 claim {i} line ref {r} is not inside the batch")
         hay = lines_text(repo, refs)
-        lits, ids = quoted(c.get("text") or "", cob)
+        lits, ids = quoted(c.get("text") if isinstance(c.get("text"), str) else "", cob)
         for s in sorted(lits):  # sorted: a set's order moves with the hash seed, and a re-run must send the same prompt
             ok = (s.lower() in hay.lower()) if cob else (s in hay)
             if not ok:
@@ -236,7 +240,7 @@ def extract_call(repo, tby, call):
         batch = fh.read()
     p = XP.replace("{{CARD}}", card_for(call, ts)).replace("{{BATCH}}", batch).replace("{{TARGETS}}", json.dumps([tgt_json(t) for t in ts], indent=0))
     out, rc = calls.claude("extract", call["id"], p, timeout=2400)
-    if rc != 0:
+    if not calls.answered(out, rc):
         raise calls.CallFailed(f"the writer's extract call {call['id']} did not answer (exit {rc}); nothing was stored")
     j = calls.parse_json(out) or {}
     res = {x.get("target"): x for x in j.get("targets", []) if isinstance(x, dict)}

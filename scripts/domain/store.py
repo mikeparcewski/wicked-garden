@@ -78,14 +78,20 @@ def batch_hash(repo, files):
     return h.hexdigest()
 
 
+MAX_CITED = 5000  # lines one citation may span; a longer (model-made) range counts by its first line only
+
+
 def cited(st):
     """The (file, line) pairs a statement cites: its claims' lines and guards, and its context references."""
     out = set()
     for c in st.get("claims") or []:
-        for r in (c.get("lines") or []) + (c.get("guards") or []):
+        if not isinstance(c, dict):
+            continue
+        refs = [r for key in ("lines", "guards") if isinstance(c.get(key), list) for r in c[key]]
+        for r in refs:
             p = lookup.pref(r)
             if p:
-                out.update((p[0], i) for i in range(p[1], p[2] + 1))
+                out.update((p[0], i) for i in range(p[1], (p[2] if p[2] - p[1] < MAX_CITED else p[1]) + 1))
     for x in st.get("context") or []:
         p = lookup.pref(x.get("at") or "") if isinstance(x, dict) else None
         if p:
@@ -244,14 +250,16 @@ def prior_targets(prior):
     return by
 
 
-def match_prior(by, t, text_sha, used):
-    """The prior record for target ``t``: the same target id with the same text, else the one prior target (not yet
-    taken) in the same file whose text hashes the same. Two identical texts are never merged into one target."""
+def match_prior(by, t, text_sha, used, current_ids=()):
+    """The prior record for target ``t``: the same target id with the same text, else the one prior target in the same
+    file whose text hashes the same, when no target of this scope has that prior target's id (its own target keeps it)
+    and none has taken it. Two identical texts are never merged into one target."""
     r = by["id"].get(t["id"])
     if r and r["file"] == t["file"] and r["text_sha"] == text_sha and r["target"] not in used:
         return r
-    cands = [c for c in by["text"].get((t["file"], text_sha), []) if c["target"] not in used]
-    return cands[0] if len(cands) == 1 and len(by["text"][(t["file"], text_sha)]) == 1 else None
+    same = by["text"].get((t["file"], text_sha), [])
+    cands = [c for c in same if c["target"] not in used and c["target"] not in current_ids]
+    return cands[0] if len(cands) == 1 and len(same) == 1 else None
 
 
 # ---------------- writing (wicked-estate write-batch) ----------------
@@ -284,12 +292,21 @@ def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, ren
         rec = rec_by_stmt.get(st["id"])
         if rec is None:
             continue
-        a = st["anchor"]
-        sym = symbol_for(repo, a["file"], a.get("symbol_id"))
+        a = st.get("anchor") if isinstance(st.get("anchor"), dict) else {}
+        ln = a.get("lines")
+        usable = isinstance(a.get("file"), str) and isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) for x in ln)
+        # an open statement the writer left without a usable anchor is stored on its target's node, as itself
+        sym = (symbol_for(repo, a["file"], a.get("symbol_id")) if usable
+               else symbol_for(repo, rec["file"], rec.get("anchor_symbol")))
         if sym is None:
             unplaced.append(st["id"])
             continue
-        add(sym, RULE, st["id"], dict(statement=render(st), contract=st, status=st["status"], batch_hash=rec["batch_hash"],
+        try:
+            text = render(st) if usable else None
+        except (KeyError, IndexError, TypeError, ValueError):
+            text = None
+        add(sym, RULE, st["id"], dict(statement=text or "(open: the writer's statement could not be rendered; see its "
+                                                         "follow-up)", contract=st, status=st["status"], batch_hash=rec["batch_hash"],
                                       target_hash=rec["target_hash"], fetched_files=st.get("fetched_files") or []))
     written = {RULE: {r["key"].split(":", 1)[1] for r in rows}}
     for rec in records:

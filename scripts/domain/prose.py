@@ -128,11 +128,15 @@ def check(sents, by, step):
         p = CHECK.replace("{{SENTENCES}}", "\n".join(f"[{s['id']}] (cites {', '.join(s['cites'])}) {s['text']}" for s in ch))
         p = p.replace("{{STATEMENTS}}", "\n\n".join(f"[{c}]\n{by[c]['text']}" for c in need))
         out, rc = calls.codex(step, f"c{k}", p)
-        return (calls.parse_json(out) or {}).get("verdicts") or []
+        return (calls.parse_json(out) or {}).get("verdicts") or [], calls.answered(out, rc)
 
     with cf.ThreadPoolExecutor(4) as ex:
         got = list(ex.map(one, range(len(chunks))))
-    return {x["id"]: x for vs in got for x in vs if isinstance(x, dict) and x.get("id")}
+    if got and not any(ok for _, ok in got):
+        # not one prose check answered (a signed-out or failing checker): withholding every sentence would replace
+        # the stored prose with nothing, so the run stops instead
+        raise calls.CallFailed(f"the checker answered none of the {step} calls; nothing was stored")
+    return {x["id"]: x for vs, _ in got for x in vs if isinstance(x, dict) and x.get("id")}
 
 
 def _objection(v, mf):
@@ -149,11 +153,11 @@ def write_all(rows, desc):
     for k, pk in enumerate(packs(rows)):
         body = "\n\n".join(f"[{r['sid']}]\n{r['text']}" for r in pk)
         out, rc = calls.claude("prose", f"w{k}", WRITE.replace("{{REPO_DESC}}", desc).replace("{{STATEMENTS}}", body), timeout=1500)
-        if rc != 0:
+        if not calls.answered(out, rc):
             raise calls.CallFailed(f"the prose writer's call w{k} did not answer (exit {rc}); nothing was stored")
         got = [g for g in (calls.parse_json(out) or {}).get("groups") or [] if isinstance(g, dict)]
         nums = [g.get("g") for g in got]
-        if not all(isinstance(n, int) for n in nums) or len(set(nums)) != len(nums):
+        if not all(isinstance(n, int) and n >= 1 for n in nums) or len(set(nums)) != len(nums):
             # numbered twice (or not at all): the host numbers them, so no two sentences share an id or a verdict
             for n, g in enumerate(got, 1):
                 g["g"] = n

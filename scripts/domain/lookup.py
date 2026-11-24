@@ -22,9 +22,9 @@ def lang_of(f):
 
 
 def use_repo(repo):
-    """Point the COBOL lookup at this run's tree."""
-    if defs.SRC != repo.root:
-        defs.set_root(repo.root)
+    """Point the COBOL lookup at this run's tree and its snapshot (a new run, even on the same tree, starts clean)."""
+    if defs.OWNER is not repo:
+        defs.set_root(repo.root, reader=lambda f: lib.fbytes(repo, f), owner=repo)
 
 REF = re.compile(r"^\s*([^\s:]+):(\d+)(?:\s*-\s*(\d+))?\s*$")
 
@@ -100,7 +100,7 @@ def ts_imports(repo, f):
             q = re.sub(r"\.js$", "", p) + ext if ext else p
             if ext == "" and not re.search(r"\.tsx?$", q):
                 continue
-            if os.path.isfile(os.path.join(root, q)):
+            if lib.inside(root, q) and os.path.isfile(os.path.join(root, q)):
                 tgt = q
                 break
         if not tgt:

@@ -59,10 +59,15 @@ def scope_cobol(repo, intent, all_files):
     for f in all_files:
         if lib.ext(f) in (".cbl", ".cob"):
             found[os.path.splitext(os.path.basename(f))[0].upper()].append(f)
+    # a program id in one file is that file; in more, the one whose path the intent types (`app/cbl/X.cbl`)
     progs = {p: fs[0] for p, fs in found.items() if len(fs) == 1}
+    for p, fs in found.items():
+        typed = [f for f in fs if f in intent]
+        if len(fs) > 1 and len(typed) == 1:
+            progs[p] = typed[0]
     toks = sorted(set(re.findall(r"\b[A-Z][A-Z0-9]{5,7}\b", intent)))
     # A program id in more than one file is never resolved to one of them silently: the card asks which.
-    twice = [t for t in toks if len(found.get(t, [])) > 1]
+    twice = [t for t in toks if len(found.get(t, [])) > 1 and t not in progs]
     phrases = [t for t in toks if t in progs]
     unmatched = [t for t in toks if t not in found and re.search(r"\d", t)]
     asks = ([f"'{u}' matches no code: type a file, function or screen name, or drop it" for u in unmatched]

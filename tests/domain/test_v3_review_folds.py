@@ -144,6 +144,9 @@ def test_two_identical_targets_are_never_merged_into_one():
     by = {"id": {"A": _rec("A", "h"), "B": _rec("B", "h")}, "text": {("a.ts", "h"): [_rec("A", "h"), _rec("B", "h")]}}
     assert store.match_prior(by, dict(id="A", file="a.ts"), "h", set())["target"] == "A"
     assert store.match_prior(by, dict(id="B", file="a.ts"), "h", set())["target"] == "B"
+    # a target of this scope keeps its own prior record: another target with the same text never takes it
+    one_a = {"id": {"A": _rec("A", "h")}, "text": {("a.ts", "h"): [_rec("A", "h")]}}
+    assert store.match_prior(one_a, dict(id="C", file="a.ts"), "h", set(), {"A", "C"}) is None
     # a renamed target whose text two prior targets share: not told apart, extracted again
     assert store.match_prior(by, dict(id="C", file="a.ts"), "h", set()) is None
     one = {"id": {"A": _rec("A", "h")}, "text": {("a.ts", "h"): [_rec("A", "h")]}}
@@ -182,7 +185,10 @@ def _run_twice(tmp_path, monkeypatch, codex_first=None, change=None):
 
 
 def test_a_statement_left_open_by_a_failed_check_is_checked_again_on_the_same_code(tmp_path, monkeypatch):
-    repo, seats, second, R = _run_twice(tmp_path, monkeypatch, codex_first=lambda *a, **k: ("", 1))
+    def incomplete(step, cid, prompt, timeout=1500, role=None):  # answers, but with no verdict on any claim
+        ns = [json.loads(ln)["n"] for ln in prompt.splitlines() if ln.startswith('{"n":')]
+        return json.dumps(dict(results=[dict(n=n, claims=[]) for n in ns])), 0
+    repo, seats, second, R = _run_twice(tmp_path, monkeypatch, codex_first=incomplete)
     assert second["reuse"]["revalidate"] == 1 and second["checked"] == 1, second
     assert seats.n > 0
 
@@ -194,7 +200,7 @@ def test_a_statement_that_failed_the_m_checks_is_extracted_again(tmp_path, monke
     by = {"id": {t["id"]: dict(target=t["id"], file=PROG, text_sha="x", batch_files=[PROG], batch_hash="y",
                                pieces=[], not_rules=[], _statements=[dict(status="open", m_fail=["M2 x"])])}, "text": {}}
     monkeypatch.setattr(store, "prior_targets", lambda prior: by)
-    monkeypatch.setattr(store, "match_prior", lambda by, t, h, used: by["id"].get(t["id"]))
+    monkeypatch.setattr(store, "match_prior", lambda by, t, h, used, ids=(): by["id"].get(t["id"]))
     monkeypatch.setattr(store, "decide", lambda repo, rec: ("carry", {}))
     C = batches.plan_batches(repo, S, str(tmp_path / "b"))
     decision = run.plan_reuse(repo, S, C, store.load(repo.db))[0]
@@ -259,7 +265,6 @@ def test_a_new_run_never_reuses_an_earlier_runs_evidence_directory(tmp_path, mon
     monkeypatch.setattr(run, "run", lambda root, db, s, out, log=None, write=None: outs.append(out))
     outs = []
     run.main(["--db", repo.db, "--repo-root", repo.root, "--scope", str(sc)])
-    time.sleep(1.1)
     run.main(["--db", repo.db, "--repo-root", repo.root, "--scope", str(sc)])
     assert len(set(outs)) == 2 and all(o.startswith(os.path.join(".wicked", "domain", "runs")) for o in outs)
 
@@ -326,3 +331,147 @@ def test_the_tree_is_walked_in_one_order(tmp_path):
         (tmp_path / n / "z.jcl").write_text("")
         (tmp_path / n / "y.jcl").write_text("")
     assert scope.tree_files(str(tmp_path)) == sorted(scope.tree_files(str(tmp_path)))
+
+
+# ---------------- review round 2 ----------------
+def test_a_target_the_writer_gave_no_answer_is_extracted_again(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    t = _target(repo, S, "MAIN-PARA")
+    by = {"id": {t["id"]: dict(target=t["id"], file=PROG, text_sha="x", batch_files=[PROG], batch_hash="y", pieces=[],
+                               not_rules=[], state=dict(unaccounted=True), _statements=[])}, "text": {}}
+    monkeypatch.setattr(store, "prior_targets", lambda prior: by)
+    monkeypatch.setattr(store, "match_prior", lambda by, t, h, used, ids=(): by["id"].get(t["id"]))
+    monkeypatch.setattr(store, "decide", lambda repo, rec: ("carry", {}))
+    C = batches.plan_batches(repo, S, str(tmp_path / "b"))
+    assert run.plan_reuse(repo, S, C, store.load(repo.db))[0][t["id"]] == "extract"
+
+
+def test_an_open_statement_without_a_usable_anchor_is_stored_on_its_target(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    t = _target(repo, S, "READ-PARA")
+    rec = dict(target=t["id"], file=PROG, anchor_symbol=t["anchor_symbol"], statements=["x#0", "x#1"], batch_hash="b",
+               target_hash="t")
+    sts = [dict(id="x#0", status="open", anchor={}, claims=[]), dict(id="x#1", status="open", anchor=dict(file=PROG, lines=[1]))]
+    rows, unplaced = store.rows_for(repo, dict(statements=sts), [rec], [], "h", [], store.load(repo.db),
+                                    lambda s: 1 / 0)
+    got = [r for r in rows if r["type"] == store.RULE]
+    assert unplaced == [] and [r["symbol"] for r in got] == [t["anchor_symbol"]] * 2
+    assert all("could not be rendered" in json.loads(r["value"])["statement"] for r in got)
+
+
+def test_a_model_range_in_a_stored_citation_is_not_expanded():
+    st = dict(claims=[dict(lines=[f"{PROG}:1-{10 ** 12}", f"{PROG}:3-4"], guards="not a list")])
+    t0 = time.time()
+    assert store.cited(st) == {(PROG, 1), (PROG, 3), (PROG, 4)} and time.time() - t0 < 1
+
+
+def test_group_numbers_never_collide_across_writer_packs(monkeypatch):
+    answers = iter([{"groups": [dict(g=1, title="A", area="x", kind="business", rule=dict(text="a", cites=["S1"]), details=[])]},
+                    {"groups": [dict(g=0, title="B", area="x", kind="business", rule=dict(text="b", cites=["S2"]), details=[])]}])
+    monkeypatch.setattr(model_calls, "claude", lambda *a, **k: (json.dumps(next(answers)), 0))
+    monkeypatch.setattr(prose, "PER_WRITE", 1)
+    rows = [dict(sid="S1", id="a#0", text="Runs: P", file="a.ts"), dict(sid="S2", id="b#0", text="Runs: Q", file="b.ts")]
+    assert [g["g"] for g in prose.write_all(rows, "d")] == [1, 2]
+
+
+def test_an_empty_writer_answer_is_no_answer(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    monkeypatch.setattr(model_calls, "claude", lambda *a, **k: ("  \n", 0))
+    with pytest.raises(model_calls.CallFailed):
+        run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r"), write=fake_write)
+
+
+def test_a_checker_that_answers_no_call_stops_the_run_before_anything_is_stored(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = FakeSeats(S)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r1"), write=fake_write)
+    model = stored(repo.db)
+    edit(repo, PROG, lambda L: L[:24] + [L[24].replace(b"PAY-RATE * 40", b"PAY-RATE * 41")] + L[25:])
+    monkeypatch.setattr(model_calls, "codex", lambda *a, **k: ("", 4))
+    with pytest.raises(model_calls.CallFailed, match="checker answered none"):
+        run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r2"), write=fake_write)
+    assert stored(repo.db) == model
+
+
+def test_the_cobol_lookup_reads_the_runs_snapshot(tmp_path):
+    from domain import defs, lookup
+    repo = make_repo(tmp_path, "mini-cobol")
+    lookup.use_repo(repo)
+    first = list(defs.flines(PROG))
+    edit(repo, PROG, lambda L: L[:23] + [L[23].replace(b"> 40", b"> 45")] + L[24:])
+    defs._fl.clear()
+    assert defs.flines(PROG) == first
+    lookup.use_repo(graph.Repo(repo.root, repo.db))  # a new run on the same tree starts clean
+    assert "> 45" in defs.flines(PROG)[23]
+
+
+def test_every_file_an_r_prompt_showed_is_in_each_of_its_statements_batch(tmp_path, monkeypatch):
+    from domain import r_stage
+    repo = make_repo(tmp_path, "mini-cobol")
+    sts = [dict(id=f"s{k}", anchor=dict(file=PROG, lines=[20, 29]), claims=[]) for k in (1, 2)]
+    monkeypatch.setattr(check.v2lib, "want", lambda repo, s, extra=None: {f"app/cpy/{s['id']}.cpy": {1}})
+    monkeypatch.setattr(check.v2lib, "render_code", lambda repo, w: "")
+    monkeypatch.setattr(check, "facts", lambda f: "")
+    monkeypatch.setattr(r_stage, "flagged_claims", lambda r: [dict(i=0, case="SCOPE")])
+    monkeypatch.setattr(r_stage, "run_calls", lambda step, units, per=4: {})
+    monkeypatch.setattr(r_stage, "decide", lambda u, res: [])
+    shown = {}
+    check.r_round(repo, "t", sts, dict(raw={"1": {}, "2": {}}), {"s1": "1", "s2": "2"}, {}, shown=shown)
+    want = {PROG, "app/cpy/s1.cpy", "app/cpy/s2.cpy"}
+    assert shown == {"s1": want, "s2": want}
+
+
+def test_a_typed_path_settles_a_program_id_in_two_files(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    os.makedirs(os.path.join(repo.root, "old"))
+    with open(os.path.join(repo.root, PROG), "rb") as a, open(os.path.join(repo.root, "old", "PAYCALC1.CBL"), "wb") as b:
+        b.write(a.read())
+    S = scope.build_scope(graph.Repo(repo.root, repo.db), f"rules of {PROG}")
+    assert S["targets"] and S["ambiguous_phrases"] == [] and PROG in S["target_files"]
+
+
+def test_the_prose_is_written_again_when_the_repository_description_changes(monkeypatch):
+    from tests.domain.test_v3_prose import STATEMENTS
+    monkeypatch.setattr(prose, "prose_all", lambda sts, desc: dict(rows=prose.rows_of(sts), groups=[], uncited=[], counts={}))
+    _, h1, _, _, _ = run.prose_for(STATEMENTS, "payroll", {store.GROUP: {}})
+    prior = {store.GROUP: {"x": dict(group=dict(g=1), rows_hash=h1)}}
+    assert run.prose_for(STATEMENTS, "payroll", prior)[2] is True
+    assert run.prose_for(STATEMENTS, "billing", prior)[2] is False
+
+
+def test_two_runs_in_one_second_get_two_evidence_directories(tmp_path, monkeypatch):
+    sc = tmp_path / "scope.json"
+    sc.write_text(json.dumps(dict(intent="PAYCALC1")))
+    outs = []
+    monkeypatch.setattr(run, "run", lambda root, db, s, out, log=None, write=None: outs.append(out))
+    monkeypatch.setattr(time, "strftime", lambda fmt, t=None: "20260101T000000Z")
+    for _ in range(2):
+        run.main(["--db", "x.db", "--repo-root", str(tmp_path), "--scope", str(sc)])
+    assert len(set(outs)) == 2
+
+
+def test_two_scoped_programs_with_one_file_name_get_two_batches(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    os.makedirs(tmp_path / "b")
+    S = dict(target_files=["a/X.cbl", "b/X.cbl"], targets=[], reached_from=[])
+    plan, _ = batches.cobol_plan(repo, S, [], str(tmp_path / "b"))
+    assert plan == []  # no targets, but the batch texts are two files
+    assert sorted(os.listdir(tmp_path / "b")) == ["a_X.cbl.txt", "b_X.cbl.txt"]
+
+
+@pytest.mark.parametrize("claim", [dict(i=[0], type="condition", text="x", lines=[f"{PROG}:24"]),
+                                   dict(i=0, type="condition", text="x", lines=f"{PROG}:24"),
+                                   dict(i=0, type="effect", text=7, when=[[0]], lines=[f"{PROG}:24"])])
+def test_a_malformed_claim_is_refused_not_raised(tmp_path, claim):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    C = batches.plan_batches(repo, S, str(tmp_path / "b"))
+    t = _target(repo, S, "READ-PARA")
+    call = next(c for c in C["calls"] if t["id"] in c["targets"])
+    errs = extract.check_statement(repo, dict(anchor=dict(file=PROG, lines=t["lines"]), claims=[claim]), t, call)
+    assert errs and all(e.startswith(("M1", "M2", "M4")) for e in errs), errs

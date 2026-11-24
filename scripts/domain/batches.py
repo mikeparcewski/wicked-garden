@@ -57,13 +57,16 @@ def cobol_plan(repo, S, T, out_dir):
             unit_of.setdefault(m.group(3), by_name[m.group(2).upper()])
     v2lib.use_repo(repo)
     plan = []
+    base = collections.Counter(os.path.basename(p) for p in progs)
     for p in progs:
-        files = [p] + v2lib.defs.copybooks(p) + [jf for jf, u in unit_of.items() if u == p and jf != p]
+        # a program's batch is named by its file name, or by its path when two scoped programs share a file name
+        name = os.path.basename(p) if base[os.path.basename(p)] == 1 else p.replace("/", "_")
+        files = list(dict.fromkeys([p] + v2lib.defs.copybooks(p) + [jf for jf, u in unit_of.items() if u == p and jf != p]))
         text = "\n".join(numbered(repo, f) for f in files)
         ts = sorted([t for t in T if unit_of.get(t["file"]) == p], key=lambda t: (t["file"] != p, t["file"], t["lines"][0]))
-        text_file = os.path.join(out_dir, f"{os.path.basename(p)}.txt")
+        text_file = os.path.join(out_dir, f"{name}.txt")
         for k in range(0, len(ts), PER_CALL):
-            plan.append(dict(id=f"{os.path.basename(p)}-c{k // PER_CALL}", unit=p, files=files, shown={f: None for f in files},
+            plan.append(dict(id=f"{name}-c{k // PER_CALL}", unit=p, files=files, shown={f: None for f in files},
                              targets=[t["id"] for t in ts[k:k + PER_CALL]], text_file=text_file, tokens=len(text) // 4))
         _write(text_file, text)
     return plan, set(unit_of)

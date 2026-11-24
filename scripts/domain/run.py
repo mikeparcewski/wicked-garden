@@ -10,7 +10,7 @@ extracted again; the prose is reused when its input is unchanged. An unchanged r
 and writes the same model.
 
 Usage: run.py --db <estate.db> --repo-root <tree> --scope <scope.json> [--out <dir>]
-``--out`` defaults to a new ``.wicked/domain/runs/<UTC time>-<pid>`` per run (a re-run in the same directory reuses its
+``--out`` defaults to a new ``.wicked/domain/runs/<UTC time>-<random>`` per run (a re-run in the same directory reuses its
 completed calls, so a retry of one run costs nothing; a new run never collides with an earlier run's evidence).
 ``scope.json`` is ``{"intent": "...", "phrases": [...]?, "scope_hash": "..."?, "description": "..."?}``. With a
 ``scope_hash`` (Start carries the preview's), a scope that no longer hashes the same is refused (exit 3).
@@ -22,6 +22,7 @@ import json
 import os
 import sys
 import time
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/ on path
 from domain import batches, check, extract, followups, prose, scope, store  # noqa: E402
@@ -58,13 +59,18 @@ def plan_reuse(repo, S, C, prior):
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
+    ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
-        rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used)
+        rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
         d, moves = store.decide(repo, rec) if rec else ("extract", {})
         sts = rec["_statements"] if rec else []
         nrs = list(rec.get("not_rules") or []) if rec else []
         if any(s.get("m_fail") or s.get("status1") is None and s.get("status") == "open" for s in sts):
             d = "extract"  # a statement that failed the M checks is never sent to the checker as it stood
+        if rec and (rec.get("state") or {}).get("unaccounted") and not sts and not nrs:
+            # the writer gave the target no answer at all: asked again. One it answered with a refused not-rule stands
+            # on unchanged code (0 calls), with its follow-up for the user to settle.
+            d = "extract"
         if d == "carry" and not all(_settled(s) for s in sts):
             d, moves = "revalidate", None  # same code: no move; the unsettled ones are checked again
         if d == "revalidate":
@@ -84,6 +90,11 @@ def plan_reuse(repo, S, C, prior):
         if d == "extract":
             continue
         used.add(rec["target"])
+        if rec["target"] != t["id"]:
+            # the same code under a new target id: its statements take ids of this target, so no id is shared with
+            # one a target of this run extracts
+            sts = [dict(s, id=f"{t['id']}#{k}", was=s.get("id")) for k, s in enumerate(sts)]
+            nrs = [dict(n, id=f"{t['id']}#nr{k}") for k, n in enumerate(nrs)]
         for s in sts:
             s.update(target=t["id"], call=call_of[t["id"]]["id"])
         carried.extend(s for s in sts if s.get("status") != "pending")
@@ -106,7 +117,8 @@ def prose_for(statements, desc, prior):
     """The run's rule groups: the stored ones when the writer's input is unchanged, else ``prose.prose_all``. Also
     returns the statements the writer left out of every group (``uncited``, by statement id)."""
     rows = prose.rows_of(statements)
-    rows_hash = store.sha(json.dumps([(r["sid"], r["id"], r["text"]) for r in rows]).encode())
+    # the writer's whole input: its statements and the repository description it is given
+    rows_hash = store.sha(json.dumps([desc] + [(r["sid"], r["id"], r["text"]) for r in rows]).encode())
     stored = [v for v in prior[store.GROUP].values() if v.get("rows_hash") == rows_hash]
     if rows and stored and len(stored) == len(prior[store.GROUP]):
         groups = sorted((v["group"] for v in stored), key=lambda g: g.get("g") or 0)
@@ -205,7 +217,8 @@ def main(argv=None):
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
     if a.out is None:
-        a.out = os.path.join(".wicked", "domain", "runs", time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + f"-{os.getpid()}")
+        a.out = os.path.join(".wicked", "domain", "runs",
+                             time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + uuid.uuid4().hex[:8])
     with open(a.scope) as fh:
         scope_in = json.load(fh)
     log = lambda s: print(s, flush=True)  # noqa: E731

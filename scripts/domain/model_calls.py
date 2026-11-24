@@ -25,6 +25,11 @@ class CallFailed(RuntimeError):
     stores anything, so a signed-out or timed-out seat never stands for an empty model."""
 
 
+def answered(text, rc):
+    """A call answered: exit 0 with some text (an empty answer is no answer)."""
+    return rc == 0 and bool((text or "").strip())
+
+
 def configure(calls_dir):
     """Where this run keeps its calls (``<run out>/calls``)."""
     os.makedirs(calls_dir, exist_ok=True)

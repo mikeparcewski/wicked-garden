@@ -7,6 +7,8 @@ definition rules are unchanged.
 """
 import os, re
 SRC = None
+OWNER = None  # the run (``graph.Repo``) the caches below belong to
+_read = None  # that run's reader (``graph.fbytes``): one snapshot of each file per run
 _fl = {}
 _cpy = None
 _resets = []
@@ -26,10 +28,11 @@ def on_reset(clear):
     _resets.append(clear)
 
 
-def set_root(root):
-    """Point the lookup at the run's tree (and forget the previous tree's text and every cache over it)."""
-    global SRC, _cpy
-    SRC = root
+def set_root(root, reader=None, owner=None):
+    """Point the lookup at the run's tree (and forget the previous tree's text and every cache over it). ``reader(f)``
+    returns ``f``'s bytes (the run's snapshot); without one, files are read from ``root``."""
+    global SRC, _cpy, _read, OWNER
+    SRC, _read, OWNER = root, reader, owner
     _fl.clear()
     _cpy = None
     for clear in _resets:
@@ -76,11 +79,15 @@ def copybook_path(f, name):
 def flines(f):
     if f not in _fl:
         try:
-            p = _inside(SRC, f)
-            if p is None:
-                raise OSError(f)
-            with open(p, "rb") as fh:
-                _fl[f] = fh.read().decode("utf-8", "replace").split("\n")
+            if _read is not None:
+                b = _read(f)
+            else:
+                p = _inside(SRC, f)
+                if p is None:
+                    raise OSError(f)
+                with open(p, "rb") as fh:
+                    b = fh.read()
+            _fl[f] = b.decode("utf-8", "replace").split("\n")
         except OSError:
             _fl[f] = []
     return _fl[f]

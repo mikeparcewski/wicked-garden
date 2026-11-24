@@ -73,15 +73,21 @@ def check_round(repo, step, sts, extra_of=None, chunk=10, shown=None):
         out, rc = calls.codex(step, f"c{k}", T6.replace("{{ITEMS}}", items).replace("{{CODE}}", code))
         j = calls.parse_json(out) or {}
         byn = {r.get("n"): r for r in j.get("results", []) if isinstance(r, dict)}
-        return {s["id"]: byn.get(n) for n, s in enumerate(ss, 1)}, set(w)
+        return {s["id"]: byn.get(n) for n, s in enumerate(ss, 1)}, set(w), calls.answered(out, rc)
 
-    res = {}
+    res, oks = {}, []
     with cf.ThreadPoolExecutor(W) as ex:
-        for r, files in ex.map(run, range(len(chunks))):
+        for r, files, ok in ex.map(run, range(len(chunks))):
+            oks.append(ok)
             res.update(r)
             if shown is not None:
                 for sid in r:
                     shown.setdefault(sid, set()).update(files)
+    if oks and not any(oks):
+        # not one check call answered (a signed-out or failing checker): every statement would be stored open,
+        # replacing a checked model, so the run stops instead; a call that fails among answered ones leaves its
+        # statements open (a follow-up each), checked again on the next run
+        raise calls.CallFailed(f"the checker answered none of the {step} calls; nothing was stored")
     return res
 
 
@@ -154,9 +160,13 @@ def union_of(out_dir, tag, sts, ra, rb):
     return json.loads(json.dumps(U)), num
 
 
-def r_round(repo, tag, sts, U, num, extra_of):
-    """R on the union's flagged COBOL statements. Returns {id: row}."""
-    us, keep = [], {}
+R_PER = 3  # statements per R prompt
+
+
+def r_round(repo, tag, sts, U, num, extra_of, shown=None):
+    """R on the union's flagged COBOL statements. Returns {id: row}. ``shown`` (when given) gains, per statement, every
+    file its R prompt showed (a prompt packs :data:`R_PER` statements)."""
+    us, keep, rfiles = [], {}, {}
     for s in sts:
         n = num[s["id"]]
         fs = RS.flagged_claims(U["raw"].get(n))
@@ -166,8 +176,10 @@ def r_round(repo, tag, sts, U, num, extra_of):
         if not is_cobol_program(f):
             keep[n] = fs  # R runs on COBOL only; these stand as found
             continue
-        code = facts(f) + "\n" + v2lib.render_code(repo, v2lib.want(repo, s, extra_of.get(s["id"])))
+        w = v2lib.want(repo, s, extra_of.get(s["id"]))
+        code = facts(f) + "\n" + v2lib.render_code(repo, w)
         us.append(dict(n=int(n), item=item(int(n), s), finds=fs, code=code, file=f, anchor_line=s["anchor"]["lines"][0]))
+        rfiles[int(n)] = (s["id"], set(w) | {f})
     for u in us:
         n = str(u["n"])
         keep[n] = [fd for fd in u["finds"] if (fd.get("case") or "").upper() != "SCOPE"]
@@ -179,7 +191,13 @@ def r_round(repo, tag, sts, U, num, extra_of):
                                                     evidence="; ".join(x.get("evidence") or "" for x in g),
                                                     reason=" | ".join(x.get("reason") or "" for x in g)) for g in sc.values()]
     sent = [u for u in us if u["finds"]]
-    res = RS.run_calls(f"R-{tag}", sent, per=3) if sent else {}
+    if shown is not None:
+        for i in range(0, len(sent), R_PER):  # as run_calls packs them
+            pack = [rfiles[u["n"]] for u in sent[i:i + R_PER]]
+            files = set().union(*(fs for _, fs in pack))
+            for sid, _ in pack:
+                shown.setdefault(sid, set()).update(files)
+    res = RS.run_calls(f"R-{tag}", sent, per=R_PER) if sent else {}
     rows = {}
     byn = {u["n"]: u for u in us}
     for s in sts:
@@ -225,7 +243,7 @@ def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True, shown=None):
         for s in sts:
             shown.setdefault(s["id"], set()).update(sa.get(s["id"], set()) | sb.get(s["id"], set()))
     U, num = union_of(out_dir, tag, sts, ra, rb)
-    rr = r_round(repo, tag, sts, U, num, ext)
+    rr = r_round(repo, tag, sts, U, num, ext, shown=shown)
     st = {s["id"]: status3(s, U, num, rr.get(s["id"])) for s in sts}
     return U, num, rr, st, ext, {s["id"]: sorted(set(la.get(s["id"], []) + lb.get(s["id"], []))) for s in sts}
 
@@ -295,7 +313,7 @@ def check_all(repo, S, C, A, out_dir):
                     errs.append("kind: the repaired statement has no condition, else or value claim")
                 ln = x["anchor"].get("lines")
                 if isinstance(ln, list) and len(ln) == 2 and all(isinstance(v, int) for v in ln):
-                    cov.update(range(ln[0], ln[1] + 1))
+                    cov.update(range(max(ln[0], t["lines"][0]), min(ln[1], t["lines"][1]) + 1))  # bounded: model-made
             code = lib.code_lines(repo, t["file"])
             a, b = s["anchor"]["lines"]
             lost = sorted(i for i in range(a, b + 1) if i in code and i not in cov)

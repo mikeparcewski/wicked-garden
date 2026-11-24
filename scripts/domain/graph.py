@@ -78,8 +78,9 @@ def inside(root, f):
 
 
 class G:
-    def __init__(self, db, root):
+    def __init__(self, db, root, reader=None):
         self.root = root
+        self._reader = reader
         con = sqlite3.connect(f'file:{quote(db)}?mode=ro', uri=True)
         self.nodes = {}
         self.sym2sid = {}
@@ -99,12 +100,15 @@ class G:
 
     def text(self, f):
         if f not in self._text:
-            p = inside(self.root, f)
             try:
-                if p is None:
-                    raise OSError(f)
-                with open(p, 'rb') as fh:
-                    self._text[f] = fh.read().decode('utf-8', 'replace')
+                if self._reader is not None:
+                    self._text[f] = self._reader(f).decode('utf-8', 'replace')
+                else:
+                    p = inside(self.root, f)
+                    if p is None:
+                        raise OSError(f)
+                    with open(p, 'rb') as fh:
+                        self._text[f] = fh.read().decode('utf-8', 'replace')
             except OSError:
                 self._text[f] = ''
         return self._text[f]
@@ -137,7 +141,7 @@ class Repo:
     @property
     def graph(self):
         if self._graph is None:
-            self._graph = G(self.db, self.root)
+            self._graph = G(self.db, self.root, reader=lambda f: fbytes(self, f))
         return self._graph
 
 
