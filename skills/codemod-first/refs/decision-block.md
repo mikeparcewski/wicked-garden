@@ -35,7 +35,7 @@ Worked example:
 
 ```
 mechanical-first:
-  inventory: ast-grep run -p 'moment($$$)' -l ts src | wc -l
+  inventory: ast-grep run -p 'moment($$$)' -l ts --json=compact src | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))'
   count: 212
   recipe_checked: npx @date-fns/upgrade — no such codemod; jscodeshift moment-to-date-fns transform — covers format/add/diff
   codemod: jscodeshift -t moment-to-date-fns.js src (self-flagged 9 sites: locale-dependent parsing)
@@ -57,9 +57,19 @@ example `mechanical-first: rejected — 3 sites, each semantically different`.
 ## What fails
 
 - no block and no rejection (a hand edit with no decision);
+- a block outside a fence: the block is always fenced (``` or ~~~), and a fence closes only on a
+  bare run of the same character at least as long as the one that opened it;
+- a block whose first line is not exactly `mechanical-first:`, or that holds an unknown key: the
+  six keys are the whole block (no `- ` list markers, no extra notes; put notes outside it);
 - a block missing a key, a key with an empty value, or a key given twice;
-- `count` or `residue` that is not a whole number, or `residue` greater than `count`;
-- a rejection with no reason.
+- `count` or `residue` that is not a whole number (at most 9 digits), or `residue` greater than
+  `count`;
+- a rejection with no reason, or with anything but an em dash (`—`) after `rejected`;
+- more than one decision.
+
+A decision quoted as code is not a decision: a rejection inside a fence, or indented 4 spaces or
+a tab (an indented code block), does not count. Count sites from structured matches, not from
+printed lines: a tool's human output can split one match over several lines or merge two.
 
 Check it: `wicked-garden run scripts/engineering/mechanical_first.py check <file>` (or `-` for
 stdin) prints `{"ok": …, "form": "block" | "rejected" | null, "errors": [...]}` and exits 0 when
