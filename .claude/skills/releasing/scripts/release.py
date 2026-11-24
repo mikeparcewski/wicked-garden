@@ -20,6 +20,7 @@ Examples:
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -85,9 +86,10 @@ class ReleaseManager:
             tags = result.stdout.strip().split("\n")
             component_name = self.get_plugin_name()
 
-            # Filter tags for this component (format: component-name-v1.0.0)
+            # Release tags are v1.0.0 (the release workflow's `v*` trigger, and the ref the
+            # marketplace entry installs, #1413); older component-name-v1.0.0 tags still count.
             component_tags = [
-                tag for tag in tags if tag.startswith(f"{component_name}-v")
+                tag for tag in tags if re.match(r"^v\d", tag) or tag.startswith(f"{component_name}-v")
             ]
 
             if not component_tags:
@@ -95,7 +97,7 @@ class ReleaseManager:
 
             # Sort by semver and return latest
             def extract_version(tag):
-                version_str = tag.split("-v")[-1]
+                version_str = re.sub(r"^.*?v(?=\d)", "", tag)
                 try:
                     return SemVer(version_str)
                 except ValueError:
@@ -213,6 +215,8 @@ class ReleaseManager:
                         plugin["source"]["ref"] = f"v{new_version}"
                     updated = True
                     break
+            if updated and "version" in data:
+                data["version"] = new_version   # the catalog's own version moves with the entry
 
             if updated:
                 with open(marketplace_path, "w") as f:
@@ -310,7 +314,7 @@ class ReleaseManager:
     def create_git_tag(self, version: str):
         """Create git tag for this release."""
         component_name = self.get_plugin_name()
-        tag_name = f"{component_name}-v{version}"
+        tag_name = f"v{version}"  # the tag the marketplace entry's ref names (#1413)
 
         if self.dry_run:
             print(f"[DRY RUN] Would create git tag: {tag_name}")
@@ -531,7 +535,7 @@ class ReleaseManager:
 
         # Create git tag
         component_name = self.get_plugin_name()
-        tag_name = f"{component_name}-v{new_version}"
+        tag_name = f"v{new_version}"
         if create_tag:
             self.create_git_tag(new_version)
 

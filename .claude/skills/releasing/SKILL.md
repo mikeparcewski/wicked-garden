@@ -116,9 +116,9 @@ Supports [Conventional Commits](https://www.conventionalcommits.org/) format:
 1. **Collect commits** since last release tag
 2. **Categorize commits** by type (breaking, features, fixes)
 3. **Determine version bump** from commit types
-4. **Update** the version in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` (`node .github/scripts/sync-plugin-version.mjs` syncs them to package.json)
+4. **Update** the version in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` (both version keys and the entry's `"ref": "v<version>"`), `.agents/plugins/marketplace.json` and `.codex-plugin/plugin.json` (`node .github/scripts/sync-plugin-version.mjs` syncs them to package.json; `scripts/ci/validate.py` refuses drift)
 5. **Generate** CHANGELOG.md entries
-6. **Create git tag** (e.g., `v1.3.0`)
+6. **Create git tag** (e.g., `v1.3.0`) on the commit that carries those version files, and **push it before the version files reach main**: main's Claude marketplace entry installs the tag its `ref` names, so a ref merged first points at a tag that does not exist yet (#1413)
 7. **Create GitHub release** with release notes via `gh release create`
 
 ### Change Detection

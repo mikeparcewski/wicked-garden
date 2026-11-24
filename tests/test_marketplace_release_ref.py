@@ -53,12 +53,6 @@ def test_codex_marketplace_keeps_the_local_root():
     assert entry["version"] == _version()
 
 
-def test_the_codex_marketplace_ships_in_the_npm_package():
-    """`codex plugin marketplace add "$(npm root -g)/wicked-garden"` needs it in the tarball."""
-    ignored = (REPO / ".npmignore").read_text(encoding="utf-8").splitlines()
-    assert not any(line.strip().rstrip("/") in (".agents", ".agents/plugins", ".agents/**") for line in ignored)
-
-
 def _tree(tmp_path: Path) -> Path:
     for rel in ("package.json", ".claude-plugin/plugin.json", str(CLAUDE_MKT), str(CODEX_MKT),
                 ".codex-plugin/plugin.json"):
@@ -93,10 +87,21 @@ def test_release_py_stamps_the_tag_and_the_codex_marketplace(tmp_path):
     subprocess.run([sys.executable, "-c", code, str(REPO / ".claude" / "skills" / "releasing" / "scripts"), str(root)],
                    check=True, capture_output=True, timeout=60, cwd=root)
     claude = json.loads((root / CLAUDE_MKT).read_text())
-    assert claude["plugins"][0]["version"] == "2.0.0"
+    assert claude["version"] == claude["plugins"][0]["version"] == "2.0.0"
     assert claude["plugins"][0]["source"]["ref"] == "v2.0.0"
     codex = json.loads((root / CODEX_MKT).read_text())
-    assert codex["plugins"][0]["version"] == "2.0.0"
+    assert codex["version"] == codex["plugins"][0]["version"] == "2.0.0"
+    plugin = json.loads((root / ".claude-plugin" / "plugin.json").read_text())
+    plugin["version"] = "2.0.0"  # update_plugin_version's job; this test drives the other two writers
+    (root / ".claude-plugin" / "plugin.json").write_text(json.dumps(plugin))
+    assert _validate.marketplace_errors(root, "wicked-garden", "2.0.0") == []
+
+
+def test_release_py_tags_the_ref_the_marketplace_names():
+    """The releasing skill tags v<version>, the tag the entry installs and release.yml's trigger."""
+    text = (REPO / ".claude" / "skills" / "releasing" / "scripts" / "release.py").read_text(encoding="utf-8")
+    assert 'tag_name = f"v{version}"' in text and 'tag_name = f"v{new_version}"' in text
+    assert '-v{version}"' not in text and '-v{new_version}"' not in text
 
 
 def test_validate_accepts_the_repo_as_it_is():

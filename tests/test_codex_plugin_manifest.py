@@ -335,7 +335,7 @@ def test_npm_package_ships_the_manifest_and_exactly_the_codex_skills():
                          capture_output=True, text=True, timeout=300, check=True).stdout
     files = {f["path"].replace("\\", "/") for f in json.loads(out)[0]["files"]}
     for required in (".codex-plugin/plugin.json", ".codex-plugin/mcp.json", "scripts/estate_mcp.mjs",
-                     ".claude-plugin/marketplace.json"):
+                     ".claude-plugin/marketplace.json", ".agents/plugins/marketplace.json"):
         assert required in files, f"{required} is not in the npm package"
     shipped = {f for f in files if f.startswith("skills/") and f.endswith("/SKILL.md")}
     names, _ = codex_skill_names(REPO, [REPO / "skills"])
