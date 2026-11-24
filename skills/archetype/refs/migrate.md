@@ -75,6 +75,10 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    Skip silently if no vault.
 4. **If the shape change is reversible HIGH (e.g. a column add), this
    archetype is overkill.** Drop back to `build`.
+5. **Mechanical first.** Before expand or backfill touches code, run
+   `wicked-garden-codemod-first`: count the sites, check for a recipe, try a
+   codemod, name the gate, and put its `mechanical-first:` block (or its
+   one-line rejection) in the migration doc.
 
 ### expand
 

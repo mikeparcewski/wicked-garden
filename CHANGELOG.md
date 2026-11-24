@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **codemod-first:** a new `wicked-garden-codemod-first` skill sends upgrade and modernization work through a mechanical transform before any hand edit. You count the sites, check for a recipe, try a codemod, name the gate, and hand-edit only the residue. The decision is recorded as one `mechanical-first:` block, or a one-line written rejection; `scripts/engineering/mechanical_first.py check` validates it. The `migrate`, `modernize` and upgrade-shaped `build` playbooks, and the governed-worker floor (C9), call it (#1334).
+
 ## [12.68.5] - 2026-11-22
 
 Patch release on the train-11 cut d093a838, carrying 13 PRs since 12.68.4: #1500, #1501, #1505, #1506, #1507, #1508, #1510, #1512, #1515, #1516, #1517, #1518, #1520.
