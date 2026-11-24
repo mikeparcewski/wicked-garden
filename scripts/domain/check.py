@@ -252,6 +252,8 @@ def check_all(repo, S, C, A, out_dir):
         s["r"] = rr.get(s["id"])
         s["status1"] = st1[s["id"]]
         s["fetched"] = flog[s["id"]]
+        # the files the check showed beyond the batch (store.py's batch hash covers them too)
+        s["fetched_files"] = sorted({sp[0] for sp in ext.get(s["id"], [])})
     timing["check_s"] = round(time.time() - t0, 1)
     c1 = collections.Counter(st1.values())
     flagged_before_r = [s["id"] for s in pend if RS.flagged_claims(s["check"])]
@@ -295,7 +297,7 @@ def check_all(repo, S, C, A, out_dir):
             for k, x in enumerate(reps):
                 new_sts.append(dict(anchor=x["anchor"], claims=x["claims"], context=x.get("context") or [], id=f"{s['id']}~r{k}", target=s["target"],
                                     call=cid, kind="rule", name=s.get("name"), m_fail=[], status="pending", repaired_from=s["id"],
-                                    fetched=s.get("fetched")))
+                                    fetched=s.get("fetched"), fetched_files=s.get("fetched_files")))
     timing["repair_s"] = round(time.time() - t2, 1)
     t3 = time.time()
     if new_sts:
