@@ -33,12 +33,18 @@ it against that element's own text — its inline children included, a sibling's
 | the element with the text | that element's text |
 | an inline wrapper (`<b>`, `<span>`) around it | the wrapper's text |
 | the enclosing block (`<li>`, `<p>`) | the whole block's text |
-| an ancestor above the block (`<section>`) | nothing — inherited, path existence only |
+| an ancestor above the block (`<section>`) | inherited: the line must exist, and the figures it alone cites must be on its lines (word overlap is not checked) |
 | path-only, no `:N` | nothing — provenance, path existence only |
 
 Two `<span>`s in one `<li>`, each with its own `data-source`, are therefore two separate claims:
 the first one's text cannot satisfy the second one's citation. Put the citation on the element
 whose text it proves.
+
+**The figure is the claim.** Every number the cited text claims must be on the cited line(s),
+with its unit when it has one: `80%` on the line never verifies `99%`, and `80 ms` never verifies
+`80 s`. Spellings that mean the same pass (`94 percent` = `94%`, `1,200` = `1200`, `80ms` =
+`80 ms`); dates, step numbers and footnote markers are not figures. Cite the line that states the
+figure, or write the figure the way the source states it.
 
 A citation passes only when the cited text shares a **content** word with the claim — an overlap
 of common words alone ("the", "is", "under") verifies nothing and is reported. A range
