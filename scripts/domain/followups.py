@@ -46,13 +46,23 @@ def _check_with_sites(text, f, line):
     return f"{text} Reached from {len(s)} site{'s' if len(s) != 1 else ''}: {shown}{more}."
 
 
+def _anchor(st):
+    """(file, first, last) of a statement's anchor; ("", 0, 0) when the model left it unusable."""
+    a = st.get("anchor") if isinstance(st.get("anchor"), dict) else {}
+    ln = a.get("lines")
+    ok = isinstance(a.get("file"), str) and isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) for x in ln)
+    return (a["file"], ln[0], ln[1]) if ok else ("", 0, 0)
+
+
 def statement_rows(statements):
+    """One or more rows for every open statement: its standing finding, each UNVERIFIABLE claim, else why it is open
+    (the mechanical checks it failed, or a check that returned no verdict). No open statement goes without a row."""
     rows = []
     for st in statements:
         if st.get("status") != "open":
             continue
-        a = st["anchor"]
-        f, (lo, hi) = a["file"], a["lines"]
+        f, lo, hi = _anchor(st)
+        before = len(rows)
         found = (st.get("check") or {}).get("claims") or []
         flagged = [c for c in found if (c.get("verdict") or "").upper() in FLAG]
         standing = {x["i"] for x in (st.get("r") or {}).get("claims") or [] if x.get("stands")}
@@ -75,6 +85,13 @@ def statement_rows(statements):
                        f"from the excerpt; the checker needs: {(c.get('need') or '').strip() or 'more of the code'}")
             rows.append(dict(kind="open", where=_where(f, lo, hi), statement=st["id"], target=st.get("target"), claim=c.get("i"),
                              unknown=unknown, check=_check_with_sites((c.get("reason") or "").strip(), f, lo), sites=sites(f, lo)))
+        if len(rows) == before:
+            fails = st.get("m_fail") or (st.get("repair") or {}).get("errors") or []
+            unknown = ("the statement failed its mechanical checks: " + "; ".join(fails[:3]) if fails else
+                       "the checker returned no verdict on every claim (its call failed or its answer was incomplete)")
+            rows.append(dict(kind="open", where=_where(f, lo, hi) if f else None, statement=st["id"], target=st.get("target"),
+                             unknown=unknown, check="Run the extraction again, or confirm the statement against its cited lines.",
+                             sites=sites(f, lo) if f else []))
     return rows
 
 
@@ -94,8 +111,10 @@ def refusal_rows(after_m_targets, not_rules, S):
 
 
 def scope_rows(S):
-    return [dict(kind="scope", where=None, unknown=f"'{p}' matches no code",
-                 check="Type a file, function or screen name, or drop the phrase.") for p in S.get("unmatched_phrases") or []]
+    return ([dict(kind="scope", where=None, unknown=f"'{p}' matches no code",
+                  check="Type a file, function or screen name, or drop the phrase.") for p in S.get("unmatched_phrases") or []]
+            + [dict(kind="scope", where=None, unknown=f"'{p}' names more than one program file",
+                    check="Type the file to extract.") for p in S.get("ambiguous_phrases") or []])
 
 
 def followups(repo, S, result):

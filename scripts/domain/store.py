@@ -139,10 +139,9 @@ def find_window(repo, f, a, n, h):
         return None
     if a + n - 1 <= len(L) and sha(b"\n".join(L[a - 1:a - 1 + n])) == h:
         return a
-    for s in range(1, len(L) - n + 2):
-        if sha(b"\n".join(L[s - 1:s - 1 + n])) == h:
-            return s
-    return None
+    found = [s for s in range(1, len(L) - n + 2) if sha(b"\n".join(L[s - 1:s - 1 + n])) == h]
+    # moved to exactly one place; two copies of the text are not told apart by text, so the target is extracted again
+    return found[0] if len(found) == 1 else None
 
 
 # ---------------- the run's records ----------------
@@ -205,14 +204,15 @@ def relocate(st, moves):
 
 # ---------------- reading the store (read-only) ----------------
 def load(db):
-    """The store's live records: {type: {key suffix: value}} for every J6 type, retired ones left out."""
+    """The store's live records: {type: {key suffix: value}} for every J6 type, retired ones left out, and only those
+    on a node the store still has (a re-index that drops a node leaves its annotations behind; they are not live)."""
     out = {t: {} for t in TYPES + (RULING,)}
     if not db or not os.path.exists(db):
         return out
     con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
     try:
-        rows = con.execute(f"select key, value, type from annotations where type in ({','.join('?' * (len(TYPES) + 1))}) "
-                           "order by id", TYPES + (RULING,)).fetchall()
+        rows = con.execute(f"select a.key, a.value, a.type from annotations a join nodes n on n.symbol = a.node_sym "
+                           f"where a.type in ({','.join('?' * (len(TYPES) + 1))}) order by a.id", TYPES + (RULING,)).fetchall()
     except sqlite3.OperationalError:
         rows = []
     con.close()
@@ -230,15 +230,28 @@ def load(db):
 
 
 def prior_targets(prior):
-    """The prior run's targets with their statements: {(file, text hash): record + ``_statements``}."""
+    """The prior run's targets with their statements (copies): ``{"id": {target id: rec}, "text": {(file, text hash):
+    [rec, ...]}}``, each rec with ``_statements``."""
     rules = prior[RULE]
-    by = {}
+    by = {"id": {}, "text": {}}
     for rec in prior[TARGET].values():
-        sts = [rules[i]["contract"] for i in rec.get("statements") or [] if i in rules]
+        sts = [json.loads(json.dumps(rules[i]["contract"])) for i in rec.get("statements") or [] if i in rules]
         if len(sts) != len(rec.get("statements") or []):
             continue  # a statement went missing: not reusable
-        by[(rec["file"], rec["text_sha"])] = dict(rec, _statements=sts)
+        r = dict(rec, _statements=sts)
+        by["id"][rec["target"]] = r
+        by["text"].setdefault((rec["file"], rec["text_sha"]), []).append(r)
     return by
+
+
+def match_prior(by, t, text_sha, used):
+    """The prior record for target ``t``: the same target id with the same text, else the one prior target (not yet
+    taken) in the same file whose text hashes the same. Two identical texts are never merged into one target."""
+    r = by["id"].get(t["id"])
+    if r and r["file"] == t["file"] and r["text_sha"] == text_sha and r["target"] not in used:
+        return r
+    cands = [c for c in by["text"].get((t["file"], text_sha), []) if c["target"] not in used]
+    return cands[0] if len(cands) == 1 and len(by["text"][(t["file"], text_sha)]) == 1 else None
 
 
 # ---------------- writing (wicked-estate write-batch) ----------------
@@ -256,7 +269,7 @@ def symbol_for(repo, f, sym=None):
     return best["sym"]
 
 
-def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, render):
+def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, render, uncited=()):
     """The annotate rows of one run, and the prior keys it retires. ``render(statement)`` is the statement text."""
     rows, unplaced = [], []
     rec_by_stmt = {sid: r for r in records for sid in r["statements"]}
@@ -291,12 +304,14 @@ def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, ren
     for g in groups:
         sids = [c for s in ([g.get("rule")] if g.get("rule") else []) + (g.get("details") or []) for c in s.get("cites") or []]
         first = by_id.get(sids[0]) if sids else None
-        if first is None:
-            continue
         name = sha(json.dumps(g, sort_keys=True).encode())[:16]
-        sym = symbol_for(repo, first["anchor"]["file"], first["anchor"].get("symbol_id"))
+        if first is not None:
+            sym = symbol_for(repo, first["anchor"]["file"], first["anchor"].get("symbol_id"))
+        else:
+            # every sentence withheld: the group (its reasons) is still stored, on the scope's first target
+            sym = symbol_for(repo, records[0]["file"], records[0].get("anchor_symbol")) if records else None
         if sym:
-            add(sym, GROUP, name, dict(group=g, rows_hash=rows_hash))
+            add(sym, GROUP, name, dict(group=g, rows_hash=rows_hash, uncited=list(uncited)))
             written[GROUP].add(name)
     written[FOLLOWUP] = set()
     for r in followup_rows:

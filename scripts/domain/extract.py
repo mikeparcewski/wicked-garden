@@ -117,7 +117,7 @@ def check_statement(repo, st, t, call):
         if not isinstance(c, dict) or c.get("type") not in TYPES:
             errs.append(f"M1 claim {k} type {c.get('type') if isinstance(c, dict) else c!r} not in {sorted(TYPES)}")
             continue
-        i = c.get("i", k)
+        i = c.setdefault("i", k)  # a claim without `i` is claim k, so the checker's table names it
         if not isinstance(i, int) or i in idx:
             errs.append(f"M1 claim {k} has a missing or duplicate integer `i`")
         idx[i] = c
@@ -179,10 +179,14 @@ def check_target(repo, tout, t, call):
         if e:
             fails[len(keep) - 1] = e
     rule_lines = set()
+    # Every model-supplied range is cut to the file before it is expanded: only the file's code lines count, and a
+    # range such as [1, 10**12] must not exhaust the host before it is refused.
+    nlines = len(lib.flines(repo, t["file"]) or [])
     for st in keep:
-        ln = (st.get("anchor") or {}).get("lines")
-        if isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) for x in ln):
-            rule_lines.update(range(ln[0], ln[1] + 1))
+        an = st.get("anchor") or {}
+        ln = an.get("lines")
+        if an.get("file") == t["file"] and isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) for x in ln):
+            rule_lines.update(range(max(ln[0], 1), min(ln[1], nlines) + 1))
     code = lib.code_lines(repo, t["file"])
     for n in nrs:
         if n.get("reason") not in REASONS:
@@ -193,7 +197,8 @@ def check_target(repo, tout, t, call):
             n["refused"] = True
             tf.append(f"M2 not_rule lines {n.get('lines')!r} are not path:N-M in the target file")
             continue
-        dl = [i for i in range(p[1], p[2] + 1) if i in code and i not in rule_lines and lib.has_decision(repo, t["file"], [i])]
+        dl = [i for i in range(max(p[1], 1), min(p[2], nlines) + 1)
+              if i in code and i not in rule_lines and lib.has_decision(repo, t["file"], [i])]
         if dl:
             n["refused"] = True
             tf.append(f"M7 not_rule {n.get('lines')} holds a decision on line(s) {dl[:6]}: state it as a statement with that test as a condition claim")
@@ -202,7 +207,7 @@ def check_target(repo, tout, t, call):
     for n in nrs:
         p = pref(n.get("lines") or "")
         if p and p[0] == t["file"] and not n.get("refused"):
-            cov.update(range(p[1], p[2] + 1))
+            cov.update(range(max(p[1], 1), min(p[2], nlines) + 1))
     miss = sorted(need - cov)
     if miss:
         runs = []
@@ -231,6 +236,8 @@ def extract_call(repo, tby, call):
         batch = fh.read()
     p = XP.replace("{{CARD}}", card_for(call, ts)).replace("{{BATCH}}", batch).replace("{{TARGETS}}", json.dumps([tgt_json(t) for t in ts], indent=0))
     out, rc = calls.claude("extract", call["id"], p, timeout=2400)
+    if rc != 0:
+        raise calls.CallFailed(f"the writer's extract call {call['id']} did not answer (exit {rc}); nothing was stored")
     j = calls.parse_json(out) or {}
     res = {x.get("target"): x for x in j.get("targets", []) if isinstance(x, dict)}
     tres, fl = {}, []
@@ -248,8 +255,10 @@ def extract_call(repo, tby, call):
         rp = RM.replace("{{FAILURES}}", json.dumps(fl, indent=0)).replace("{{PREVIOUS}}", prev) + "\n\n=== CONTEXT (the same batch and targets as before) ===\n" + p
         out2, rc2 = calls.claude("mrepair", call["id"], rp, timeout=2400)
         repaired = True
-        for x in (calls.parse_json(out2) or {}).get("targets", []):
-            if isinstance(x, dict) and x.get("target") in tres:
+        failed = {f["target"] for f in fl}
+        # A repair answer replaces only a target that failed: one that passed keeps its first answer.
+        for x in ((calls.parse_json(out2) or {}).get("targets", []) if rc2 == 0 else []):
+            if isinstance(x, dict) and x.get("target") in failed:
                 t = tby[x["target"]]
                 keep, nrs, fails, tf = check_target(repo, x, t, call)
                 tres[t["id"]] = dict(statements=keep, not_rules=nrs, fails=fails, tfails=tf)

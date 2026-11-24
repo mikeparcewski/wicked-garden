@@ -14,6 +14,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 from urllib.parse import quote
 
 # --- #1366 pieces, copied from extract_loop.py ---
@@ -65,6 +66,17 @@ def norm_kind(k):
     k = json.loads(k)
     return k if isinstance(k, str) else k.get('other', str(k))
 
+def inside(root, f):
+    """``root/f`` when it resolves inside ``root`` (symlinks followed), else None. Every source read goes through it:
+    a path can come from model output (a checker's fetch request, an extractor's context reference), and nothing outside
+    the run's tree is ever read or shown to a seat."""
+    if not f or os.path.isabs(f):
+        return None
+    base = os.path.realpath(root)
+    p = os.path.realpath(os.path.join(base, f))
+    return p if p.startswith(base + os.sep) else None
+
+
 class G:
     def __init__(self, db, root):
         self.root = root
@@ -87,8 +99,10 @@ class G:
 
     def text(self, f):
         if f not in self._text:
-            p = os.path.join(self.root, f)
+            p = inside(self.root, f)
             try:
+                if p is None:
+                    raise OSError(f)
                 with open(p, 'rb') as fh:
                     self._text[f] = fh.read().decode('utf-8', 'replace')
             except OSError:
@@ -117,6 +131,8 @@ class Repo:
         self.db = db
         self._graph = None
         self._lines = {}
+        self._bytes = {}
+        self._read = threading.Lock()
 
     @property
     def graph(self):
@@ -139,8 +155,7 @@ def flines(repo, f):
         # Build the list, then publish it: the checker's threads share this cache, and a list published before its
         # trailing "" is dropped lets another thread render one line past the end of the file.
         try:
-            with open(os.path.join(repo.root, f), "rb") as fh:
-                L = fh.read().decode("utf-8", "replace").split("\n")
+            L = fbytes(repo, f).decode("utf-8", "replace").split("\n")
             if L and L[-1] == "":
                 L.pop()
         except OSError:
@@ -150,8 +165,18 @@ def flines(repo, f):
 
 
 def fbytes(repo, f):
-    with open(os.path.join(repo.root, f), "rb") as fh:
-        return fh.read()
+    """``f``'s bytes as this run first read them. One snapshot per file per run: what a model was shown and the hashes
+    the run stores are of the same bytes, so a file edited while the run is going is never stored as checked."""
+    with repo._read:
+        if f in repo._bytes:
+            return repo._bytes[f]
+    p = inside(repo.root, f)
+    if p is None:
+        raise OSError(f"{f}: outside the tree")
+    with open(p, "rb") as fh:
+        b = fh.read()
+    with repo._read:
+        return repo._bytes.setdefault(f, b)
 
 
 def ext(f):
@@ -185,17 +210,23 @@ def comment_lines(repo, f):
         inblock = False
         for i, s in enumerate(L, 1):
             t = s.strip()
+            # a line is a comment only when no code stands outside its comment (`/* note */ if (x)` and
+            # `*/ if (x)` are code)
             if inblock:
-                out.add(i)
                 if "*/" in t:
                     inblock = False
+                    if t.split("*/", 1)[1].strip():
+                        continue
+                out.add(i)
                 continue
             if t.startswith("//"):
                 out.add(i)
             elif t.startswith("/*"):
-                out.add(i)
                 if "*/" not in t[2:]:
                     inblock = True
+                    out.add(i)
+                elif not t[2:].split("*/", 1)[1].strip():
+                    out.add(i)
     elif e in (".py", ".sh", ".yml", ".yaml", ".toml", ".rb"):
         for i, s in enumerate(L, 1):
             if s.strip().startswith("#"):
@@ -230,8 +261,13 @@ _GEN_DEF = [re.compile(p) for p in [
     r"^\s*(async\s+)?def\s+\w+", r"^func\s", r"^\s*(pub\s+)?(async\s+)?fn\s"]]
 
 
+def _line(repo, f, i):
+    L = flines(repo, f) or []
+    return L[i - 1] if 1 <= i <= len(L) else ""
+
+
 def is_decl(repo, f, i, in_proc=True):
-    s = (flines(repo, f) or [""])[i - 1]
+    s = _line(repo, f, i)
     e = ext(f)
     if e in COBOL_EXT:
         body = s[7:] if len(s) > 7 else s
@@ -241,7 +277,7 @@ def is_decl(repo, f, i, in_proc=True):
 
 
 def is_def_line(repo, f, i):
-    s = (flines(repo, f) or [""])[i - 1]
+    s = _line(repo, f, i)
     e = ext(f)
     if e in COBOL_EXT:
         if len(s) < 8 or s[6] in "*/":
@@ -261,8 +297,8 @@ def procedure_start(repo, f):
     return None
 
 
-DECISION_COBOL = re.compile(r"\b(IF|ELSE|EVALUATE|WHEN|UNTIL|VARYING|AT\s+END|INVALID\s+KEY|SIZE\s+ERROR|OVERFLOW|DEPENDING|NEXT\s+SENTENCE|SEARCH|CEE3ABD|ABEND|COND=|INCLUDE\s+COND|OMIT\s+COND)\b|SET\s+\S+\s+TO\s+TRUE|'(00|10|23|02|04|35)'", re.I)
-DECISION_GEN = re.compile(r"\b(if|else|switch|case|default:|throw|catch)\b|\?\?|\?\.|&&|\|\||===|!==|[^=!<>]==[^=]|!=[^=]|<=|>=|\.(filter|find|some|every|includes|has|startsWith|endsWith|test|match|min|max|refine|default)\(|Math\.(min|max)\(|\?[^?.:]*:")
+DECISION_COBOL = re.compile(r"\b(IF|ELSE|EVALUATE|WHEN|UNTIL|VARYING|AT\s+END|INVALID\s+KEY|SIZE\s+ERROR|OVERFLOW|DEPENDING|NEXT\s+SENTENCE|SEARCH|CEE3ABD|ABEND|COND=|INCLUDE\s+COND|OMIT\s+COND)\b|COND=|SET\s+\S+\s+TO\s+TRUE|'(00|10|23|02|04|35)'", re.I)
+DECISION_GEN = re.compile(r"\b(if|else|switch|case|default:|throw|catch)\b|\?\?|\?\.|&&|\|\||===|!==|[^=!<>]==[^=]|!=[^=]|<=|>=|\s[<>]\s|\.(filter|find|some|every|includes|has|startsWith|endsWith|test|match|min|max|refine|default)\(|Math\.(min|max)\(|\?[^?.:]*:")
 
 
 def has_decision(repo, f, lines):

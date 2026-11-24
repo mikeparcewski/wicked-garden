@@ -53,8 +53,9 @@ def verdicts(r):
     return [(c.get("verdict") or "").upper() for c in (r or {}).get("claims", [])]
 
 
-def check_round(repo, step, sts, extra_of=None, chunk=10):
-    """One C6 round over ``sts``: chunks of ``chunk`` statements in file order, per language. Returns {id: result}."""
+def check_round(repo, step, sts, extra_of=None, chunk=10, shown=None):
+    """One C6 round over ``sts``: chunks of ``chunk`` statements in file order, per language. Returns {id: result}.
+    ``shown`` (when given) gains, per statement, every file its chunk's prompt showed: a verdict may rest on any of them."""
     order = sorted(sts, key=lambda s: (s["anchor"]["file"], s["anchor"]["lines"][0], s["id"]))
     chunks = []
     for cob in (True, False):
@@ -72,12 +73,15 @@ def check_round(repo, step, sts, extra_of=None, chunk=10):
         out, rc = calls.codex(step, f"c{k}", T6.replace("{{ITEMS}}", items).replace("{{CODE}}", code))
         j = calls.parse_json(out) or {}
         byn = {r.get("n"): r for r in j.get("results", []) if isinstance(r, dict)}
-        return {s["id"]: byn.get(n) for n, s in enumerate(ss, 1)}
+        return {s["id"]: byn.get(n) for n, s in enumerate(ss, 1)}, set(w)
 
     res = {}
     with cf.ThreadPoolExecutor(W) as ex:
-        for r in ex.map(run, range(len(chunks))):
+        for r, files in ex.map(run, range(len(chunks))):
             res.update(r)
+            if shown is not None:
+                for sid in r:
+                    shown.setdefault(sid, set()).update(files)
     return res
 
 
@@ -117,9 +121,9 @@ def merge(prior, new):
     return prior
 
 
-def one_pass(repo, tag, sts, extra_of=None, fetch=True):
+def one_pass(repo, tag, sts, extra_of=None, fetch=True, shown=None):
     """one C6 pass (+ its own fetch round when fetch). Returns ({id: result}, {id: fetched spans}, {id: names})."""
-    r1 = check_round(repo, tag, sts, extra_of=extra_of)
+    r1 = check_round(repo, tag, sts, extra_of=extra_of, shown=shown)
     ext, flog = {}, {}
     if fetch:
         todo = [s for s in sts if any(v == "UNVERIFIABLE" for v in verdicts(r1.get(s["id"])))]
@@ -130,7 +134,8 @@ def one_pass(repo, tag, sts, extra_of=None, fetch=True):
             ext[s["id"]], flog[s["id"]] = sp, got
         v2lib.set_at(None)
         if todo:
-            rf = check_round(repo, f"{tag}-fetch", todo, extra_of={k: (extra_of or {}).get(k, []) + v for k, v in ext.items()}, chunk=6)
+            rf = check_round(repo, f"{tag}-fetch", todo, extra_of={k: (extra_of or {}).get(k, []) + v for k, v in ext.items()}, chunk=6,
+                             shown=shown)
             for s in todo:
                 r1[s["id"]] = merge(r1.get(s["id"]), rf.get(s["id"]))
     return r1, ext, flog
@@ -208,12 +213,17 @@ def status3(s, U, num, rrow):
     return "Checked" if all(v == "SUPPORTED" for v in vs) else "noresult"
 
 
-def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True):
+def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True, shown=None):
+    """Both passes, their union and R. ``shown`` (when given) gains the files each statement's checker prompts showed."""
+    sa, sb = {}, {}
     with cf.ThreadPoolExecutor(2) as ex:
-        fa = ex.submit(one_pass, repo, f"{tag}-a", sts, extra_of, fetch)
-        fb = ex.submit(one_pass, repo, f"{tag}-b", sts, extra_of, fetch)
+        fa = ex.submit(one_pass, repo, f"{tag}-a", sts, extra_of, fetch, sa)
+        fb = ex.submit(one_pass, repo, f"{tag}-b", sts, extra_of, fetch, sb)
         (ra, ea, la), (rb, eb, lb) = fa.result(), fb.result()
     ext = {s["id"]: (extra_of or {}).get(s["id"], []) + ea.get(s["id"], []) + eb.get(s["id"], []) for s in sts}
+    if shown is not None:
+        for s in sts:
+            shown.setdefault(s["id"], set()).update(sa.get(s["id"], set()) | sb.get(s["id"], set()))
     U, num = union_of(out_dir, tag, sts, ra, rb)
     rr = r_round(repo, tag, sts, U, num, ext)
     st = {s["id"]: status3(s, U, num, rr.get(s["id"])) for s in sts}
@@ -246,14 +256,16 @@ def check_all(repo, S, C, A, out_dir):
     callby = {c["id"]: c for c in C["calls"]}
     statements, notrules = A["statements"], A["not_rules"]
     pend = [s for s in statements if s["status"] == "pending"]
-    U, num, rr, st1, ext, flog = check3(repo, out_dir, "check", pend)
+    shown = {}
+    U, num, rr, st1, ext, flog = check3(repo, out_dir, "check", pend, shown=shown)
     for s in pend:
         s["check"] = U["raw"].get(num[s["id"]])
         s["r"] = rr.get(s["id"])
         s["status1"] = st1[s["id"]]
         s["fetched"] = flog[s["id"]]
-        # the files the check showed beyond the batch (store.py's batch hash covers them too)
-        s["fetched_files"] = sorted({sp[0] for sp in ext.get(s["id"], [])})
+        # every file the check showed (its chunks' code, the fetch rounds): store.py's batch hash covers them too, so a
+        # change to any file a verdict may rest on re-checks the statement
+        s["fetched_files"] = sorted({sp[0] for sp in ext.get(s["id"], [])} | shown.get(s["id"], set()))
     timing["check_s"] = round(time.time() - t0, 1)
     c1 = collections.Counter(st1.values())
     flagged_before_r = [s["id"] for s in pend if RS.flagged_claims(s["check"])]
@@ -301,9 +313,12 @@ def check_all(repo, S, C, A, out_dir):
     timing["repair_s"] = round(time.time() - t2, 1)
     t3 = time.time()
     if new_sts:
+        shown2 = {}
         U2, num2, rr2, st2, _, _ = check3(repo, out_dir, "recheck", new_sts,
-                                          extra_of={x["id"]: ext.get(x["repaired_from"], []) for x in new_sts}, fetch=False)
+                                          extra_of={x["id"]: ext.get(x["repaired_from"], []) for x in new_sts}, fetch=False,
+                                          shown=shown2)
         for x in new_sts:
+            x["fetched_files"] = sorted(set(x.get("fetched_files") or []) | shown2.get(x["id"], set()))
             x["check"] = U2["raw"].get(num2[x["id"]])
             x["r"] = rr2.get(x["id"])
             x["status1"] = st2[x["id"]]

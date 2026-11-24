@@ -149,9 +149,16 @@ def write_all(rows, desc):
     for k, pk in enumerate(packs(rows)):
         body = "\n\n".join(f"[{r['sid']}]\n{r['text']}" for r in pk)
         out, rc = calls.claude("prose", f"w{k}", WRITE.replace("{{REPO_DESC}}", desc).replace("{{STATEMENTS}}", body), timeout=1500)
+        if rc != 0:
+            raise calls.CallFailed(f"the prose writer's call w{k} did not answer (exit {rc}); nothing was stored")
         got = [g for g in (calls.parse_json(out) or {}).get("groups") or [] if isinstance(g, dict)]
+        nums = [g.get("g") for g in got]
+        if not all(isinstance(n, int) for n in nums) or len(set(nums)) != len(nums):
+            # numbered twice (or not at all): the host numbers them, so no two sentences share an id or a verdict
+            for n, g in enumerate(got, 1):
+                g["g"] = n
         for g in got:
-            g["g"] = gmax + (g.get("g") if isinstance(g.get("g"), int) else 0)
+            g["g"] = gmax + g["g"]
         gmax = max([gmax] + [g["g"] for g in got])
         groups += got
     return groups

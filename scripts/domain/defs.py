@@ -12,6 +12,15 @@ _cpy = None
 _resets = []
 
 
+def _inside(root, f):
+    """``root/f`` when it resolves inside ``root`` (as ``graph.inside``; this module stays import-free)."""
+    if not f or os.path.isabs(f):
+        return None
+    base = os.path.realpath(root)
+    p = os.path.realpath(os.path.join(base, f))
+    return p if p.startswith(base + os.sep) else None
+
+
 def on_reset(clear):
     """Register a cache, keyed by path in the current tree, that :func:`set_root` must clear."""
     _resets.append(clear)
@@ -67,7 +76,10 @@ def copybook_path(f, name):
 def flines(f):
     if f not in _fl:
         try:
-            with open(os.path.join(SRC, f), "rb") as fh:
+            p = _inside(SRC, f)
+            if p is None:
+                raise OSError(f)
+            with open(p, "rb") as fh:
                 _fl[f] = fh.read().decode("utf-8", "replace").split("\n")
         except OSError:
             _fl[f] = []

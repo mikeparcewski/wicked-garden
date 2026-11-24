@@ -48,7 +48,7 @@ def _write(path, text):
 
 
 def cobol_plan(repo, S, T, out_dir):
-    progs = [f for f in S["target_files"] if f.endswith(".cbl")]
+    progs = [f for f in S["target_files"] if lib.ext(f) in (".cbl", ".cob")]
     by_name = {os.path.splitext(os.path.basename(p))[0].upper(): p for p in progs}
     unit_of = {f: f for f in S["target_files"] if f in progs}
     for line in S.get("reached_from") or []:

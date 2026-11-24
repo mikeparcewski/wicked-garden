@@ -20,6 +20,11 @@ CORE_ENV = "WICKED_CORE_BIN"
 _state = {"calls": None}
 
 
+class CallFailed(RuntimeError):
+    """A call whose answer the run cannot go on without (the writer's extract) did not answer: the run stops before it
+    stores anything, so a signed-out or timed-out seat never stands for an empty model."""
+
+
 def configure(calls_dir):
     """Where this run keeps its calls (``<run out>/calls``)."""
     os.makedirs(calls_dir, exist_ok=True)

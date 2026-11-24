@@ -45,8 +45,9 @@ def key(w):
 def tree_files(root):
     out = []
     for dp, dn, fn in os.walk(root):
-        dn[:] = [d for d in dn if d not in (".git", "node_modules")]
-        for f in fn:
+        # sorted: the walk's order is the filesystem's, and the scope (its targets, prompts and hash) must not move
+        dn[:] = sorted(d for d in dn if d not in (".git", "node_modules"))
+        for f in sorted(fn):
             out.append(os.path.relpath(os.path.join(dp, f), root))
     return out
 
@@ -54,12 +55,20 @@ def tree_files(root):
 def scope_cobol(repo, intent, all_files):
     """A. COBOL program ids named in the intent match exactly; C. the JCL / PROC members that EXEC them (depth 1)
     and the DD datasets they bind (config read); copybooks the programs COPY are context."""
-    progs = {os.path.splitext(os.path.basename(f))[0].upper(): f for f in all_files if lib.ext(f) in (".cbl", ".cob")}
+    found = collections.defaultdict(list)
+    for f in all_files:
+        if lib.ext(f) in (".cbl", ".cob"):
+            found[os.path.splitext(os.path.basename(f))[0].upper()].append(f)
+    progs = {p: fs[0] for p, fs in found.items() if len(fs) == 1}
     toks = sorted(set(re.findall(r"\b[A-Z][A-Z0-9]{5,7}\b", intent)))
+    # A program id in more than one file is never resolved to one of them silently: the card asks which.
+    twice = [t for t in toks if len(found.get(t, [])) > 1]
     phrases = [t for t in toks if t in progs]
-    unmatched = [t for t in toks if t not in progs and re.search(r"\d", t)]
+    unmatched = [t for t in toks if t not in found and re.search(r"\d", t)]
+    asks = ([f"'{u}' matches no code: type a file, function or screen name, or drop it" for u in unmatched]
+            + [f"'{t}' is in {len(found[t])} files ({', '.join(found[t])}): type the file" for t in twice])
     if not phrases:
-        return None
+        return dict(unmatched_phrases=unmatched, ambiguous_phrases=twice, questions=asks) if asks else None
     prog_files = [progs[p] for p in phrases]
     jcl = [f for f in all_files if lib.ext(f) in lib.JCL_EXT]
     reached = collections.OrderedDict()
@@ -82,8 +91,8 @@ def scope_cobol(repo, intent, all_files):
     context_files = sorted(f2 for f2 in all_files if lib.ext(f2) == ".cpy"
                            and os.path.splitext(os.path.basename(f2))[0].upper() in copied)
     return dict(
-        phrases={p: [progs[p]] for p in phrases}, unmatched_phrases=unmatched,
-        questions=[f"'{u}' matches no code: type a file, function or screen name, or drop it" for u in unmatched],
+        phrases={p: [progs[p]] for p in phrases}, unmatched_phrases=unmatched, ambiguous_phrases=twice,
+        questions=asks,
         reached_from=[f"{line.split(' (:')[0]} ({f}:{line.split(' (:')[1].rstrip(')')})"
                       for f, lines in reached.items() for line in lines],
         reached_files=list(reached), config_read=dict(dd), target_files=prog_files + list(reached),
@@ -122,8 +131,7 @@ def scope_ts(repo, phrase_list, cfg):
             sel_defs[d[2]].add(d[0])
     tok = {}
     for f in sel_files:
-        with open(os.path.join(repo.root, f), errors="replace") as fh:
-            tok[f] = len(fh.read()) // 4
+        tok[f] = len(lib.fbytes(repo, f).decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")) // 4
     big = {f for f, t in tok.items() if t > cfg["big_file_tokens"]}
     cfg_read = collections.Counter()
     for f in sel_files:
@@ -252,7 +260,8 @@ def scope_hash(sc):
             h.update(hashlib.sha256(lib.fbytes(sc["_repo"], f)).digest())
         except OSError:
             h.update(b"missing")
-    h.update(json.dumps([t["id"] for t in sc["targets"]]).encode())
+    # each target whole (id, file, lines, anchor): a re-index that moves a target's bounds is a different scope
+    h.update(json.dumps([[t["id"], t["file"], t["lines"], t.get("anchor_symbol")] for t in sc["targets"]]).encode())
     return h.hexdigest()
 
 
