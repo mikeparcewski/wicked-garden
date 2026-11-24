@@ -72,6 +72,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -131,25 +132,67 @@ you your
 """.split())
 
 # The figure IS the claim (#1551): a line citation verifies a figure only when the cited span
-# states it, with its unit when it has one. A unit is read attached ("80ms", "3x") or after one
-# space ("80 ms"), and spelled one way, so "94 percent" states "94%" and "1,200" states "1200".
-_UNITS = (r"%|×|percent|pct|ms|msec|seconds?|secs?|s|minutes?|mins?|min|hours?|hrs?|h|days?|"
-          r"x|k|kb|mb|gb|tb|kib|mib|gib|tib")
-_UNIT_NORMAL = {"×": "x", "percent": "%", "pct": "%", "msec": "ms", "second": "s", "seconds": "s",
-                "sec": "s", "secs": "s", "minute": "min", "minutes": "min", "mins": "min",
-                "hour": "h", "hours": "h", "hr": "h", "hrs": "h", "day": "d", "days": "d"}
-# a claim's figure: NUMBER_RE's boundaries, plus an optional unit (so "80ms" is a figure too)
-FIGURE_RE = re.compile(rf"(?<![\w.,:/#-])(\d+(?:[.,]\d+)*)(?:\s?({_UNITS})(?![\w/:-]))?(?![\w/:-])",
-                       re.IGNORECASE)
-# a figure in the SOURCE: any digit run with the unit after it (a source is read, not judged)
-SOURCE_FIGURE_RE = re.compile(rf"(?<!\d)(\d+(?:[.,]\d+)*)(?:\s?({_UNITS})(?![a-z]))?", re.IGNORECASE)
+# states it, with its unit when it has one. Both sides are read by ONE tokenizer: a number with its
+# sign, decimals and exponent, then the unit after it (attached, or after spaces), every spelling
+# of a unit mapped to one canonical form. Byte/bit case is kept (MB is not Mb); words are not.
+_UNIT_SPELLINGS = {
+    "%": "% percent pct",
+    "x": "x ×",
+    "ns": "ns nanosecond nanoseconds",
+    "us": "us µs μs microsecond microseconds",
+    "ms": "ms msec msecs millisecond milliseconds",
+    "s": "s sec secs second seconds",
+    "min": "min mins minute minutes",
+    "h": "h hr hrs hour hours",
+    "d": "d day days",
+    "wk": "wk wks week weeks",
+    "k": "k thousand",
+    "million": "million mn",
+    "billion": "billion bn",
+}
+_DATA_UNIT_RE = re.compile(r"^[kmgtp]i?b$", re.IGNORECASE)
+_DATA_WORDS = {"kilobyte": "kB", "megabyte": "mB", "gigabyte": "gB", "terabyte": "tB", "petabyte": "pB"}  # canonical: prefix lowercased, B kept
+_UNIT_CANON = {sp: canon for canon, spellings in _UNIT_SPELLINGS.items() for sp in spellings.split()}
+_UNIT_ALTS = sorted([*_UNIT_CANON, *_DATA_WORDS, *(w + "s" for w in _DATA_WORDS),
+                     r"[kKmMgGtTpP]i?[bB]"], key=len, reverse=True)
+_UNIT_PATTERN = "|".join(a if a.startswith("[") else re.escape(a) for a in _UNIT_ALTS)
+# A figure starts at a word boundary that is not inside another number ("v12", "1.5", "4xx" are
+# not figures of their own); a sign counts only there ("80-90" is a range, " -80" is negative).
+FIGURE_RE = re.compile(
+    r"(?<![\w.,])(?P<sign>[-\u2212+]?)(?P<num>\d+(?:[.,]\d+)*(?:[eE][-+]?\d+)?)"
+    rf"(?:[ \t\u00a0]*(?P<unit>{_UNIT_PATTERN})(?![A-Za-z0-9_]))?(?![A-Za-z0-9_])")
 
 
-def _figure_key(number: str, unit: str | None) -> tuple[str, str | None]:
+def _canon_unit(unit: str | None) -> str | None:
+    if not unit:
+        return None
+    if _DATA_UNIT_RE.match(unit):        # kB/KB = kB, but MB (bytes) is not Mb (bits)
+        return unit[0].lower() + ("i" if len(unit) == 3 else "") + unit[-1]
+    word = unit.lower()
+    if word.rstrip("s") in _DATA_WORDS:
+        return _DATA_WORDS[word.rstrip("s")]
+    return _UNIT_CANON.get(word, _UNIT_CANON.get(unit, word))
+
+
+def _canon_number(sign: str, number: str) -> str:
+    """One spelling per value: 1,200 = 1200, 80.0 = 80, 1e3 = 1000, -80 is not 80. A dotted
+    version (12.64.0) or a comma that is not a thousands separator stays as written."""
     if re.fullmatch(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?", number):
         number = number.replace(",", "")
-    u = unit.lower() if unit else None
-    return number, (_UNIT_NORMAL.get(u, u) if u else None)
+    if re.fullmatch(r"\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", number):
+        try:
+            number = format(Decimal(number).normalize(), "f")
+        except InvalidOperation:  # pragma: no cover - the pattern above admits only valid numbers
+            pass
+        if "." in number:
+            number = number.rstrip("0").rstrip(".")
+    return ("-" if sign in ("-", "\u2212") else "") + number
+
+
+def _figures(text: str) -> list[tuple[str, tuple[str, str | None]]]:
+    """(as written, (value, unit)) for every figure in ``text``."""
+    return [(m.group(0).strip(), (_canon_number(m.group("sign"), m.group("num")), _canon_unit(m.group("unit"))))
+            for m in FIGURE_RE.finditer(text)]
 
 
 def _claim_text(text: str) -> str:
@@ -165,17 +208,16 @@ def _claim_text(text: str) -> str:
 
 
 def _claim_figures(text: str) -> list[tuple[str, tuple[str, str | None]]]:
-    """(as written, key) for every figure the text claims."""
-    found = FIGURE_RE.finditer(FOOTNOTE_RE.sub(" ", _claim_text(text)))
-    return [(m.group(0).strip(), _figure_key(m.group(1), m.group(2)))
-            for m in found if not ORDINAL_RE.match(m.group(1))]
+    """The figures ``text`` claims (structure numbers, footnote markers and ``01`` ordinals out)."""
+    return [f for f in _figures(FOOTNOTE_RE.sub(" ", _claim_text(text))) if not ORDINAL_RE.match(f[1][0])]
 
 
 def _missing_figures(figures: list[tuple[str, tuple[str, str | None]]], cited: str) -> list[str]:
-    """The figures (as written) the cited text does not state."""
-    pairs = {_figure_key(m.group(1), m.group(2)) for m in SOURCE_FIGURE_RE.finditer(cited)}
-    numbers = {n for n, _ in pairs}
-    return [shown for shown, (n, u) in figures if ((n, u) not in pairs if u else n not in numbers)]
+    """The figures (as written) the cited text does not state: a figure with a unit needs that
+    value with that unit; a figure without one needs the value."""
+    pairs = {key for _, key in _figures(cited)}
+    values = {v for v, _ in pairs}
+    return [shown for shown, (v, u) in figures if ((v, u) not in pairs if u else v not in values)]
 
 
 def _figure_detail(source: str, missing: list[str], lines: list[str], figures) -> str:
@@ -187,6 +229,29 @@ def _figure_detail(source: str, missing: list[str], lines: list[str], figures) -
     noun = "figures" if len(missing) > 1 else "figure"
     return (f"data-source {source} does not state the {noun} {', '.join(missing)} — cite the line that "
             f"carries it, or correct the figure to what the source says{hint}")
+
+
+_FOOTNOTE_SUP_RE = re.compile(r"^\s*\[?(?:\d{1,3}|[*†‡§¶])\]?\s*$")
+
+
+def _figure_text(node: Node, skip_cited: bool = False) -> str:
+    """The rendered text a citation on ``node`` asserts figures of: its own text and its rendered
+    INLINE descendants — never a nested block (it is judged by its own citations), never a hidden
+    element, never a footnote marker (``<sup>1</sup>``). ``skip_cited`` also leaves out an inline
+    descendant that carries its own ``data-source`` (that one covers its text)."""
+    out: list[str] = []
+
+    def walk(n: Node) -> None:
+        for c in n.children:
+            if c.tag == "#text":
+                out.append(c.text)
+            elif (c.tag in _INLINE_TAGS and "hidden" not in c.attrs
+                  and not (c.tag == "sup" and _FOOTNOTE_SUP_RE.match(c.all_text()))
+                  and not (skip_cited and _direct_sources_on(c))):
+                walk(c)
+    if is_rendered(node):
+        walk(node)
+    return re.sub(r"\s+", " ", " ".join(out)).strip()
 
 
 @dataclass
@@ -221,8 +286,15 @@ def _direct_sources_on(node: Node) -> list[str]:
 
 
 def _cite_tokens(text: str) -> set[str]:
-    """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase."""
-    return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
+    """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase —
+    plus each figure's value and unit, so ``80ms`` and ``80 ms``, ``1,200`` and ``1200`` share
+    tokens on both sides (#1551)."""
+    tokens = {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
+    for _, (value, unit) in _figures(text):
+        tokens.add(value)
+        if unit:
+            tokens.add(unit.lower())
+    return tokens
 
 
 def _best_span(lines: list[str], content_tokens: set[str], width: int) -> tuple[int | None, int]:
@@ -272,9 +344,24 @@ def _cited_span(source: str, repos: list[str]) -> tuple[list[str], int, int] | s
     return _UNVERIFIABLE                # file not found in any repo
 
 
-def _check_cite_off(source: str, claim_text: str, repos: list[str]) -> str | None | object:
+def _whole_file(source: str, repos: list[str]) -> str | None:
+    """The text of the file a path-only ``source`` names inside a folder, or ``None``."""
+    for repo in repos:
+        p = _confined(repo, _source_path(source))
+        if p is not None and p.is_file():
+            try:
+                return p.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+    return None
+
+
+def _check_cite_off(source: str, claim_text: str, repos: list[str],
+                    figure_text: str | None = None) -> str | None | object:
     """Check whether source's cited lines carry claim_text — the text of the element that carries
-    the citation (THE RULE, see the module docstring).
+    the citation (THE RULE, see the module docstring). ``figure_text`` is the part of it whose
+    figures the citation asserts (``_figure_text``: rendered inline text, no nested block, no
+    footnote marker); it defaults to ``claim_text``.
 
     Returns:
       None            — path-only citation (no :N suffix); caller skips it.
@@ -305,7 +392,7 @@ def _check_cite_off(source: str, claim_text: str, repos: list[str]) -> str | Non
                 f"verifies nothing without a content word in common{hint}")
     if best_score > len(overlap):
         return f"data-source {source} does not carry this text{hint}"
-    figures = _claim_figures(claim_text)
+    figures = _claim_figures(claim_text if figure_text is None else figure_text)
     missing = _missing_figures(figures, cited)
     if missing:                         # the words match, the figure does not (#1551)
         return _figure_detail(source, missing, lines, figures)
@@ -351,7 +438,8 @@ def _block_of(node: Node) -> Node:
 def _citation_carriers(el: Node, block: Node) -> list[Node]:
     """Every element that can carry a line citation covering el's text: el itself, each inline
     wrapper between el and its block, then the block. A citation on anything above the block is
-    inherited and is existence-checked only (THE RULE, see the module docstring)."""
+    inherited: never checked for word overlap, but range- and figure-checked once per block in
+    scan_document (THE RULE, see the module docstring)."""
     chain = [el]
     node = el
     while node is not block:
@@ -506,6 +594,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
     # (source, id(carrier)) — one check per source per carrying element: two inline siblings that
     # carry the same source are two distinct checks, a block-level citation is checked once (#1184)
     checked_cite_off: set[tuple] = set()
+    checked_blocks: set[int] = set()    # blocks whose inherited citations were checked (#1551)
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -537,7 +626,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                     if cite_key in checked_cite_off:
                         continue
                     checked_cite_off.add(cite_key)
-                    detail = _check_cite_off(s, carrier_text, repos)
+                    detail = _check_cite_off(s, carrier_text, repos, _figure_text(carrier))
                     if detail is None:
                         pass                        # path-only: not a line citation, count nothing
                     elif detail is _UNVERIFIABLE:
@@ -554,36 +643,37 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         footnoted = has_sources and bool(FOOTNOTE_RE.search(block_text))
         cited = bool(sources) or bool(inline_paths) or footnoted
         # An inherited line citation (on an ancestor above the block, #1551): its line must exist,
-        # and when it is the ONLY citation of this element's figures, they must be on its lines.
-        # Word overlap stays unchecked: a section's descendants say many different things.
-        carriers = _citation_carriers(el, block)
-        inherited = [(s, anc) for anc in block.ancestors() for s in _direct_sources_on(anc)]
-        if repos and inherited:
+        # and when inherited citations are the ONLY citation of the block's figures, each figure
+        # must be on one of the inherited lines (or in a file an ancestor cites whole). Word
+        # overlap stays unchecked: a section's descendants say many different things. Once per block.
+        if repos and id(block) not in checked_blocks:
+            checked_blocks.add(id(block))
+            inherited = [(s, anc) for anc in block.ancestors() for s in _direct_sources_on(anc)]
             spans: list[str] = []
-            provenance = False
+            whole: list[str] = []
             for s, anc in inherited:
-                if not _LINE_SPEC_RE.match(s):
-                    provenance = True       # path-only: provenance, nothing to hold figures to
-                    continue
                 if not _path_exists_in_repos(s, repos):
                     continue                # dangling-source / escaped-source already reported
+                if not _LINE_SPEC_RE.match(s):
+                    whole.append(s)         # path-only: provenance; holds figures only beside a line
+                    continue
                 span = _cited_span(s, repos)
-                if isinstance(span, str):
-                    cite_key = (s, id(anc))
-                    if cite_key not in checked_cite_off:
-                        checked_cite_off.add(cite_key)
-                        stats["cite_off"] += 1
-                        add("cite-off", anc, anc.all_text(), span)
-                elif isinstance(span, tuple):
+                if isinstance(span, tuple):
                     lines, start, end = span
                     spans.append("\n".join(lines[start:end + 1]))
-            own_cite = any(_direct_sources_on(c) for c in carriers) or bool(inline_paths) or footnoted
-            figures = _claim_figures(own) if spans and not provenance and not own_cite else []
-            missing = [f for f in figures if all(_missing_figures([f], sp) for sp in spans)]
+                elif (s, id(anc)) not in checked_cite_off:
+                    checked_cite_off.add((s, id(anc)))
+                    stats["cite_off"] += 1
+                    add("cite-off", anc, anc.all_text(),
+                        span if isinstance(span, str) else f"data-source {s} could not be verified")
+            own_cite = bool(_direct_sources_on(block)) or bool(inline_paths) or footnoted
+            figures = _claim_figures(_figure_text(block, skip_cited=True)) if spans and not own_cite else []
+            texts = spans + [t for t in (_whole_file(w, repos) for w in whole) if t is not None]
+            missing = [f for f in figures if all(_missing_figures([f], t) for t in texts)]
             if missing:
                 stats["cite_off"] += 1
                 cited_by = ", ".join(s for s, _ in inherited)
-                add("cite-off", el, own,
+                add("cite-off", block, block_text,
                     f"the citation this text inherits ({cited_by}) does not state the "
                     f"{'figures' if len(missing) > 1 else 'figure'} {', '.join(f[0] for f in missing)} — "
                     "put a data-source on this element naming the line that carries it, or correct the figure")

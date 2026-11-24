@@ -515,7 +515,7 @@ def test_check_cite_off_path_only_returns_none_and_is_skipped(tmp_path, monkeypa
     repo = tmp_path / "repo"
     repo.mkdir()
     (repo / "README.md").write_text("some text here\n", encoding="utf-8")
-    monkeypatch.setattr(cs, "_check_cite_off", lambda source, block_text, repos: None)
+    monkeypatch.setattr(cs, "_check_cite_off", lambda source, block_text, repos, *figure_text: None)
     findings, stats = cs.scan_document(
         '<body><p data-source="README.md:1">some text here</p></body>',
         [str(repo)])
@@ -1083,3 +1083,101 @@ def test_fixtures_still_pass_once_disciplined(tmp_path: Path):
     fixed = BROCHURE_FIXTURE.read_text(encoding="utf-8").replace(
         'data-source="README.md:7"', 'data-source="README.md:4"')
     assert cs.scan_document(fixed, [str(repo)])[0] == []
+
+
+# ── #1551 round-1 review folds ───────────────────────────────────────────────────────────────
+
+def _one(tmp_path: Path, record: str, html: str) -> list[str]:
+    return _kinds(html, [str(_record(tmp_path, record))])
+
+
+def test_an_unreadable_inherited_citation_is_cite_off(tmp_path: Path):
+    repo = _record(tmp_path, "Coverage reached 80%.\n")
+    (repo / "docs").mkdir()
+    html = '<body><section data-source="docs:1"><p>Coverage reached 99%.</p></section></body>'
+    offs = _find(html, "cite-off", [str(repo)])
+    assert any("could not be verified" in f.detail for f in offs)
+
+
+def test_an_inherited_figure_split_by_inline_markup_is_still_checked(tmp_path: Path):
+    html = '<body><section data-source="run-x.md:1"><p>Coverage reached <strong>99</strong>%.</p></section></body>'
+    assert _one(tmp_path, "Coverage reached 80%.\n", html) == ["cite-off"]
+
+
+def test_a_date_split_by_inline_markup_is_not_a_figure(tmp_path: Path):
+    html = '<body><section data-source="run-x.md:1"><p>Coverage reached 80% in Sep <em>2026</em>.</p></section></body>'
+    assert _one(tmp_path, "Coverage reached 80%.\n", html) == []
+
+
+@pytest.mark.parametrize("claim, record", [
+    ("Latency 80 s/call", "Latency 80 ms/call"),     # a unit before '/' is still a unit
+    ("Latency 80ms/call", "Latency 80 s/call"),
+    ("Revenue changed by 80%", "Revenue changed by -80%"),   # a sign is part of the value
+    ("Latency 3 ms", "Latency 1e3 ms"),              # no figure out of the middle of another
+    ("Latency 80 µs", "Latency 80 ms"),
+    ("Payload 80 MB", "Payload 80 Mb"),              # bytes are not bits
+    ("Ran 80-90% of suites", "Ran 10-20% of suites"),  # a range's figures are checked
+    ("Window 80 days", "Window 80 s"),
+])
+def test_a_wrong_figure_does_not_pass_in_any_spelling(tmp_path: Path, claim, record):
+    html = f'<body><p data-source="run-x.md:1">{claim}</p></body>'
+    assert _one(tmp_path, record + "\n", html) == ["cite-off"]
+
+
+@pytest.mark.parametrize("claim, record", [
+    ("Median latency 80 ms", "Median latency 80   ms"),      # aligned source whitespace
+    ("Median latency 80 ms", "Median latency 80.0 ms"),
+    ("Median latency 80 ms", "Median latency 80 milliseconds"),
+    ("Window 80 d", "Window 80 days"),
+    ("Payload 2 GB", "Payload 2 gigabytes"),
+    ("Latency 80 ms", "Latency 80ms"),                       # the word check reads 80ms too
+    ("Indexed 1200 files", "Indexed 1,200 files"),
+    ("Latency 1000 ms", "Latency 1e3 ms"),
+])
+def test_a_right_figure_passes_in_any_spelling(tmp_path: Path, claim, record):
+    html = f'<body><p data-source="run-x.md:1">{claim}</p></body>'
+    assert _one(tmp_path, record + "\n", html) == []
+
+
+def test_a_superscript_footnote_is_not_a_figure(tmp_path: Path):
+    html = '<body><p data-source="run-x.md:1">Coverage reached 80%<sup>1</sup></p></body>'
+    assert _one(tmp_path, "Coverage reached 80%\n", html) == []
+
+
+def test_a_hidden_descendant_is_not_a_figure(tmp_path: Path):
+    html = '<body><p data-source="run-x.md:1">Coverage reached 80% <span hidden>99%</span></p></body>'
+    assert _one(tmp_path, "Coverage reached 80%\n", html) == []
+
+
+def test_a_nested_block_with_its_own_citation_is_not_the_ancestors_figure(tmp_path: Path):
+    html = ('<body><section data-source="run-x.md:1">Overview coverage information.'
+            '<p data-source="run-x.md:2">Rate 80%.</p></section></body>')
+    assert _one(tmp_path, "Overview coverage information.\nRate 80%.\n", html) == []
+
+
+def test_a_path_only_ancestor_does_not_switch_the_inherited_check_off(tmp_path: Path):
+    html = ('<body><section data-source="run-x.md"><section data-source="run-x.md:1">'
+            '<p>Coverage reached 99%</p></section></section></body>')
+    assert _one(tmp_path, "Coverage reached 80%\n", html) == ["cite-off"]
+
+
+def test_a_path_only_ancestor_beside_a_line_holds_the_figure_anywhere_in_its_file(tmp_path: Path):
+    repo = _record(tmp_path, "Intro\nCoverage reached 80%\n")
+    (repo / "notes.md").write_text("Summary line\n", encoding="utf-8")
+    html = ('<body><section data-source="run-x.md notes.md:1">'
+            '<p>Coverage reached 80%</p></section></body>')
+    assert _kinds(html, [str(repo)]) == []
+
+
+def test_a_figure_on_any_inherited_line_passes(tmp_path: Path):
+    repo = _record(tmp_path, "Coverage reached 80%\nAcross 14 repos\n")
+    html = ('<body><section data-source="run-x.md:1 run-x.md:2">'
+            '<p>Coverage reached 80% across 14 repos</p></section></body>')
+    assert _kinds(html, [str(repo)]) == []
+
+
+def test_an_inline_citation_covers_its_own_figure_under_an_inherited_one(tmp_path: Path):
+    repo = _record(tmp_path, "Overview\nRate 80%\n")
+    html = ('<body><section data-source="run-x.md:1"><p>Overview: rate '
+            '<b data-source="run-x.md:2">80%</b></p></section></body>')
+    assert _kinds(html, [str(repo)]) == []
