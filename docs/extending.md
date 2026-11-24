@@ -222,8 +222,12 @@ approved install, so the operator is asked again.
 
 ```bash
 wicked-garden run scripts/editor/install.py --dir tests/fixtures/packs/acme-terms --crew-url <crew-origin> --dry-run
-wicked-garden run scripts/editor/install.py --dir tests/fixtures/packs/acme-terms --crew-url <crew-origin> --json
+wicked-garden run scripts/editor/install.py --dir tests/fixtures/packs/acme-terms --crew-url <crew-origin> \
+  --target <the choices[].id you approved, e.g. daemon_Ab3…> --json
 ```
+
+Pass the plan's choice id as `--target`: it carries the digest of what you reviewed, and that is what
+refuses a pack changed since. A bare `--target daemon` installs whatever the pack holds when it runs.
 
 This needs a crew with the skills and blocks approval step (mikeparcewski/wicked-crew#1703). An
 older crew refuses such a pack with HTTP 501 `pack_ships_skills_or_blocks`. On an older crew,

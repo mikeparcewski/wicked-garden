@@ -66,6 +66,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import sys
 import urllib.error
 import urllib.parse
@@ -169,8 +170,8 @@ def locate(args) -> tuple[Path, dict]:
         for p in plugins:
             entry_path(pack, p, kind="plugin")
             plugin_extra_paths(pack, p)
-        pack_extra_files(pack, manifest)
-    except PackError as err:
+        pack_inventory(pack, manifest)
+    except (OSError, PackError) as err:
         raise Failure(2, str(err)) from err
     name = manifest.get("name")
     if not isinstance(name, str) or not ID_RE.match(name) or len(name) > 64:
@@ -180,7 +181,7 @@ def locate(args) -> tuple[Path, dict]:
 
 # ── the pack's skills and block presets (wicked-crew#1703) ────────────────────────────────
 
-SKILL_NAME_RE = re.compile(r"^name:\s*['\"]?([^'\"\n]+?)['\"]?\s*$", re.MULTILINE)
+SKILL_NAME_RE = re.compile(r"^name:\s*['\"]?([^'\"]+?)['\"]?\s*$")
 
 
 def _inside(pack: Path, rel: object, what: str) -> Path:
@@ -194,13 +195,41 @@ def _inside(pack: Path, rel: object, what: str) -> Path:
     return path
 
 
-def pack_skills(pack: Path, manifest: dict) -> tuple[str, list[str]]:
-    """The skills dir and its entries as crew lists them: every non-hidden name under it, sorted."""
-    skills_dir = manifest.get("skills_dir", "skills")
-    base = _inside(pack, skills_dir, "skills_dir")
-    if not base.is_dir():
-        return skills_dir, []
-    return skills_dir, sorted(n for n in os.listdir(base) if not n.startswith("."))
+def _redirects(path: Path) -> bool:
+    """A link, or a Windows junction / reparse point: either could point the tree outside the pack."""
+    isjunction = getattr(os.path, "isjunction", None)
+    return path.is_symlink() or bool(isjunction and isjunction(path))
+
+
+def _confined(pack_real: Path, path: Path, rel: str) -> None:
+    if _redirects(path):
+        raise PackError(f"{rel} is a link; a pack's skills and presets are staged as plain files only")
+    real = Path(os.path.realpath(path))
+    if pack_real not in real.parents:
+        raise PackError(f"{rel} resolves outside the pack (a link or junction on its path); nothing is staged")
+
+
+def _read_plain(pack_real: Path, path: Path, rel: str) -> bytes:
+    """One read of a plain file inside the pack: refuse a link (not followed on open), a junction, or anything
+    that is not a regular file. The bytes read here are the bytes planned, digested and staged."""
+    _confined(pack_real, path, rel)
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError as err:
+        raise PackError(f"{rel} cannot be read as a plain file ({err.strerror})") from err
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise PackError(f"{rel} is not a plain file")
+        chunks = []
+        while True:
+            chunk = os.read(fd, 1 << 20)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks)
+    finally:
+        os.close(fd)
 
 
 def pack_blocks(manifest: dict) -> list[dict]:
@@ -208,65 +237,98 @@ def pack_blocks(manifest: dict) -> list[dict]:
     return [b for b in blocks if isinstance(b, dict)] if isinstance(blocks, list) else []
 
 
-def pack_extra_files(pack: Path, manifest: dict) -> list[tuple[str, Path]]:
-    """Every skill file and block preset an install stages, as ``(manifest-relative path, source)``, sorted.
-    A link in the skills tree or a preset outside the pack refuses (a link could stage a file from anywhere)."""
-    files: dict[str, Path] = {}
-    skills_dir, names = pack_skills(pack, manifest)
-    for name in names:
-        top = pack / Path(*skills_dir.split("/")) / name
-        if top.is_symlink():
-            raise PackError(f"{skills_dir}/{name} is a link; a pack's skills are staged as plain files only")
-        if top.is_file():
-            files[f"{skills_dir}/{name}"] = top
-            continue
-        for here, dirs, leaves in os.walk(top):
-            for entry in sorted(dirs + leaves):
-                path = Path(here) / entry
-                rel = path.relative_to(pack).as_posix()
-                if path.is_symlink():
-                    raise PackError(f"{rel} is a link; a pack's skills are staged as plain files only")
-                if path.is_file():
-                    files[rel] = path
-    for block in pack_blocks(manifest):
-        preset = block.get("preset")
-        path = _inside(pack, preset, f"block {block.get('id')!r} preset")
-        if path.is_symlink() or not path.is_file():
-            raise PackError(f"block {block.get('id')!r} preset {preset!r} is not a plain file in the pack")
-        files[preset] = path
-    return sorted(files.items())
-
-
-def _skill_name(path: Path) -> str:
-    """A SKILL.md's frontmatter ``name`` ('' when it has none)."""
-    try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+def _skill_name(body: bytes) -> str:
+    """A SKILL.md's frontmatter ``name`` (fences are whole ``---`` lines; '' when it has none)."""
+    lines = body.decode("utf-8", "replace").splitlines()
+    if not lines or lines[0].strip() != "---":
         return ""
-    head = text.split("---", 2)[1] if text.startswith("---") and text.count("---") >= 2 else ""
-    m = SKILL_NAME_RE.search(head)
-    return m.group(1).strip() if m else ""
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        m = SKILL_NAME_RE.match(line)
+        if m:
+            return m.group(1).strip()
+    return ""
 
 
-def _preset_phases(path: Path) -> list[str]:
+def _preset_phases(body: bytes) -> list[str]:
     try:
-        preset = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        preset = json.loads(body)
+    except ValueError:
         return []
     phases = preset.get("phases") if isinstance(preset, dict) else None
     return [p for p in phases if isinstance(p, str)] if isinstance(phases, list) else []
 
 
-def approve_lists(pack: Path, manifest: dict) -> dict | None:
-    """``approve`` for the register call: the skill dirs and block ids the plan listed (None: none)."""
-    _, skills = pack_skills(pack, manifest)
-    blocks = [str(b.get("id")) for b in pack_blocks(manifest)]
-    return {"skills": skills, "blocks": blocks} if skills or blocks else None
+class Inventory:
+    """ONE read of a pack's skills and block presets (wicked-crew#1703): the plan's rows, the choice digest,
+    the staged files and the approved lists all come from these captured bytes, so what the operator saw is
+    what is hashed, staged and sent to crew."""
+
+    def __init__(self, files: list[tuple[str, bytes]], skills: list[dict], blocks: list[dict]):
+        self.files, self.skills, self.blocks = files, skills, blocks
+
+    @property
+    def approve(self) -> dict | None:
+        """``approve`` for the register call (None: an editor-only pack)."""
+        if not self.skills and not self.blocks:
+            return None
+        return {"skills": [s["dir"] for s in self.skills], "blocks": [b["id"] for b in self.blocks]}
+
+
+def pack_inventory(pack: Path, manifest: dict) -> Inventory:
+    """Every skill file under ``skills_dir`` and each block's preset, read once. A skill is a non-hidden entry
+    under ``skills_dir`` holding at least one file (crew lists the staged copy's entries, and an empty
+    directory is never staged). A link, a junction, an unreadable directory or a preset outside the pack
+    refuses: a partial or redirected tree is never planned or staged."""
+    pack_real = Path(os.path.realpath(pack))
+    files: dict[str, bytes] = {}
+    skills: list[dict] = []
+    skills_dir = manifest.get("skills_dir", "skills")
+    base = _inside(pack, skills_dir, "skills_dir")
+    names = sorted(n for n in os.listdir(base) if not n.startswith(".")) if base.is_dir() else []
+
+    def refuse(err: OSError) -> None:
+        raise PackError(f"{skills_dir}: a directory cannot be read ({err}); nothing is staged")
+
+    for name in names:
+        top = base / name
+        rel_top = f"{skills_dir}/{name}"
+        _confined(pack_real, top, rel_top)
+        held: dict[str, bytes] = {}
+        if top.is_file():
+            held[rel_top] = _read_plain(pack_real, top, rel_top)
+        else:
+            for here, dirs, leaves in os.walk(top, onerror=refuse):
+                for entry in sorted(dirs):
+                    _confined(pack_real, Path(here) / entry, (Path(here) / entry).relative_to(pack).as_posix())
+                for entry in sorted(leaves):
+                    path = Path(here) / entry
+                    rel = path.relative_to(pack).as_posix()
+                    held[rel] = _read_plain(pack_real, path, rel)
+        if held:
+            files.update(held)
+            skills.append({"dir": name, "name": _skill_name(held.get(f"{rel_top}/SKILL.md", b"")),
+                           "installs_as": f"wicked-garden-{name}"})
+    blocks: list[dict] = []
+    for block in pack_blocks(manifest):
+        preset = block.get("preset")
+        what = f"block {block.get('id')!r} preset"
+        _inside(pack, preset, what)
+        body = _read_plain(pack_real, pack / Path(*preset.split("/")), preset)
+        files[preset] = body
+        listed = block.get("skills")
+        blocks.append({"id": str(block.get("id")), "label": block.get("label"), "produces_kind": block.get("produces_kind"),
+                       "phases": _preset_phases(body),
+                       "skills": [s for s in listed if isinstance(s, str)] if isinstance(listed, list) else []})
+    return Inventory(sorted(files.items()), skills, blocks)
 
 
 # ── 2-3. stage and swap ────────────────────────────────────────────────────────────────────
 
-def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
+def stage(pack: Path, manifest: dict, next_dir: Path, inventory: Inventory | None = None) -> list[str]:
+    if inventory is None:
+        inventory = pack_inventory(pack, manifest)
     if next_dir.is_symlink():
         next_dir.unlink()
     elif next_dir.exists():
@@ -307,12 +369,12 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
             shutil.copy2(extra_src, extra_dest)
             if rel_str not in copied:
                 copied.append(rel_str)
-    for rel_str, source in pack_extra_files(pack, manifest):
+    for rel_str, body in inventory.files:  # the bytes the digest covers, never a second read
         dest = (next_dir / Path(*rel_str.split("/"))).resolve()
         if root not in dest.parents:
             raise PackError(f"{rel_str!r} would stage outside {next_dir}")
         dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, dest)
+        dest.write_bytes(body)
         if rel_str not in copied:
             copied.append(rel_str)
     if (pack / "README.md").is_file():
@@ -409,9 +471,6 @@ def plan_digest(raw: bytes, extras: list[tuple[str, bytes]] = ()) -> str:
     return base64.urlsafe_b64encode(h.digest()).decode("ascii")[:DIGEST_CHARS]
 
 
-def _extras(base: Path, manifest: dict) -> list[tuple[str, bytes]]:
-    return [(rel, path.read_bytes()) for rel, path in pack_extra_files(base, manifest)]
-
 
 def parse_target(value: str) -> tuple[str, str | None]:
     m = TARGET_RE.match(value)
@@ -447,16 +506,10 @@ def do_plan(args) -> dict:
                 "operator_owned": False}]
     writes += install_grants(manifest)
     try:
-        extras = _extras(pack, manifest)
+        inventory = pack_inventory(pack, manifest)
     except (OSError, PackError) as err:
         raise Failure(2, f"{pack}: {err}") from err
-    skills_dir, skill_dirs = pack_skills(pack, manifest)
-    skills = [{"dir": d, "name": _skill_name(pack / Path(*skills_dir.split("/")) / d / "SKILL.md"),
-               "installs_as": f"wicked-garden-{d}"} for d in skill_dirs]
-    blocks = [{"id": b.get("id"), "label": b.get("label"), "produces_kind": b.get("produces_kind"),
-               "phases": _preset_phases(_inside(pack, b.get("preset"), "preset")),
-               "skills": [s for s in b.get("skills", []) if isinstance(s, str)] if isinstance(b.get("skills"), list) else []}
-              for b in pack_blocks(manifest)]
+    skills, blocks = inventory.skills, inventory.blocks
     for s in skills:
         writes.append({"path": f"{origin}/api/v1/editors", "operator_owned": False,
                        "what": f"skill {s['dir']} into the daemon's skills root as {s['installs_as']} "
@@ -465,7 +518,7 @@ def do_plan(args) -> dict:
         writes.append({"path": f"{origin}/api/v1/editors", "operator_owned": False,
                        "what": f"workflow preset {b['id']} ({b['label']}): phases {', '.join(b['phases'])} "
                                f"(from pack {key})"})
-    digest = plan_digest(raw, extras)
+    digest = plan_digest(raw, inventory.files)
     plan: dict = {"dry_run": True, "key": key, "choices": [
         {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
         {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
@@ -502,7 +555,8 @@ def do_install(args) -> tuple[int, dict]:
     key_root.mkdir(parents=True, exist_ok=True)
     had_previous = (key_root / "current").exists()
     try:
-        copied = stage(pack, manifest, key_root / "next")
+        inventory = pack_inventory(pack, manifest)  # one read: staged, digested and approved from these bytes
+        copied = stage(pack, manifest, key_root / "next", inventory)
     except (OSError, PackError) as err:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"staging failed: {err}") from err
@@ -516,12 +570,7 @@ def do_install(args) -> tuple[int, dict]:
     if not same:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"{pack / MANIFEST_NAME} changed while it was being installed; nothing was installed")
-    try:
-        staged_extras = _extras(key_root / "next", manifest)
-    except (OSError, PackError) as err:
-        shutil.rmtree(key_root / "next", ignore_errors=True)
-        raise Failure(1, f"the staged copy could not be read back ({err}); nothing was installed") from err
-    if approved is not None and plan_digest(staged, staged_extras) != approved:
+    if approved is not None and plan_digest(staged, inventory.files) != approved:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"{pack / MANIFEST_NAME} changed after the plan the operator approved (its permissions, "
                          "version, entry hash, skills or block presets may differ); nothing was installed: plan "
@@ -530,7 +579,7 @@ def do_install(args) -> tuple[int, dict]:
     current = key_root / "current"
     try:
         request = {"packRoot": str(current.resolve()), "enabled": target == "daemon"}
-        approve = approve_lists(current, manifest)
+        approve = inventory.approve
         if approve is not None:
             request["approve"] = approve  # the skills and blocks the plan listed (wicked-crew#1703)
         status, body = http_json("POST", f"{origin}/api/v1/editors", request)

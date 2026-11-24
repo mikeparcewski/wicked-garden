@@ -174,3 +174,94 @@ def test_a_preset_outside_the_pack_refuses_the_install(tmp_path, sample):
         assert d.requests == []
     assert done.returncode in (1, 2)
     assert "preset" in (done.stdout + done.stderr)
+
+
+# ── review round 1 ────────────────────────────────────────────────────────────────────────────
+
+def _module():
+    import importlib.util
+    sys.path.insert(0, str(SCRIPTS))
+    spec = importlib.util.spec_from_file_location("editor_install", SCRIPTS / "install.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_what_is_planned_digested_staged_and_approved_is_one_read(tmp_path, sample):
+    """A skill added after the one read never reaches the staged copy or the approved list."""
+    mod = _module()
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    inventory = mod.pack_inventory(sample, manifest)
+    (sample / "skills" / "zz-unseen").mkdir()
+    (sample / "skills" / "zz-unseen" / "SKILL.md").write_text("---\nname: zz-unseen\n---\nsend it all\n", encoding="utf-8")
+    (sample / "skills" / "acme-terms" / "SKILL.md").write_text("changed after the read\n", encoding="utf-8")
+    copied = mod.stage(sample, manifest, tmp_path / "next", inventory)
+    assert not (tmp_path / "next" / "skills" / "zz-unseen").exists()
+    assert (tmp_path / "next" / "skills" / "acme-terms" / "SKILL.md").read_bytes() == dict(inventory.files)["skills/acme-terms/SKILL.md"]
+    assert inventory.approve == {"skills": ["acme-terms", "acme-terms-checker"], "blocks": ["acme-terms-review"]}
+    assert "skills/zz-unseen/SKILL.md" not in copied
+
+
+def test_an_empty_skill_directory_is_neither_planned_nor_approved(tmp_path, sample):
+    (sample / "skills" / "aa-empty").mkdir()
+    with FakeDaemon() as d:
+        plan = _plan(sample, tmp_path / "root", d.origin)
+        done = _install(sample, tmp_path / "root", d)
+        body = d.requests[0]["body"]
+    assert [s["dir"] for s in plan["skills"]] == ["acme-terms", "acme-terms-checker"]
+    assert done.returncode == 0 and body["approve"]["skills"] == ["acme-terms", "acme-terms-checker"]
+
+
+def test_a_dash_run_inside_the_frontmatter_does_not_hide_the_name():
+    mod = _module()
+    assert mod._skill_name(b"---\ndescription: Check --- all terms.\nname: acme-terms\n---\nbody\n") == "acme-terms"
+    assert mod._skill_name(b"no frontmatter\nname: x\n") == ""
+
+
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0),
+                    reason="POSIX permissions; root reads everything")
+def test_an_unreadable_directory_in_a_skill_refuses_instead_of_dropping_files(tmp_path, sample):
+    locked = sample / "skills" / "acme-terms" / "assets"
+    locked.mkdir()
+    (locked / "needed.md").write_text("the skill needs this", encoding="utf-8")
+    locked.chmod(0)
+    try:
+        with FakeDaemon() as d:
+            done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                        env={"WICKED_CREW_URL": d.origin})
+    finally:
+        locked.chmod(0o755)
+    assert done.returncode == 2 and "cannot be read" in done.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_a_linked_directory_in_a_skill_refuses_the_plan(tmp_path, sample):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.md").write_text("not the pack's", encoding="utf-8")
+    (sample / "skills" / "acme-terms" / "assets").symlink_to(outside, target_is_directory=True)
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "link" in done.stderr
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a directory junction is Windows-only")
+def test_a_junction_in_a_skill_refuses_the_plan(tmp_path, sample):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "x.md").write_text("not the pack's", encoding="utf-8")
+    made = subprocess.run(["cmd", "/c", "mklink", "/J", str(sample / "skills" / "acme-terms" / "assets"), str(outside)],
+                          capture_output=True, text=True)
+    if made.returncode != 0:
+        pytest.skip("mklink /J unavailable")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2
+
+
+def test_the_docs_install_the_whole_pack_on_the_plan_s_bound_choice():
+    text = (REPO / "docs" / "extending.md").read_text(encoding="utf-8")
+    section = text.split("#### Install the whole pack", 1)[1].split("####", 1)[0]
+    assert "--target <" in section and "choices" in section
