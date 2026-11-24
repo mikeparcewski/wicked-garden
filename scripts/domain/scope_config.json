@@ -1,0 +1,26 @@
+{
+ "stopwords": [
+  "from",
+  "the",
+  "a",
+  "of",
+  "and",
+  "for",
+  "to",
+  "in",
+  "on",
+  "is",
+  "what"
+ ],
+ "test_path": "(^|/)(tests?|__tests__|e2e|fixtures?|mocks?)/|\\.(test|spec)\\.[jt]sx?$",
+ "vendor_path": "(^|/)(node_modules|vendor|dist|build)/|\\.d\\.ts$",
+ "name_kinds": [
+  "function",
+  "method",
+  "constant",
+  "variable",
+  "class",
+  "const"
+ ],
+ "big_file_tokens": 8000
+}
