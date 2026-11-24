@@ -50,6 +50,20 @@ def _prior_answer(store, sid: str) -> str:
     return text[:extract_loop.MAX_PRIOR_ANSWER] if text.startswith("[RISK]") else ""
 
 
+def _in_store_and_tracked(db: str, tracked: set[str], ids: set[str]) -> set[str]:
+    """Those of `ids` the store still has, in a file git tracks: what `extract-apply` would take a
+    restatement for (it reads each through the same store and refuses an untracked file)."""
+    if not ids:
+        return set()
+    store = extract_loop._DirectStore(db)
+    out = set()
+    for sid in ids:
+        row = store.node_row.get(store.sid_of.get(sid))
+        if row is not None and (row[1] or "") in tracked:
+            out.add(sid)
+    return out
+
+
 def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
             estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -148,6 +162,16 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
 
         n_hubs = min(len(hubs), extract_loop.hub_count(store))
         order_line = f"hub-first from {n_hubs} hub(s) by {how}, over {tail} node(s)"
+    # The units OFF this page a send-back may restate (wicked-garden#1535): the units this run asked
+    # on an earlier page or found changed since the map was built, still in the store and in a file
+    # git tracks — the mapped units `extract-apply` takes a rule for (`apply_rules._restatable`).
+    # A coverage review that sends the run back about an earlier page's rule gets it restated on
+    # this page's file. Not the frontier (the unmapped and placeholders no page asked yet): a later
+    # page frames those. Only the ids: the seat's `--check-rules` reads them; the host decides again
+    # from its own record and the store, never from this list.
+    restatable = _in_store_and_tracked(
+        db, tracked, generation.visited(record) | generation.changed(record) | set(restate))
+    off_page = sorted(restatable - {u["symbol_id"] for u in units})
     doc = {
         "schema": rules_file.WORKLIST_SCHEMA,
         "order": order_line,
@@ -159,6 +183,7 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         "asked_before": len(seen),
         "not_in_repo": skipped,
         "units": units,
+        extract_loop.OFF_PAGE_KEY: off_page,
     }
     # The repository's business domains (reqgraph Fix B): the stored catalog to pick from, or the
     # ask to propose one, and the resolved requirements with no domain yet to assign. A page
@@ -180,6 +205,11 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                 hi = mid - 1
         units = units[:lo]
         doc["units"] = units
+        # A unit trimmed off the page that the host still takes a rule for stays restatable.
+        doc[extract_loop.OFF_PAGE_KEY] = sorted(restatable - {u["symbol_id"] for u in units})
+        if len(rules_file.encoded(doc)) > rules_file.MAX_WORKLIST_BYTES:
+            raise RuntimeError(f"the worklist does not fit what the extract step reads "
+                               f"({rules_file.MAX_WORKLIST_BYTES} bytes) even with no units")
     if run_id:
         # Not optional bookkeeping: the record decides what the next page skips and the page's
         # yield (codex on #1375), so a page whose units cannot be recorded is not prepared (and

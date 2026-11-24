@@ -796,8 +796,10 @@ def test_the_extractor_handles_assignment_only_worklists():
             '`"rules": []` and no other entries') in text
     assert 'write no file' not in text
     assert '--check-rules' in text
-    assert ('A review that sends back a page with no units asks for work the host cannot apply: '
-            'say so plainly, and the person decides at the step\'s gate.') in text
+    # wicked-garden#1535: a send-back about a unit off the page restates it when the worklist's
+    # `off_page_ids` holds it, and says plainly when it cannot.
+    assert "Look its `symbol_id` up in the worklist's `off_page_ids`" in text
+    assert "this page cannot restate it: write nothing for it and say so plainly" in text
 
 
 def test_the_extractor_chooses_business_domains_from_each_symbols_source():
