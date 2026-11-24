@@ -23,7 +23,9 @@ Findings (all fail the floor): ``placeholder`` · ``uncited-number`` · ``mock-l
 ``escaped-source`` (``data-source`` path that leaves every ``--repo`` folder: an absolute path, a
 ``..`` that climbs out, or a link inside the folder that leads out of it — never read, never a pass) ·
 ``cite-off`` (``data-source path:N`` exists but the cited lines share no tokens with the block's
-own text — the author read a different line than they cited) ·
+own text — the author read a different line than they cited — or they do not state a figure the
+text claims, or an inherited ``path:N`` is out of range or does not state the figures it alone
+cites) ·
 ``unsourced-url`` (a URL in the visible text that no file under ``--repo`` mentions) ·
 ``uncited-url`` (a URL with no ``--repo`` to check against and no ``data-source``).
 Exit: 0 clean, 1 findings, 2 usage / unreadable input. Stdlib only.
@@ -37,9 +39,10 @@ THE CITATION RULE (#1184) — what text a ``data-source="path:N"`` is verified a
   * on the element itself → that element's text;
   * on an inline wrapper (``<b>``, ``<span>``, …) or on the enclosing block → that wrapper's or
     that block's text, because a citation on a block asserts the whole block;
-  * on an ancestor ABOVE the block (a ``<section>``) → *inherited*: checked only for path
-    existence (``dangling-source``), never for ``cite-off``, because a section-level citation
-    covers many descendants whose text cannot all appear on those lines;
+  * on an ancestor ABOVE the block (a ``<section>``) → *inherited*: never checked for word
+    overlap, because a section-level citation covers many descendants whose text cannot all
+    appear on those lines. Its line must exist (out of range is ``cite-off``), and a block whose
+    figures it is the ONLY citation of must find each figure on one of its lines (#1551);
   * path-only (no ``:N``) → provenance only, checked only for existence.
 
   One check per (source, carrier): the carrier IS the unit of verification, so two inline
@@ -50,7 +53,9 @@ THE CITATION RULE (#1184) — what text a ``data-source="path:N"`` is verified a
   the claim (an overlap of common words verifies nothing), and no other span of the SAME WIDTH
   in the file shares MORE of them (so a range is judged against the best range of its own width —
   scoring a multi-line union against single lines let any wide range tie — and both sides are
-  scored on content tokens, so a line rich in common words cannot outscore the cited one). Tokens are ``\\W+``
+  scored on content tokens, so a line rich in common words cannot outscore the cited one), and
+  every FIGURE the claim states is on the cited span, with its unit when it has one (#1551: the
+  figure IS the claim, so ``80%`` on the line never verifies ``99%``). Tokens are ``\\W+``
   split, so unicode variants like ``≥`` and ``>=`` produce the same tokens. A verified range is
   a weaker assertion than a verified line, and the summary says how many there were
   (``cited_ranges``).
@@ -67,6 +72,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from decimal import Decimal, Inexact, localcontext
 from pathlib import Path
 
 if __package__ in (None, ""):
@@ -125,6 +131,157 @@ to too under until up us very was we were what when where which while who will w
 you your
 """.split())
 
+# The figure IS the claim (#1551): a line citation verifies a figure only when the cited span
+# states it, with its unit when it has one. Both sides are read by ONE tokenizer: a number with its
+# sign, decimals and exponent, then the unit after it (attached, or after spaces), every spelling
+# of a unit mapped to one canonical form. Byte/bit case is kept (MB is not Mb); words are not.
+_UNIT_SPELLINGS = {
+    "%": "% percent pct",
+    "x": "x × times",
+    "ns": "ns nanosecond nanoseconds",
+    "us": "us µs μs microsecond microseconds",
+    "ms": "ms msec msecs millisecond milliseconds",
+    "s": "s sec secs second seconds",
+    "min": "min mins minute minutes",
+    "h": "h hr hrs hour hours",
+    "d": "d day days",
+    "wk": "wk wks week weeks",
+    "k": "k thousand",
+    "million": "million mn",
+    "billion": "billion bn",
+}
+_DATA_UNIT_RE = re.compile(r"^[kmgtp]i?b$", re.IGNORECASE)
+_DATA_WORDS = {"kilobyte": "kB", "megabyte": "mB", "gigabyte": "gB", "terabyte": "tB", "petabyte": "pB"}  # canonical: prefix lowercased, B kept
+_UNIT_CANON = {sp: canon for canon, spellings in _UNIT_SPELLINGS.items() for sp in spellings.split()}
+_UNIT_ALTS = sorted([*_UNIT_CANON, *_DATA_WORDS, *(w + "s" for w in _DATA_WORDS),
+                     r"[kKmMgGtTpP]i?[bB]"], key=len, reverse=True)
+_UNIT_PATTERN = "|".join(a if a.startswith("[") else re.escape(a) for a in _UNIT_ALTS)
+# A figure starts at a word boundary that is not inside another number ("v12", "1.5", "4xx" are
+# not figures of their own); a sign counts only there ("80-90" is a range, " -80" is negative).
+FIGURE_RE = re.compile(
+    r"(?<![\w.,])(?P<sign>[-\u2212+]?)(?P<num>\d+(?:[.,]\d+)*(?:[eE][-+\u2212]?\d+)?)"
+    rf"(?:\s*(?P<unit>(?i:{_UNIT_PATTERN}))(?![A-Za-z0-9_]))?(?![A-Za-z0-9_])")
+# Two figures joined as a range ("80-90 ms", "80 to 90 ms") share the second one's unit.
+_RANGE_JOIN_RE = re.compile(r"^\s*(?:[-\u2013\u2014]|to)\s*$", re.IGNORECASE)
+# The largest number the scan canonicalises: beyond it a value is compared as written (a huge
+# exponent never expands into a huge string, and never raises).
+_MAX_DIGITS = 60
+
+
+def _canon_unit(unit: str | None) -> str | None:
+    if not unit:
+        return None
+    if _DATA_UNIT_RE.match(unit):        # kB/KB = kB, but MB (bytes) is not Mb (bits)
+        return unit[0].lower() + ("i" if len(unit) == 3 else "") + unit[-1]
+    word = unit.lower()
+    if word.rstrip("s") in _DATA_WORDS:
+        return _DATA_WORDS[word.rstrip("s")]
+    return _UNIT_CANON.get(word, _UNIT_CANON.get(unit, word))
+
+
+def _canon_number(sign: str, number: str) -> str:
+    """One spelling per value: 1,200 = 1200, 80.0 = 80, 1e3 = 1000, -80 is not 80. A dotted
+    version (12.64.0) or a comma that is not a thousands separator stays as written."""
+    if re.fullmatch(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?", number):
+        number = number.replace(",", "")
+    number = number.replace("\u2212", "-")
+    if re.fullmatch(r"\d+(?:\.\d+)?(?:[eE][-+]?\d+)?", number):
+        try:
+            with localcontext() as ctx:
+                ctx.prec, ctx.traps[Inexact] = _MAX_DIGITS, True
+                value = Decimal(number)
+                if value.adjusted() < _MAX_DIGITS and value.as_tuple().exponent > -_MAX_DIGITS:
+                    number = format(value.normalize(), "f")
+        except ArithmeticError:            # too many digits to be exact: compare as written
+            number = number.lower()
+        if "." in number and "e" not in number:
+            number = number.rstrip("0").rstrip(".")
+    return ("-" if sign in ("-", "\u2212") else "") + number
+
+
+def _figures(text: str, drop_ordinals: bool = False) -> list[tuple[str, tuple[str, str | None]]]:
+    """(as written, (value, unit)) for every figure in ``text``. The first figure of a range takes
+    the second one's unit ("80-90ms" is 80 ms and 90 ms). ``drop_ordinals`` leaves out ``01``-style
+    section numbers, judged on the number as written."""
+    found = list(FIGURE_RE.finditer(text))
+    units = [_canon_unit(m.group("unit")) for m in found]
+    for i in range(len(found) - 1):
+        if units[i] is None and units[i + 1] and _RANGE_JOIN_RE.match(text[found[i].end():found[i + 1].start()]):
+            units[i] = units[i + 1]
+    return [(m.group(0).strip(), (_canon_number(m.group("sign"), m.group("num")), unit))
+            for m, unit in zip(found, units) if not (drop_ordinals and ORDINAL_RE.match(m.group("num")))]
+
+
+def _claim_text(text: str) -> str:
+    """The text whose numbers are claims: paths, URLs, copyright years, footnote markers and the
+    L2 structure numbers (dates, steps, numbered headings, page footers) removed."""
+    out = PATH_RE.sub(" ", URL_RE.sub(" ", text))
+    out = COPYRIGHT_YEAR_RE.sub(" ", out)
+    for structure in STRUCTURE_RES:
+        out = structure.sub(" ", out)
+    if LONE_ORDINAL_RE.match(text.strip()):
+        return ""                       # a badge / list marker whose whole text is one small number
+    return out
+
+
+def _claim_figures(text: str) -> list[tuple[str, tuple[str, str | None]]]:
+    """The figures ``text`` claims (structure numbers, footnote markers and ``01`` ordinals out)."""
+    return _figures(FOOTNOTE_RE.sub(" ", _claim_text(text)), drop_ordinals=True)
+
+
+def _missing_figures(figures: list[tuple[str, tuple[str, str | None]]], cited: str) -> list[str]:
+    """The figures (as written) the cited text does not state: a figure with a unit needs that
+    value with that unit; a figure without one needs the value."""
+    pairs = {key for _, key in _figures(cited)}
+    values = {v for v, _ in pairs}
+    return [shown for shown, (v, u) in figures if ((v, u) not in pairs if u else v not in values)]
+
+
+def _figure_detail(source: str, missing: list[str], lines: list[str], figures) -> str:
+    """The cite-off detail for a figure the cited span does not state, naming the line of the file
+    that does (when one line states every missing figure)."""
+    want = [f for f in figures if f[0] in missing]
+    at = next((i + 1 for i, line in enumerate(lines) if not _missing_figures(want, line)), None)
+    hint = f" — line {at} states {'them' if len(missing) > 1 else 'it'}" if at else ""
+    noun = "figures" if len(missing) > 1 else "figure"
+    return (f"data-source {source} does not state the {noun} {', '.join(missing)} — cite the line that "
+            f"carries it, or correct the figure to what the source says{hint}")
+
+
+_FOOTNOTE_SUP_RE = re.compile(r"^\s*\[?(?:\d{1,3}|[*†‡§¶])\]?\s*$")
+
+
+def _figure_text(node: Node, skip_cited: bool = False, markers: bool = False) -> str:
+    """The rendered text a citation on ``node`` asserts figures of: its own text and its rendered
+    INLINE descendants, joined as the reader sees them (``-<b>80</b>%`` reads ``-80%``) — never a
+    nested block (it is judged by its own citations), never a hidden element. A ``<sup>`` right
+    after a digit is an exponent (``10<sup>3</sup>`` reads ``10^ 3``, both figures checked); any other small ``<sup>`` is
+    a footnote marker, left out unless ``markers``. ``skip_cited`` also leaves out an inline
+    descendant that carries its own ``data-source`` (that one covers its text)."""
+    out: list[str] = []
+
+    def walk(n: Node) -> None:
+        for c in n.children:
+            if c.tag == "#text":
+                out.append(c.text)
+            elif c.tag == "#comment":
+                continue
+            elif c.tag not in _INLINE_TAGS:
+                out.append(" ")             # a nested block or a <br> breaks the run of text
+            elif "hidden" in c.attrs or (skip_cited and _direct_sources_on(c)):
+                continue
+            elif c.tag == "sup" and _FOOTNOTE_SUP_RE.match(c.all_text()):
+                after_digit = bool(out) and out[-1][-1:].isdigit()
+                if after_digit and c.all_text().strip().isdigit():
+                    out.append("^ " + c.all_text().strip())   # not "^3": that spells a footnote
+                elif markers:
+                    out.append(c.all_text())
+            else:
+                walk(c)
+    if is_rendered(node):
+        walk(node)
+    return re.sub(r"\s+", " ", "".join(out)).strip()
+
 
 @dataclass
 class Finding:
@@ -158,8 +315,13 @@ def _direct_sources_on(node: Node) -> list[str]:
 
 
 def _cite_tokens(text: str) -> set[str]:
-    """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase."""
-    return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
+    """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase —
+    with every figure read as its canonical value and unit first, so ``80ms`` and ``80 ms``,
+    ``1,200`` and ``1200`` give the same tokens on both sides (#1551)."""
+    def canon(m: re.Match) -> str:
+        unit = _canon_unit(m.group("unit"))
+        return f" {_canon_number(m.group('sign'), m.group('num'))} {unit or ''} "
+    return {t.lower() for t in re.split(r'\W+', FIGURE_RE.sub(canon, text)) if len(t) >= 2 or t.isdigit()}
 
 
 def _best_span(lines: list[str], content_tokens: set[str], width: int) -> tuple[int | None, int]:
@@ -179,24 +341,14 @@ def _best_span(lines: list[str], content_tokens: set[str], width: int) -> tuple[
     return best_n, best_score
 
 
-def _check_cite_off(source: str, claim_text: str, repos: list[str]) -> str | None | object:
-    """Check whether source's cited lines carry claim_text — the text of the element that carries
-    the citation (THE RULE, see the module docstring).
-
-    Returns:
-      None            — path-only citation (no :N suffix); caller skips it.
-      ""              — verified clean: a content word is shared and no same-width span elsewhere
-                        in the file matches the claim better.
-      _UNVERIFIABLE   — file unreadable, empty token set, or not found; caller treats as cite-off.
-      non-empty str   — cite-off detail message; caller reports a finding.
-    """
+def _cited_span(source: str, repos: list[str]) -> tuple[list[str], int, int] | str | None | object:
+    """Read the lines ``source`` (``path:N`` / ``path:N-M``) cites: ``(lines, start, end)`` with
+    0-based inclusive bounds; a detail string for an invalid or out-of-range spec; ``None`` for a
+    path-only citation; ``_UNVERIFIABLE`` when no folder holds a readable file at that path."""
     m = _LINE_SPEC_RE.match(source)
     if m is None:
         return None                     # path-only, nothing to verify
     rel_path, line_spec = m.group(1), m.group(2)
-    claim_tokens = _cite_tokens(claim_text)
-    if not claim_tokens:
-        return _UNVERIFIABLE            # token set empty after filtering — cannot verify
     for repo in repos:
         p = _confined(repo, rel_path)
         if p is None or not p.is_file():  # outside the folder (#1530), or a directory
@@ -211,25 +363,75 @@ def _check_cite_off(source: str, claim_text: str, repos: list[str]) -> str | Non
                 return f"data-source {source} has invalid range ({s_int} > {e_int})"
             if s_int < 1 or s_int > len(lines) or e_int < 1 or e_int > len(lines):
                 return f"data-source {source} is past end of file ({len(lines)} lines)"
-            start, end = s_int - 1, e_int - 1
-        else:
-            lnum = int(line_spec)
-            if lnum < 1 or lnum > len(lines):
-                return f"data-source {source} is past end of file ({len(lines)} lines)"
-            start = end = lnum - 1
-        # Only CONTENT tokens are evidence, on both sides of the comparison: an overlap of common
-        # words verifies nothing, and a line rich in them must not outscore the cited one.
-        content = claim_tokens - STOPWORDS
-        overlap = content & _cite_tokens("\n".join(lines[start:end + 1]))
-        best_n, best_score = _best_span(lines, content, end - start + 1)
-        hint = f" — nearest match: line {best_n}" if best_n and best_n != start + 1 else ""
-        if not overlap:
-            return (f"data-source {source} shares only common words with this text — a citation "
-                    f"verifies nothing without a content word in common{hint}")
-        if best_score > len(overlap):
-            return f"data-source {source} does not carry this text{hint}"
-        return ""                       # verified: best or tied-best span of its own width
+            return lines, s_int - 1, e_int - 1
+        lnum = int(line_spec)
+        if lnum < 1 or lnum > len(lines):
+            return f"data-source {source} is past end of file ({len(lines)} lines)"
+        return lines, lnum - 1, lnum - 1
     return _UNVERIFIABLE                # file not found in any repo
+
+
+_WHOLE_FILE_MAX = 2_000_000             # the same bound the URL check reads files under
+
+
+def _whole_file(source: str, repos: list[str], cache: dict[str, str | None]) -> str | None:
+    """The text of the file a path-only ``source`` names inside a folder (at most
+    ``_WHOLE_FILE_MAX`` bytes, read once per scan), or ``None``."""
+    if source in cache:
+        return cache[source]
+    cache[source] = None
+    for repo in repos:
+        p = _confined(repo, _source_path(source))
+        try:
+            if p is not None and p.is_file() and p.stat().st_size <= _WHOLE_FILE_MAX:
+                cache[source] = p.read_text(encoding="utf-8", errors="ignore")
+                break
+        except OSError:
+            continue
+    return cache[source]
+
+
+def _check_cite_off(source: str, claim_text: str, repos: list[str],
+                    figure_text: str | None = None) -> str | None | object:
+    """Check whether source's cited lines carry claim_text — the text of the element that carries
+    the citation (THE RULE, see the module docstring). ``figure_text`` is the part of it whose
+    figures the citation asserts (``_figure_text``: rendered inline text, no nested block, no
+    footnote marker); it defaults to ``claim_text``.
+
+    Returns:
+      None            — path-only citation (no :N suffix); caller skips it.
+      ""              — verified clean: a content word is shared, no same-width span elsewhere
+                        in the file matches the claim better, and every figure the claim states
+                        is on the cited span (#1551).
+      _UNVERIFIABLE   — file unreadable, empty token set, or not found; caller treats as cite-off.
+      non-empty str   — cite-off detail message; caller reports a finding.
+    """
+    if _LINE_SPEC_RE.match(source) is None:
+        return None                     # path-only, nothing to verify
+    claim_tokens = _cite_tokens(claim_text)
+    if not claim_tokens:
+        return _UNVERIFIABLE            # token set empty after filtering — cannot verify
+    span = _cited_span(source, repos)
+    if not isinstance(span, tuple):
+        return span                     # a range/past-end detail, or _UNVERIFIABLE
+    lines, start, end = span
+    cited = "\n".join(lines[start:end + 1])
+    # Only CONTENT tokens are evidence, on both sides of the comparison: an overlap of common
+    # words verifies nothing, and a line rich in them must not outscore the cited one.
+    content = claim_tokens - STOPWORDS
+    overlap = content & _cite_tokens(cited)
+    best_n, best_score = _best_span(lines, content, end - start + 1)
+    hint = f" — nearest match: line {best_n}" if best_n and best_n != start + 1 else ""
+    if not overlap:
+        return (f"data-source {source} shares only common words with this text — a citation "
+                f"verifies nothing without a content word in common{hint}")
+    if best_score > len(overlap):
+        return f"data-source {source} does not carry this text{hint}"
+    figures = _claim_figures(claim_text if figure_text is None else figure_text)
+    missing = _missing_figures(figures, cited)
+    if missing:                         # the words match, the figure does not (#1551)
+        return _figure_detail(source, missing, lines, figures)
+    return ""                           # verified: best or tied-best span of its own width
 
 
 def _illustrative_container(node: Node) -> Node | None:
@@ -271,7 +473,8 @@ def _block_of(node: Node) -> Node:
 def _citation_carriers(el: Node, block: Node) -> list[Node]:
     """Every element that can carry a line citation covering el's text: el itself, each inline
     wrapper between el and its block, then the block. A citation on anything above the block is
-    inherited and is existence-checked only (THE RULE, see the module docstring)."""
+    inherited: never checked for word overlap, but range- and figure-checked once per block in
+    scan_document (THE RULE, see the module docstring)."""
     chain = [el]
     node = el
     while node is not block:
@@ -426,6 +629,8 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
     # (source, id(carrier)) — one check per source per carrying element: two inline siblings that
     # carry the same source are two distinct checks, a block-level citation is checked once (#1184)
     checked_cite_off: set[tuple] = set()
+    checked_blocks: set[int] = set()    # blocks whose inherited citations were checked (#1551)
+    whole_files: dict[str, str | None] = {}
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -457,7 +662,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                     if cite_key in checked_cite_off:
                         continue
                     checked_cite_off.add(cite_key)
-                    detail = _check_cite_off(s, carrier_text, repos)
+                    detail = _check_cite_off(s, carrier_text, repos, _figure_text(carrier))
                     if detail is None:
                         pass                        # path-only: not a line citation, count nothing
                     elif detail is _UNVERIFIABLE:
@@ -471,7 +676,49 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                         if "-" in m.group(2):
                             stats["cited_ranges"] += 1
         inline_paths = PATH_RE.findall(block_text)
-        cited = bool(sources) or bool(inline_paths) or (has_sources and bool(FOOTNOTE_RE.search(block_text)))
+        footnoted = has_sources and bool(FOOTNOTE_RE.search(block_text))
+        cited = bool(sources) or bool(inline_paths) or footnoted
+        # An inherited line citation (on an ancestor above the block, #1551): its line must exist,
+        # and when inherited citations are the ONLY citation of the block's figures, each figure
+        # must be on one of the inherited lines (or in a file an ancestor cites whole). Word
+        # overlap stays unchecked: a section's descendants say many different things. Once per block.
+        if repos and id(block) not in checked_blocks:
+            checked_blocks.add(id(block))
+            inherited = [(s, anc) for anc in block.ancestors() for s in _direct_sources_on(anc)]
+            spans: list[str] = []
+            whole: list[str] = []
+            for s, anc in inherited:
+                if not _path_exists_in_repos(s, repos):
+                    continue                # dangling-source / escaped-source already reported
+                if not _LINE_SPEC_RE.match(s):
+                    whole.append(s)         # path-only: provenance; holds figures only beside a line
+                    continue
+                span = _cited_span(s, repos)
+                if isinstance(span, tuple):
+                    lines, start, end = span
+                    spans.append("\n".join(lines[start:end + 1]))
+                elif (s, id(anc)) not in checked_cite_off:
+                    checked_cite_off.add((s, id(anc)))
+                    stats["cite_off"] += 1
+                    add("cite-off", anc, anc.all_text(),
+                        span if isinstance(span, str) else f"data-source {s} could not be verified")
+            # The block's own citation forms count only as a reader sees them: a path or a
+            # footnote marker in a hidden element or a nested block cites nothing here.
+            shown = _figure_text(block, skip_cited=True, markers=True)
+            own_cite = (bool(_direct_sources_on(block)) or bool(PATH_RE.search(shown))
+                        or (has_sources and bool(FOOTNOTE_RE.search(shown))))
+            figures = _claim_figures(_figure_text(block, skip_cited=True)) if spans and not own_cite else []
+            missing = [f for f in figures if all(_missing_figures([f], t) for t in spans)]
+            if missing and whole:           # only then read a file an ancestor cites whole
+                texts = [t for t in (_whole_file(w, repos, whole_files) for w in whole) if t is not None]
+                missing = [f for f in missing if all(_missing_figures([f], t) for t in texts)]
+            if missing:
+                stats["cite_off"] += 1
+                cited_by = ", ".join(s for s, _ in inherited)
+                add("cite-off", block, block_text,
+                    f"the citation this text inherits ({cited_by}) does not state the "
+                    f"{'figures' if len(missing) > 1 else 'figure'} {', '.join(f[0] for f in missing)} — "
+                    "put a data-source on this element naming the line that carries it, or correct the figure")
         illustrative = _illustrative_container(el)
         labelled = illustrative is not None and bool(LABEL_RE.search(illustrative.all_text()))
 
@@ -485,13 +732,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                 add("uncited-url", el, url, "URL with no data-source and no repo to check it against")
 
         # numbers
-        text_wo_paths = PATH_RE.sub(" ", URL_RE.sub(" ", own))
-        text_wo_paths = COPYRIGHT_YEAR_RE.sub(" ", text_wo_paths)
-        for structure in STRUCTURE_RES:
-            text_wo_paths = structure.sub(" ", text_wo_paths)
-        if LONE_ORDINAL_RE.match(own.strip()):
-            text_wo_paths = ""  # a badge / list marker whose whole text is one small number
-        numbers = [n for n in NUMBER_RE.findall(text_wo_paths) if not ORDINAL_RE.match(n)]
+        numbers = [n for n in NUMBER_RE.findall(_claim_text(own)) if not ORDINAL_RE.match(n)]
         if not numbers:
             continue
         stats["numbers"] += len(numbers)

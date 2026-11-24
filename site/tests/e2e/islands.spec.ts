@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectRevealed, clickCopyChip, hydrated } from './utils';
+import { expectRevealed, expectStageSettled, clickCopyChip, hydrated } from './utils';
 
 /**
  * Smoke coverage for the React islands mounted on index.astro (all
@@ -297,11 +297,29 @@ test('CopyChip: copying never moves or cuts the command', async ({ page }) => {
     for (const sel of ['#install .cc', '#hero .hs-foot .cc', '#graph .gx-patch .cc', '#extend .xp-cta .cc']) {
       const chip = page.locator(sel).first();
       await chip.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }));
+      // the first scroll to a chip is its stage's arrival: measure once the entrance has settled
+      await expectStageSettled(chip);
       const box = () => chip.locator('.cc-cmd').evaluate((el) => {
         const r = el.getBoundingClientRect();
         return { x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), cut: el.scrollWidth > el.clientWidth + 1 };
       });
-      const before = await box();
+      // a web font that lands between the two reads changes the line box too: let pending loads finish,
+      // then take as the baseline a box that holds still across two animation frames
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      const frames = () => chip.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+      let before = await box();
+      await expect
+        .poll(
+          async () => {
+            await frames();
+            const now = await box();
+            const still = JSON.stringify(now) === JSON.stringify(before);
+            before = now;
+            return still;
+          },
+          { timeout: 10_000, message: `${sel} should hold still at rest before it is measured` },
+        )
+        .toBe(true);
       expect(before.cut, `${sel} cut at rest at ${vp.width}`).toBe(false);
       await chip.click();
       await expect(chip).toContainText('copied');
