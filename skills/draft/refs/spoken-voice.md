@@ -31,7 +31,7 @@ a second copy of the slide, and no fact the slide's sources don't support.
 
 | Slide | Before | After |
 |---|---|---|
-| Timeline: 23% → 61% in the first run, 72% → 79% in the second; the count's definition changed in between | "Point at the definition change between the first two rows." | "See the jump from 61% to 72% between the first two rows? No new work did that. We changed what we count." |
+| Timeline: 23% → 61% in the first run, 72% → 79% in the second; the count's definition changed in between | "Point at the definition change between the first two rows." | "See the jump from 61% to 72% between the first two rows? That's where we changed what we count, so those two numbers don't compare directly." |
 | What next: close the open placeholders, domain by domain | "Next, we close the open placeholders, domain by domain." | "So what's left? The open placeholders. We'll close them one domain at a time." |
 
 ## Read-aloud check

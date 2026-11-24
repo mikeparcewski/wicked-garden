@@ -41,7 +41,7 @@ Each item is **symptom → likely cause → fix** and a verdict: **[encode]** re
 - [ ] **Claim in a caption doesn't match the screen** (count, name, case ID, a check that "passes" but shows failed) →
   script written from assumptions, or the model behaved differently this run → rewrite from what the screen shows, or
   fix the app if the screen is wrong. [segment] / [app]
-- [ ] **Caption or narration sounds like a machine** (slogans like "ranked, not read", noun stacks like "Month-end,
+- [ ] **Caption or narration sounds like a machine** (slogans like "ranked, not read", fragments like "Month-end,
   one click", every sentence starting "The system…") → written as headlines, not speech → read each caption and
   narration line aloud at talking speed and rewrite it the way you'd say it to a colleague (`refs/storytelling.md`,
   "Captions and voice"). [segment]
