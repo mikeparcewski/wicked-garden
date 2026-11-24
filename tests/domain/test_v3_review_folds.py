@@ -650,3 +650,30 @@ def test_a_statement_the_writer_left_out_goes_to_the_writer_once_more(monkeypatc
     left = next(p for s, p in sent if s == "prose-left")
     assert "[S2]" in left and "[S1]" not in left
     assert [g["g"] for g in res["groups"]] == [1, 2] and res["uncited"] == []
+
+
+def test_a_group_withheld_whole_is_never_reused_beside_the_group_that_replaced_it(tmp_path, monkeypatch):
+    """coord delta on a81da4f: the writer's malformed group is withheld whole and prose-left writes its statements
+    into a good group; an unchanged rerun reuses the good group alone, with no writer call."""
+    import re
+    repo = make_repo(tmp_path, "mini-cobol")
+    seats = FakeSeats(scope.build_scope(repo, "PAYCALC1"))
+    writes = []
+
+    def claude(step, cid, prompt, timeout=1500, role=None, **kw):
+        if step in ("prose", "prose-left"):
+            writes.append(step)
+            sids = sorted(set(re.findall(r"^\[(S\d+)\]$", prompt, re.M)), key=lambda s: int(s[1:]))
+            kind = "rules" if step == "prose" else "business"
+            return json.dumps(dict(groups=[dict(g=1, title="Overtime pay", area="PAYCALC1", kind=kind,
+                                                rule=dict(text="Hours over forty are paid at the overtime rate.", cites=sids),
+                                                details=[])])), 0
+        return seats.claude(step, cid, prompt, timeout, role, **kw)
+    monkeypatch.setattr(model_calls, "claude", claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    _, _, g1, _ = run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r1"), write=fake_write)
+    shape = lambda gs: [g for g in gs if any(w.get("layer") == "group" for w in g.get("withheld") or [])]
+    assert writes == ["prose", "prose-left"] and len(shape(g1)) == 1 and len(g1) == 2
+    writes.clear()
+    second, _, g2, _ = run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r2"), write=fake_write)
+    assert writes == [] and shape(g2) == [] and len(g2) == 1 and second["prose_reused"] is True

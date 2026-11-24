@@ -131,7 +131,8 @@ def prose_for(statements, desc, desc_key, prior):
         if inp and all(text_of.get(i) == h for i, h in inp.items()):
             reused.append(v["group"])
             covered |= set(inp)
-        left_out |= {i for i, h in (v.get("uncited") or {}).items() if text_of.get(i) == h}
+        unc = v.get("uncited")
+        left_out |= {i for i, h in (unc if isinstance(unc, dict) else {}).items() if text_of.get(i) == h}
     todo = {i for i in text_of if i not in covered and i not in left_out}
     reused.sort(key=lambda g: g.get("g") or 0)
     if not todo:

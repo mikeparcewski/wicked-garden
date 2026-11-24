@@ -352,8 +352,11 @@ def rows_for(repo, result, records, groups, prose_meta, followup_rows, prior, re
             sym = symbol_for(repo, records[0]["file"], records[0].get("anchor_symbol")) if records else None
         if sym:
             text_of = (prose_meta or {}).get("text_of") or {}
+            # a group withheld whole (its writer's shape could not be checked) is never reused: its
+            # statements went back to the writer in the same run, so its notice is this run's alone
+            whole = any(isinstance(x, dict) and x.get("layer") == "group" for x in g.get("withheld") or [])
             add(sym, GROUP, name, dict(group=g, desc=(prose_meta or {}).get("desc"),
-                                       inputs={i: text_of.get(i) for i in _group_ids(g)},
+                                       inputs={} if whole else {i: text_of.get(i) for i in _group_ids(g)},
                                        uncited={i: text_of.get(i) for i in uncited}))
             written[GROUP].add(name)
     written[FOLLOWUP] = set()
