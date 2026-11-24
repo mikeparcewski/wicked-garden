@@ -43,12 +43,18 @@ MAX_WORKLIST_BYTES = 64 * 1024 * 1024  # what prepare may publish and the seat w
 MAX_RULES = 20000
 MAX_SYMBOL_ID = 1000
 MAX_STATEMENT = 2000
+# How the code departs from the stated requirement (operator ruling 2026-11-06): one line.
+MAX_MISMATCH = 300
 MAX_PROVENANCE_STR = 500
 MAX_SOURCE_KINDS = 4
 SOURCE_KINDS = frozenset({"code-body", "type-def", "comment", "doc"})
 
-_TOP_KEYS = frozenset({"schema", "seat", "rules"})
-_RULE_KEYS = frozenset({"symbol_id", "statement", "confidence", "provenance"})
+# `business_domains` (the catalog a first page proposes) and `assignments` (domains for rules an
+# earlier page resolved) are checked by `business_domains.py` at apply time (reqgraph Fix B).
+_TOP_KEYS = frozenset({"schema", "seat", "rules", "business_domains", "assignments"})
+_RULE_KEYS = frozenset({"symbol_id", "statement", "confidence", "provenance", "code_meets",
+                        "mismatch", "domain", "domain_confidence", "unsure"})
+_DOMAIN_ID_RE = re.compile(r"^[a-z][a-z0-9-]{1,47}$")
 _PROVENANCE_KEYS = frozenset({"source", "ref", "source_kinds"})
 # The seat a file DECLARES: a short plain token, reported as declared. It is never authorship —
 # the file is seat-written, so a name in it proves nothing (the host authors what it applies).
@@ -110,6 +116,31 @@ def check_rule_entry(entry: Any) -> str | None:
     if isinstance(conf, bool) or not isinstance(conf, (int, float)) or not 0 <= conf <= 1 \
             or not math.isfinite(conf):
         return f"confidence {_shown(repr(conf), 40)} is not a number in [0,1]"
+    if "code_meets" in entry and not isinstance(entry["code_meets"], bool):
+        return f"code_meets is {type(entry['code_meets']).__name__}, expected true or false"
+    if "mismatch" in entry:
+        why = _bad_text(entry["mismatch"], MAX_MISMATCH, allow_empty=True)
+        if why:
+            return f"mismatch {why}"
+        if entry["mismatch"].lstrip().startswith("-"):
+            return "mismatch starts with '-' (the host passes it to the estate CLI as a value)"
+        if " ".join(entry["mismatch"].split()).casefold() == "code meets it":
+            return "mismatch is the host's reserved 'code meets it'"
+    if "unsure" in entry:
+        # What the seat could not see or confirm about a rule under the resolve line
+        # (wicked-garden#1536): it becomes part of the placeholder's RISK reason.
+        why = _bad_text(entry["unsure"], MAX_MISMATCH, allow_empty=True)
+        if why:
+            return f"unsure {why}"
+    if "domain" in entry or "domain_confidence" in entry:
+        # The business domain the rule picks (an id of the repository's catalog; membership is the
+        # apply step's check). Both or neither.
+        dom, dconf = entry.get("domain"), entry.get("domain_confidence")
+        if not isinstance(dom, str) or not _DOMAIN_ID_RE.fullmatch(dom):
+            return "domain must be a business-domain id (a lowercase slug) next to domain_confidence"
+        if isinstance(dconf, bool) or not isinstance(dconf, (int, float)) \
+                or not 0 <= dconf <= 1 or not math.isfinite(dconf):
+            return "domain_confidence must be a number in [0,1] next to domain"
     if "provenance" in entry:
         prov = entry["provenance"]
         if not isinstance(prov, dict):
@@ -180,8 +211,14 @@ def encoded(doc: Any) -> bytes:
     return (json.dumps(doc, ensure_ascii=False, indent=1) + "\n").encode("utf-8", "backslashreplace")
 
 
-def rules_doc(seat: str, rules: list[dict]) -> dict:
-    return {"schema": RULES_SCHEMA, "seat": seat, "rules": rules}
+def rules_doc(seat: str, rules: list[dict], extra: dict | None = None) -> dict:
+    """A rules document; `extra` carries the optional `business_domains` / `assignments` the seat
+    wrote beside the rules (a harness rewrite keeps them)."""
+    doc = {"schema": RULES_SCHEMA, "seat": seat, "rules": rules}
+    for key in ("business_domains", "assignments"):
+        if extra and key in extra:
+            doc[key] = extra[key]
+    return doc
 
 
 def seat_name(raw: str | None) -> str:
@@ -329,6 +366,42 @@ def read_json_file(base: Path, rel: str, *, limit: int = MAX_RULES_BYTES) -> Any
         raise
     with os.fdopen(ffd, "rb") as f:
         return _decode(rel, f.read(limit + 1), limit)
+
+
+def remove_file(base: Path, rel: str) -> bool:
+    """Remove `rel` under `base` when it is there (a regular file, or a link, which is removed
+    itself, never followed); refuse a directory on the way or at the leaf. True when something
+    was removed."""
+    parts = _parts(rel)
+    if not _FD_SAFE:
+        # The directories on the way must not be links; the leaf may be one (removed, not
+        # followed), as on POSIX below (codex r2).
+        parent = inside(base, str(Path(*parts[:-1]))) if len(parts) > 1 else Path(base)
+        path = parent / parts[-1]
+        if path.is_symlink():
+            path.unlink()
+            return True
+        if not path.exists():
+            return False
+        if not path.is_file():
+            raise RulesFileRefused(f"{rel!r} exists and is not a regular file")
+        path.unlink()
+        return True
+    try:
+        dfd = _open_dirs(base, rel, parts[:-1], create=False)
+    except FileNotFoundError:
+        return False
+    try:
+        try:
+            st = os.stat(parts[-1], dir_fd=dfd, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        if stat.S_ISDIR(st.st_mode):
+            raise RulesFileRefused(f"{rel!r} exists and is not a regular file")
+        os.unlink(parts[-1], dir_fd=dfd)
+        return True
+    finally:
+        os.close(dfd)
 
 
 def write_json_file(base: Path, rel: str, doc: Any) -> None:

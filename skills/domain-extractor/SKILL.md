@@ -38,10 +38,52 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 When `.wicked/domain/worklist.json` exists in your working directory, the run's host step
 `extract-prepare` wrote it: behaviours that are not real requirements yet (the unmapped ones,
-then placeholders an earlier page left empty or under the confidence threshold), hub-first,
-each framed with its source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
+then placeholders an earlier page left empty or under the confidence threshold, each with its
+`prior_answer` (the stored answer and why it did not count) and more of its source, then mapped
+behaviours whose code changed since the map was built, marked `changed_since_build` with their
+`prior_statement`), hub-first, each framed with its source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
 `wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
 and only this:
+
+0. **A worklist with no units.** With `"units": []` and a non-empty `assign` list,
+   this assignment page needs no harness run; write the rules file with `"rules": []` and the `assignments`, plus
+   `business_domains` when `propose: true`. Follow "Business domains first" below, then check
+   the file with `wicked-garden run scripts/domain/extract_loop.py --check-rules
+   .wicked/domain/rules.json --worklist .wicked/domain/worklist.json` and fix what it names.
+   With `"units": []` and an empty `assign` list, write the rules file with `"rules": []` and
+   no other entries (unless a review sent the run back about a unit off this page: see below),
+   and say so in one line. The engine fails the extract step when the file is
+   missing or older than this page, so always write it. The host finishes that page ("map
+   already current … nothing to extract") and refuses a missing file for a page that had units.
+
+**A review sent the run back about a unit that is not on this page** (the coverage step
+names an earlier page's rule, for example). Look its `symbol_id` up in the worklist's
+`off_page_ids`: the units off this page the host still takes a rule for (the units this run
+asked on an earlier page or found changed since the map was built). When it is there, add one entry for
+it to `.wicked/domain/rules.json` beside the page's own, stated from its source as below, and
+keep the page's entries. When it is not, this run has not asked that unit, and this page
+cannot restate it: write nothing for it and say so plainly in your report (the
+person can land with it carried; a later page or mapping run asks it).
+
+**Business domains first.** Read the worklist's `business_domains` block. When it says
+`propose: true`, propose the repository's business domains as the `wicked-garden-domain-modeler`
+skill's "Business domains" section says, and write them before anything else as the rules file
+`{"schema": "wicked-garden/domain-rules@1", "seat": "<your seat>", "business_domains": [...],
+"rules": []}`. When it carries a `catalog`, pick from it. When rules on the page plainly serve a
+user-facing area the catalog has no domain for (sign-on, menus, user administration, an online
+inquiry screen), add that area rather than forcing them into the nearest one: write only the new
+area(s) as the file's `business_domains` list, grounded like a proposal, at most the block's `add`
+count; the stored domains never change. A review that says rules were forced into an area is
+fixed the same way: add the missing area and re-pick those rules. Either way, give
+each rule you state a `"domain": "<id>"` and `"domain_confidence": <0..1>` (leave both out when no
+area fits; a unit marked `changed_since_build` keeps the domain it had unless you pick one), and
+answer every entry of the worklist's `assign` list in the file's top-level
+`"assignments": [{"symbol_id", "domain", "confidence"}]`. The harness below keeps both top-level
+lists when it rewrites the file and gives its model the domain list.
+Choose each domain pick and assignment per symbol from that symbol's source.
+Never use a script or a path/directory mapping to assign domains. A file's units can serve
+different business areas. Set domain confidence from that symbol's read; never stamp one
+value on the page.
 
 1. Run the harness in file mode (one `Bash` call; it stops inside its budget):
    ```bash
@@ -54,38 +96,83 @@ and only this:
 2. **Exit 2, "no rule model in this seat"**: state the rules yourself. For each unit of the
    worklist, in order, add one entry to `.wicked/domain/rules.json` — the whole file is
    `{"schema": "wicked-garden/domain-rules@1", "seat": "<a plain token: $WICKED_RUN_AGENT, or
-   claude / codex / pi / copilot>", "rules": [...]}` and
+   claude / codex / pi / copilot>", "rules": [...]}` (plus the `business_domains` /
+   `assignments` lists above) and
    each entry is exactly `{"symbol_id": "<the unit's id, verbatim>", "statement": "<the
    business rule, or \"\" when the source does not let you state one>", "confidence": <0..1>,
    "provenance": {"source": "<module>", "ref": "<the symbol_id>", "source_kinds":
-   ["code-body"|"type-def"|"comment"|"doc"]}}` — no other keys. Then check it:
+   ["code-body"|"type-def"|"comment"|"doc"]}}`, plus `"code_meets": false, "mismatch": "<one
+   line>"` only when the code does not meet the requirement, and `"domain"` +
+   `"domain_confidence"`, and `"unsure": "<one line: what you could not see or confirm>"` for a
+   rule under 0.75 — no other keys. Then check it (it also checks the domains):
    `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
    --worklist .wicked/domain/worklist.json` and fix what it names.
-   **Read each unit's source and write each statement yourself.** A helper that writes the
-   file is fine; a script that composes statements from names or slices is not — it describes
-   code, and the page's review fails it. State what the business requires (who may do what,
+   **Read each unit's source and write each statement yourself.** Create and change the file
+   with your file write and edit tools, never with an inline interpreter (`python3 - <<…`,
+   `node -e …`): the seat's input governance refuses that. A script that composes statements
+   from names or slices is wrong anyway: it describes code, and the page's review fails it.
+   State what the business requires (who may do what,
    what must hold, what is refused and why, what a caller must supply, what a result must
    carry), not what the function does. **Most product code encodes a rule: state it.** A
    check, a refusal, a limit, a default, an ordering, a permission or a state change is a rule
    even when it is small. An interface or type is a rule only when the type itself encodes a
    constraint the business relies on (a closed set of values, a limit, a required field whose
    comment says what it means); a plain list of fields describes code, so leave it empty.
+   **The page is the worklist, whatever the job's request names.** A request that names
+   programs or features says where to look first and what to state most fully; it never
+   takes a worklist unit off the page. A unit outside what the request names gets the rule
+   its own source shows, like any other: coverage counts every behaviour the repository
+   tracks, and an empty entry stays a placeholder that the run asks again only when the
+   operator chooses to.
    Leave a statement empty for pure plumbing too (a re-export, a trivial getter, a
-   pass-through wrapper, formatting), never because the rule is small or obvious: the page's
+   pass-through wrapper, formatting, a paragraph that only moves control or data with no
+   condition). A screen, step or I/O unit that decides something (what is shown or protected
+   under which condition, which input is refused, what a failed open or read stops) states
+   that rule. Never leave one empty because the rule is small or obvious: the page's
    review lists an empty statement whose source shows a rule as a missed rule, and fails a
    page that leaves most of the units whose source shows a rule empty, or whose statements
    mostly describe code (a page of mostly plain types and plumbing, left empty, is fine). A
-   restated shape is never a rule at any confidence: leave it empty. Set each confidence by
+   restated shape is never a rule at any confidence: leave it empty. A unit marked
+   `changed_since_build` was mapped before: its `prior_statement` (and any old mismatch) may be
+   out of date, so state it, and judge `code_meets`, against the code as it is now. Only a
+   statement the host resolves replaces its rule; an empty, invalid or low-confidence one keeps
+   the earlier rule (never a placeholder). Set each confidence by
    how directly the source supports the rule: a constraint visible in the unit's full
    definition (enforced in its body, or encoded in its type: a closed set, a limit, a
-   documented required field) is high (0.85 or more); a rule only guessed from a name, a
-   comment alone or a cut-off slice is low, and the host records it as a placeholder. Judge
+   documented required field) is high (0.85 or more); a rule only guessed from a name
+   or a cut-off slice is low, and the host records it as a placeholder; a comment alone never
+   sets a statement, so leave it empty. Judge
    each statement's confidence on its own; never stamp one value on the whole page (equal
-   values are fine where the support is equal). Only real requirements count toward the
+   values are fine where the support is equal). Never lower a confidence because the rule
+   seems minor or operational: that is the empty-statement choice. A rule under 0.75 says why
+   in `unsure`; the next ask of that unit shows it in `prior_answer`, so state what the source
+   shows and leave the guessed part out. Only real requirements count toward the
    target; a placeholder is shown, never counted.
+   **State what the body enforces.** State what the unit's body enforces: its values, limits,
+   defaults, and what it does with each parameter. The statement comes from what the body does; a
+   comment, docstring or parameter name that disagrees with the body never sets it (a docstring
+   that says batches of 10 while the body passes 100 is a rule about 100). An abstract method or
+   stub (a body of only a docstring, ..., pass, or raise NotImplementedError) takes an empty
+   statement.
+   **When a test or a caller shows the code is wrong, state the intended requirement.** State
+   what the unit is meant to do, with your confidence in that requirement, and add
+   `"code_meets": false` and a one-line `"mismatch"` saying how the code
+   departs (e.g. "the loop starts at index 1, so the first element is skipped"). Say
+   code_meets false only when a test or a caller shows the intended behaviour; a comment alone is
+   never enough. A unit whose intent is
+   unclear still gets an empty statement and no mismatch. A unit whose intent is shown that
+   way and whose own code is right, but whose result is wrong because a callee it relies on
+   departs, inherits that mismatch: mark it `"code_meets": false` too, with a mismatch naming
+   the callee (e.g. "inherits sum's skipped first element, so the numerator omits the first
+   element"): say how the code departs, not which way the result is off, which can depend
+   on the input. Never restate the bug as the requirement, and never lower the confidence
+   because the code is wrong: the requirement counts, and the mismatch is shown beside it as
+   a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
-   report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself
+   report unmapped or as a placeholder (or that the run's own host-side record does not list as
+   changed since the map was built: the worklist's mark is framing, not permission), or whose
+   file the repository does not track; it re-judges the rest itself
    and writes it as `extract-loop` (the seat a file names is reported, never trusted).
 
 ## Outside a run: you DRIVE the deterministic harness — you don't loop yourself

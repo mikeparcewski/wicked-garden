@@ -11,8 +11,11 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 1. **Locate**: ``--from-run`` finds the one spec-2 ``wicked-pack.json`` with editors under
    the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/.git/dist; ``--dir`` names it.
 2. **Stage** into ``<root>/<name>/next/`` (root: ``--install-root``, ``$WICKED_EDITOR_INSTALL_ROOT``,
-   else ``~/.wicked/editors``, a program-owned place): ``wicked-pack.json``, every editor's entry
-   file at its manifest path, and the README. Nothing else of the tree is copied (an editor is ONE
+   else ``$WICKED_HOME/editors``, else ``~/.wicked/editors``, a program-owned place; an empty variable counts
+   as unset): ``wicked-pack.json``, every editor's entry
+   file and its accepted declared card images at their manifest paths, and the README. Malformed
+   cosmetic images are skipped, as in pack check (PK089); they never refuse an install. Nothing else
+   of the tree is copied (an editor is ONE
    self-contained file; a pack with skills or blocks is refused by the daemon until their approval
    step exists).
 3. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``.
@@ -27,10 +30,13 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch on in studio Settings
 → Developer → Editor plugins. Both write the same places, all program-owned. ``--dry-run`` writes
 nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices": [{"id", "label",
-"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": []}``. An editor that
+"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": [],
+"asks"?: [{"editor", "permission", "why"}]}``. An editor that
 declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
 "This plugin can start and talk to MCP servers", with the exact per-build token the install writes
 (``editor:<id>@<version>#<sha256>/mcp.session``). The install consent is that grant; no rule allows it.
+``asks`` lists the other declared permissions, the ones a person allows later in Plugins; a permission the
+install itself grants (``INSTALL_GRANTED``) is a write row above and never an ask.
 
 **The approval is bound to the plan.** Each choice id carries a digest of the planned
 ``wicked-pack.json`` bytes, the same bytes the plan's lines were read from (``daemon_<d>``,
@@ -63,10 +69,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _pack import (  # noqa: E402
-    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editors_of, entry_path, read_manifest,
+    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editor_card_fields, entry_path, find_editor_packs,
+    pack_entries_of, plugin_extra_paths, read_manifest,
 )
 
-SKIP_DIRS = {"node_modules", "dist", ".git"}
 # A choice id: the target, optionally bound to the plan by the digest of the manifest it showed. The id
 # rides the consent gate's answer token and an env var: [A-Za-z0-9_-], at most 32 (core consent_plan.rs).
 DIGEST_CHARS = 21
@@ -74,6 +80,9 @@ TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGES
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
+PLAN_ASKS_CAP = 64
+PLAN_ID_CHARS = 200
+PLAN_WHY_CHARS = 300
 
 
 class Failure(Exception):
@@ -91,10 +100,16 @@ def crew_origin(flag: str | None) -> str:
 
 
 def install_root(flag: Path | None) -> Path:
+    """``--install-root``, else ``$WICKED_EDITOR_INSTALL_ROOT``, else the daemon's state home: ``$WICKED_HOME/editors``,
+    else ``~/.wicked/editors``. An empty variable counts as unset (garden#1532: a daemon on a scratch home staged
+    editors in the live ``~/.wicked``)."""
     if flag is not None:
         return flag
     env = os.environ.get("WICKED_EDITOR_INSTALL_ROOT")
-    return Path(env) if env else Path.home() / ".wicked" / "editors"
+    if env:
+        return Path(env)
+    home = os.environ.get("WICKED_HOME")
+    return Path(os.path.abspath((Path(home) if home else Path.home() / ".wicked") / "editors"))
 
 
 def http_json(method: str, url: str, body: dict | None = None) -> tuple[int, dict]:
@@ -119,14 +134,6 @@ def _message(body: dict) -> str:
 
 # ── 1. locate ──────────────────────────────────────────────────────────────────────────────
 
-def _is_editor_pack(manifest_path: Path) -> bool:
-    try:
-        editors_of(read_manifest(manifest_path.parent))
-        return True
-    except PackError:
-        return False
-
-
 def run_tree() -> Path:
     """The run's worktree for ``--from-run``. The engine runs an install Tool phase IN the worktree and hands
     ``$WICKED_TREE`` as that worktree's git tree id (wicked-core#776), never a path; reading the id as a path found
@@ -140,11 +147,7 @@ def locate(args) -> tuple[Path, dict]:
         pack = args.dir
     elif args.from_run:
         tree = run_tree()
-        found = []
-        for dirpath, dirnames, filenames in os.walk(tree):
-            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-            if MANIFEST_NAME in filenames and _is_editor_pack(Path(dirpath) / MANIFEST_NAME):
-                found.append(Path(dirpath))
+        found = find_editor_packs(tree)
         if len(found) != 1:
             names = ", ".join(str(p) for p in found) or "none"
             raise Failure(2, f"--from-run needs exactly one editor pack ({MANIFEST_NAME} spec 2 with editors) under "
@@ -154,9 +157,12 @@ def locate(args) -> tuple[Path, dict]:
         raise Failure(2, "pass --from-run or --dir <pack dir>")
     try:
         manifest = read_manifest(pack)
-        editors = editors_of(manifest)
+        editors, plugins = pack_entries_of(manifest)
         for e in editors:
-            entry_path(pack, e)
+            entry_path(pack, e, kind="editor")
+        for p in plugins:
+            entry_path(pack, p, kind="plugin")
+            plugin_extra_paths(pack, p)
     except PackError as err:
         raise Failure(2, str(err)) from err
     name = manifest.get("name")
@@ -176,14 +182,38 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
     copied = [MANIFEST_NAME]
     shutil.copy2(pack / MANIFEST_NAME, next_dir / MANIFEST_NAME)
     root = next_dir.resolve()
-    for e in editors_of(manifest):
-        source = entry_path(pack, e)  # refuses an entry that is not a plain relative path inside the pack
+    editors, plugins = pack_entries_of(manifest)
+    for e in editors:
+        source = entry_path(pack, e, kind="editor")  # refuses an entry that is not a plain relative path inside the pack
         dest = (next_dir / Path(*e["entry"].split("/"))).resolve()
         if root not in dest.parents:
             raise PackError(f"editor {e.get('id')!r}: entry {e['entry']!r} would stage outside {next_dir}")
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
         copied.append(e["entry"])
+        images, _ = editor_card_fields(pack, e)
+        for rel_str, body in images:
+            extra_dest = next_dir / Path(*rel_str.split("/"))
+            extra_dest.parent.mkdir(parents=True, exist_ok=True)
+            extra_dest.write_bytes(body)
+            if rel_str not in copied:
+                copied.append(rel_str)
+    for p in plugins:
+        source = entry_path(pack, p, kind="plugin")
+        dest = (next_dir / Path(*p["entry"].split("/"))).resolve()
+        if root not in dest.parents:
+            raise PackError(f"plugin {p.get('id')!r}: entry {p['entry']!r} would stage outside {next_dir}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        copied.append(p["entry"])
+        for rel_str, extra_src in plugin_extra_paths(pack, p):
+            extra_dest = (next_dir / Path(*rel_str.split("/"))).resolve()
+            if root not in extra_dest.parents:
+                raise PackError(f"plugin {p.get('id')!r}: {rel_str!r} would stage outside {next_dir}")
+            extra_dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(extra_src, extra_dest)
+            if rel_str not in copied:
+                copied.append(rel_str)
     if (pack / "README.md").is_file():
         shutil.copy2(pack / "README.md", next_dir / "README.md")
         copied.append("README.md")
@@ -222,16 +252,48 @@ def _now() -> str:
 # ── the flows ──────────────────────────────────────────────────────────────────────────────
 
 def install_grants(manifest: dict) -> list[dict]:
-    """One write per editor permission the install consent grants: crew writes that build's token
-    into the ``EDITOR-GRANTS`` steering rule when the operator approves (DES-MCP-INSPECTOR-001 §6)."""
+    """One write per editor permission or run-plugin observe topic the install consent grants: crew writes
+    that build's token into the ``EDITOR-GRANTS`` steering rule when the operator approves
+    (DES-MCP-INSPECTOR-001 §6; CONTRACT-CS7 §C3)."""
     rows = []
-    for e in editors_of(manifest):
+    editors, plugins = pack_entries_of(manifest)
+    for e in editors:
         declared = {p.get("id") for p in e.get("permissions", []) if isinstance(p, dict)}
         for perm, line in INSTALL_GRANTED.items():
             if perm in declared:
                 token = f"editor:{e.get('id')}@{e.get('version')}#{e.get('sha256')}/{perm}"
                 rows.append({"path": "EDITOR-GRANTS", "operator_owned": False,
                              "what": f"{line}: {e.get('id')} is granted {token} (steering; revoke it there)"})
+    for p in plugins:
+        pid, pver, psha = p.get("id"), p.get("version"), p.get("sha256")
+        for obs in p.get("observe", []) if isinstance(p.get("observe"), list) else []:
+            if not isinstance(obs, dict):
+                continue
+            topic, why = obs.get("topic"), obs.get("why")
+            token = f"plugin:{pid}@{pver}#{psha}/observe:{topic}"
+            rows.append({"path": "EDITOR-GRANTS", "operator_owned": False,
+                         "what": f"Observe {topic} ({why}): {pid} is granted {token}"})
+    return rows
+
+
+def permission_asks(entries: list[dict]) -> list[dict]:
+    """Bounded, informational permission rows in manifest order; these grant nothing. A permission the install
+    consent itself grants (``INSTALL_GRANTED``, e.g. ``mcp.session``) is left out: it has no Plugins switch, and
+    the plan already shows it as an ``EDITOR-GRANTS`` write row (``install_grants``)."""
+    rows = []
+    for entry in entries:
+        permissions = entry.get("permissions") if isinstance(entry, dict) else None
+        for permission in permissions if isinstance(permissions, list) else []:
+            if not isinstance(permission, dict) or not isinstance(permission.get("id"), str):
+                continue
+            if permission["id"] in INSTALL_GRANTED:
+                continue
+            why = permission.get("why", permission.get("reason", ""))
+            rows.append({"editor": str(entry.get("id", ""))[:PLAN_ID_CHARS],
+                         "permission": permission["id"][:PLAN_ID_CHARS],
+                         "why": why[:PLAN_WHY_CHARS] if isinstance(why, str) else ""})
+            if len(rows) == PLAN_ASKS_CAP:
+                return rows
     return rows
 
 
@@ -263,21 +325,39 @@ def do_plan(args) -> dict:
     root = install_root(args.install_root)
     origin = crew_origin(args.crew_url)
     key_root = Path(os.path.abspath(root / key))
-    writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack (program-owned)",
+    editors, plugins = pack_entries_of(manifest)
+    writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack, including accepted declared card images (program-owned)",
                "operator_owned": False}]
     if (key_root / "current").exists():
         writes.append({"path": str(key_root / "previous"), "what": "the copy installed now, kept for a roll-back",
                        "operator_owned": False})
     writes += [{"path": str(key_root / "installed.json"), "what": "the install record", "operator_owned": False},
                {"path": f"{origin}/api/v1/editors", "what": "wicked-crew editor registry entry "
-                f"({', '.join(str(e.get('id')) for e in editors_of(manifest))}; daemon-editors.json in its state home)",
+                f"({', '.join(str(x.get('id')) for x in editors + plugins)}; daemon-editors.json in its state home)",
                 "operator_owned": False}]
     writes += install_grants(manifest)
     digest = plan_digest(raw)
-    return {"dry_run": True, "key": key, "choices": [
+    plan: dict = {"dry_run": True, "key": key, "choices": [
         {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
         {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
         "skipped": []}
+    asks = permission_asks(editors + plugins)
+    if asks:
+        plan["asks"] = asks
+    if plugins:
+        plan["plugins"] = [
+            {
+                "id": p.get("id"),
+                "version": p.get("version"),
+                "observe": [
+                    {"topic": o.get("topic"), "why": o.get("why")}
+                    for o in (p.get("observe") if isinstance(p.get("observe"), list) else [])
+                    if isinstance(o, dict)
+                ],
+            }
+            for p in plugins
+        ]
+    return plan
 
 
 def do_install(args) -> tuple[int, dict]:
@@ -338,7 +418,8 @@ def do_uninstall(args) -> tuple[int, dict]:
     key_root = install_root(args.install_root) / key
     editors: list[str] = []
     try:
-        editors = [str(e.get("id")) for e in editors_of(read_manifest(key_root / "current"))]
+        ed, pl = pack_entries_of(read_manifest(key_root / "current"))
+        editors = [str(e.get("id")) for e in ed + pl]
     except PackError:
         editors = []
     out: dict = {"key": key, "uninstalled": True, "registry": {}}
@@ -387,8 +468,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="daemon (default): installed and on; daemon-off: installed, turned off; "
                              "a plan's choice id (-<digest>) also refuses a pack changed since the plan")
     parser.add_argument("--crew-url", help="the wicked-crew origin (default $WICKED_CREW_URL; no port is assumed)")
-    parser.add_argument("--dry-run", action="store_true", help="write nothing; print the plan as one JSON line")
-    parser.add_argument("--install-root", type=Path, help="default $WICKED_EDITOR_INSTALL_ROOT, else ~/.wicked/editors")
+    parser.add_argument("--dry-run", "--plan", dest="dry_run", action="store_true",
+                        help="write nothing; print the plan as one JSON line")
+    parser.add_argument("--install-root", type=Path, help="default $WICKED_EDITOR_INSTALL_ROOT, else $WICKED_HOME/editors, else ~/.wicked/editors")
     parser.add_argument("--json", action="store_true", help="print the record as one compact JSON line")
     args = parser.parse_args(argv)
     if args.dry_run:

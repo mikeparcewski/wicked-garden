@@ -4,7 +4,7 @@ description: |
   Product demo domain: plan, record and review a polished demo video.
   plan — frames the audience, builds the story, picks hero cases and fresh
   alternates, runs a live rehearsal with measured timings, and writes a
-  presenter script with a chapter list ready for recording.
+  presenter script with a chapter list.
   record — records each chapter as its own captioned, chaptered segment via
   Playwright + ffmpeg (DevTools screencast encoded live to H.264, no frame
   files on disk, final CRF 17), then stitches them into one MP4 with chapters.
@@ -138,6 +138,15 @@ For each chapter write:
 
 That list becomes the `segments` array in the storyline file for the `record` action.
 
+### In a crew Demo video run (the `plan` step)
+
+Your container cannot reach the app, so steps 5 and the checklist's live items change: read the `probe/` page summary
+(the engine loaded the app's launch page for you) instead of rehearsing live, write `storyline.json` (not a module)
+beside `script.md` and `chapters.json`, and reset nothing (the recorder is read-only). The person approves the plan
+at the gate; the engine records it. Format: `refs/storyline-json.md`. For a crew app, the video shows only the
+app's own frame, so every target is `"in": "content"`. Keep other chrome out with `hide`, never with a dismiss click.
+Use `"in": "content"` only when the probe's `result.json` says `"recorded_view": "app_frame"` or `"frames"` above 0.
+
 ### Checklist (acceptance gate)
 
 `plan` is done only when every item is checked:
@@ -175,6 +184,14 @@ own data in `beforeSegment`, and never relies on another segment's state.
 
 Full module shape and the `ctx` API: `refs/storyline-api.md`.
 Visual system (stage layout, captions, callouts, chapter slides, time-lapse): `refs/stage-design.md`.
+
+### Demo author (a crew Demo video run's `plan` step)
+
+Inside a crew Demo video run you never record: the engine's `demo_record` step does, on the host, from data.
+Write `storyline.json` (not `storyline.mjs`) and `chapters.json` in the plan directory your step prompt names; the
+keys match, in order. Read the `probe/` page summary first: your container cannot reach the app. Every `go` path
+stays under the app's launch path; text is plain (no HTML). The format, every step and its limits:
+`refs/storyline-json.md`. A take that fails comes back to you with the chapter, the cause and the time.
 
 ### Walkthrough author (a crew run's `walkthrough_plan` step)
 
@@ -286,7 +303,7 @@ wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --chapters        # 
 wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --chapters --offset 8  # first content of each chapter
 wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --joins           # just before + after every boundary
 wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --end             # last seconds: closing card held?
-wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --every 20 --cols 4    # survey
+wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --holds --every 20 --cols 4    # survey plus freeze midpoints
 wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --at 1:02,1:05   # zoom in on a moment
 wicked-garden run scripts/demo/contact_sheet.py segments/05/segment.mp4 --every 8  # one segment alone
 ```
@@ -295,6 +312,8 @@ Options: `--offset` (seconds into each chapter, default 2), `--join-gap` (second
 `--joins`, default 0.6), `--end-span` (seconds before the end for `--end`, default 6), `--cols` (tiles per row,
 default 3), `--width` (tile width in px, default 640), `--out` (output PNG; default `<video>-sheet.png` next to the
 video). Full list: `wicked-garden run scripts/demo/contact_sheet.py --help`.
+`--holds` adds freeze midpoints (`--hold-min` default 0.5 s, longest `--max-holds` default 12);
+`--print-times` prints chosen seconds before the output path.
 
 Also check format: `ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -show_chapters <video.mp4>`.
 
@@ -303,12 +322,15 @@ Also check format: `ffprobe -v error -show_entries format=duration:stream=codec_
 1. **Structure** (`--chapters`, ffprobe): every chapter present, in order, titled, 1920x1080 H.264.
 2. **Joins** (`--joins`): plain background → next chapter slide, no setup flash.
 3. **The end** (`--end`): closing card present and **held** for its full duration.
-4. **Survey** (`--every 20`, then `--at` around anything odd): caption sync, callouts, cursor, waits, state.
+4. **Survey** (`review/survey.png`: `--holds` plus `--every`, then `--at` around anything odd): caption sync, callouts, cursor, waits, state.
 5. **Numbers**: timings on the closing card match `timings.json` and what the app shows.
 
 Full per-item checklist with causes and fixes: `refs/review-checklist.md`.
 
 ### Verdicts
+
+If a needed sheet is absent and `contact_sheet.py` reports `COULD-NOT-RUN` (no ffmpeg),
+the review verdict is **COULD-NOT-RUN**, never **PASS**.
 
 Classify every finding before fixing anything:
 

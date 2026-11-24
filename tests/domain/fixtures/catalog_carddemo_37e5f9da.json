@@ -1,0 +1,73 @@
+{
+ "_from": "Run 37e5f9da (train 12 re-cut 3, CardDemo, J6), read GET-only from the proof daemon at 2026-11-23T18:00Z: GET /api/v1/runs/<run>/files?path=<run worktree>/.wicked/domain/worklist.json, its business_domains.catalog: the catalog page 1 proposed and extract-apply stored (scripts/domain/business_domains.py save_catalog), as extract-prepare publishes it (business_domains.worklist_block -> load_catalog). Copied unchanged.",
+ "catalog": [
+  {
+   "id": "transaction-posting",
+   "name": "Transaction posting",
+   "purpose": "Validates daily card transactions and posts them to accounts and category balances, rejecting those that fail.",
+   "evidence": [
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBTRN02C.cbl",
+     "symbol": "CBTRN02C"
+    },
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBTRN01C.cbl",
+     "symbol": "CBTRN01C"
+    }
+   ]
+  },
+  {
+   "id": "interest-and-fees",
+   "name": "Interest and fee accrual",
+   "purpose": "Computes monthly interest per account from disclosure-group rates and closes the billing cycle.",
+   "evidence": [
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBACT04C.cbl",
+     "symbol": "CBACT04C"
+    }
+   ]
+  },
+  {
+   "id": "statements-and-reporting",
+   "name": "Statements and reporting",
+   "purpose": "Produces transaction detail reports and customer statements for a period.",
+   "evidence": [
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBTRN03C.cbl",
+     "symbol": "CBTRN03C"
+    },
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBSTM03A.CBL",
+     "symbol": "CBSTM03A"
+    }
+   ]
+  },
+  {
+   "id": "account-and-card-management",
+   "name": "Account and card management",
+   "purpose": "Maintains and displays accounts, cards and customers and their cross-references.",
+   "evidence": [
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBACT01C.cbl",
+     "symbol": "CBACT01C"
+    },
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBACT02C.cbl",
+     "symbol": "CBACT02C"
+    },
+    {
+     "kind": "entry-point",
+     "file": "app/cbl/CBCUS01C.cbl",
+     "symbol": "CBCUS01C"
+    }
+   ]
+  }
+ ]
+}

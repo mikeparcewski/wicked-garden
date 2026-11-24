@@ -1,22 +1,24 @@
 ---
 name: wicked-garden-mem
 description: |
-  Cross-session memory + knowledge over wicked-estate.
+  Memory + knowledge over wicked-estate.
   One skill, routed actions: store (a durable decision/pattern/gotcha),
-  recall (the current project's memories; all scopes on opt-in), answer (cited
-  synthesis from the knowledge + memory stores), review (browse coverage by
+  recall (this project's memories; all scopes on opt-in), answer (cited
+  synthesis from the knowledge + memory stores, plus live data-source rows
+  when a crew step may query them), review (browse coverage by
   kind/tier), forget (kind-guarded erase of a scope subtree), maintain
   (reflect + coverage pulse; estate consolidates in-store), ingest (file or
-  directory → knowledge chunks, binary docs via LLM vision), and capture
+  directory → chunks, docs via estate conversion and
+  images via vision), and capture
   (session-teardown sweep of decisions/patterns/gotchas).
 
   Use when: "remember this" / "store this decision" / "note this gotcha";
   "recall what we decided" / "what do I know about X"; "answer from the
-  knowledge base" / "ask the record"; "review my memories" / "what have I
-  stored"; "forget this" / "erase that scope"; "consolidate memories";
+  knowledge base" / "ask the record" / "ask our data"; "review my
+  memories" / "what have I stored"; "forget this" / "erase that scope";
+  "consolidate memories";
   "ingest this file/pdf/directory" / "add this document to the knowledge
-  base"; "capture what we learned" / session teardown. wicked-estate is the
-  engine; this skill is the agent surface.
+  base"; "capture what we learned" / session teardown.
 metadata:
   role: router
   phases: "*"
@@ -73,7 +75,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `review` | browse what's stored (counts by kind/tier, scope digest) | § Review / Maintain |
 | `forget` | erase a scope subtree (kind-guarded) | § Forget |
 | `maintain` | reflect + coverage pulse (consolidation runs in-store) | § Review / Maintain |
-| `ingest` | file/dir → knowledge chunks (pdf/docx/pptx/xlsx/images via vision) | dispatch **wicked-garden-mem-ingest** |
+| `ingest` | file/dir → knowledge chunks (binary documents by path for estate conversion; images via vision) | dispatch **wicked-garden-mem-ingest** |
 | `capture` | end-of-session sweep → memories | dispatch **wicked-garden-mem-capture** |
 
 Scope conventions, kind/tier vocabulary, and the brain-migration layout:
@@ -124,9 +126,14 @@ printf '%s' '<long text>' | wicked-garden run scripts/mem/estate_memory.py --rea
 
 The backend builds the whole proposal: `kind_type: "memory"`, `payload {content, tier}`
 (`fact` → `semantic`; pass `{"content": …, "kind": "skill"}` for a how-to → `procedural`),
-and `facets` `{repo, project}` from the cwd's checkout (`project` = the cwd name outside one;
-a run's `WICKED_RUN_PROJECT` wins). The § Store durability test applies and the backend
-enforces the same refusals. It answers `{"ok": true, "id": …, "facets": …}`; the memory is
+and `facets`: a non-blank `WICKED_RUN_PROJECT` supplies `project`; `repo` is the
+checkout's name when inside one. Without a run project, a governed run uses the
+checkout's own name as `project`, or has no project facet outside a checkout.
+There, pass `{"content": …, "facets": {"project": …}}`; a proposal without
+`facets.project` is refused. Outside a governed run, `project` stays the
+checkout's parent name (the operator's umbrella), or the cwd name outside a
+checkout. The § Store durability test applies and the backend enforces the
+same refusals. It answers `{"ok": true, "id": …, "facets": …}`; the memory is
 `pending` until an operator approves it. On `ok: false`, report the reason.
 
 ## Recall
@@ -135,7 +142,8 @@ enforces the same refusals. It answers `{"ok": true, "id": …, "facets": …}`;
 ... estate_memory.py recall '{"query":"<topic>"}'
 ```
 
-By default recall searches the current project (`project:<cwd-basename>`)
+By default recall searches the current project (`project:<checkout name>`; outside a
+checkout, the run's `WICKED_RUN_PROJECT`, else the cwd's name)
 and its ancestors, so root-scoped memories stay visible and other projects'
 memories do not leak in. Operator memories (`operator:<id>`, how the user
 works) are recalled in every project. Pass `"scope"` to recall another project the same
@@ -184,10 +192,13 @@ the user before ever doing that. Report `deleted_count`.
 ## Ingest — files and directories into the knowledge store
 
 Dispatch the **wicked-garden-mem-ingest** fork worker with the source path
-(and optional scope/title). It detects text vs binary, chunks text
-deterministically, extracts pdf/docx/pptx/xlsx/images via LLM vision, writes
-through estate `knowledge.ingest` (every chunk carries `source` provenance),
-and verifies with a seeded recall. Estate's embedded method card
+(and optional scope/title). It chunks text deterministically, sends binary
+documents as `{"title", "path", "scope", "source"}` for estate to convert,
+and reads images with vision. The document path must be inside the backend's
+cwd; run it from the document's directory or a parent. Writes go through
+estate `knowledge.ingest` with `source` provenance and are verified with a
+seeded recall. Report refused files as not ingested with estate's reason;
+do not automatically retry them through vision. Estate's embedded method card
 (`skill://knowledge-ingest/SKILL.md`) is the chunking doctrine.
 
 ## Capture — session teardown
@@ -205,5 +216,7 @@ Report what it stored and proposed.
 
 No hook extracts memories from the transcript. The Stop hook used to
 pattern-match "decided to…" / "going to…" and filled the store with
-narration, so it was removed: a learning is stored because someone chose to
-store it.
+narration, so it was removed; so was the hook that saved each session's first
+two prompts as working memory. A learning is stored because someone chose to
+store it. (The pre-compaction hook still writes one short work-in-progress
+snapshot of open tasks; that is task state, not transcript text.)

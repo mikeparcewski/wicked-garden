@@ -40,6 +40,48 @@ def _restore_dispatch():
     _estate_client.set_dispatch(original)
 
 
+@pytest.fixture()
+def pinned_graph(monkeypatch):
+    """Transport tests use an explicit graph so graph refusal cannot mask their subject."""
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")
+
+
+@pytest.fixture()
+def project_scope_workspace(tmp_path, monkeypatch):
+    """Give scope tests a deterministic cwd outside any checkout or configured scope."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    monkeypatch.chdir(workspace)
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    monkeypatch.setattr(_estate_client, "checkout_root", lambda: None)
+    return workspace
+
+
+def test_project_scope_outside_checkout_uses_run_project(monkeypatch, project_scope_workspace):
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "p1")
+    assert _estate_client.project_scope() == "project:p1"
+
+
+@pytest.mark.parametrize("project", ["", "   "])
+def test_project_scope_blank_run_project_uses_cwd(monkeypatch, project_scope_workspace, project):
+    monkeypatch.setenv("WICKED_RUN_PROJECT", project)
+    assert _estate_client.project_scope() == "project:workspace"
+
+
+def test_project_scope_checkout_wins_over_run_project(monkeypatch, project_scope_workspace):
+    checkout = project_scope_workspace / "tiny-math"
+    monkeypatch.setattr(_estate_client, "checkout_root", lambda: checkout)
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "p1")
+    assert _estate_client.project_scope() == "project:tiny-math"
+
+
+def test_project_scope_explicit_scope_wins(monkeypatch, project_scope_workspace):
+    monkeypatch.setattr(_estate_client, "checkout_root", lambda: project_scope_workspace / "tiny-math")
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "p1")
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE", "project:configured")
+    assert _estate_client.project_scope() == "project:configured"
+
+
 # ── minimal fake MCP server (used in broker integration tests) ────────────────
 # Written to a tempfile and invoked via sys.executable so it runs on any OS
 # that has Python — no shebang dependency, no chmod required on Windows.
@@ -136,24 +178,28 @@ def test_resolve_mcp_bin_env_override(tmp_path, monkeypatch):
 # Fail-open — an unreachable estate must degrade, never raise
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_fail_open_when_transport_dead(monkeypatch):
-    """Transport returns {} (nothing round-tripped) → safe empty values."""
+def test_fail_open_when_transport_dead(monkeypatch, pinned_graph):
+    """Graph consumers report unavailability; low-level and memory calls stay fail-open."""
     _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
     assert _estate_client.health() is False
-    assert _estate_client.search("anything") == []
+    with pytest.raises(_estate_client.EstateUnavailable, match="estate did not start"):
+        _estate_client.search("anything")
     assert _estate_client.recall("anything") == []
     assert _estate_client.knowledge_recall("anything") is None
     assert _estate_client.call("SearchEntity", {"name": "x"}) is None
     assert _estate_client.list_tools() == []
 
 
-def test_fail_open_when_bin_missing(tmp_path, monkeypatch):
+def test_fail_open_when_bin_missing(tmp_path, monkeypatch, pinned_graph):
     """No binary anywhere → real _dispatch returns {}, health False, no raise."""
     monkeypatch.setenv("WICKED_ESTATE_MCP_BIN", "")
     monkeypatch.setenv("WICKED_ESTATE_BIN", "")
     monkeypatch.setattr(_estate_client, "_which_or_local", lambda name: None)
     assert _estate_client.health() is False
-    assert _estate_client.search("x") == []
+    with pytest.raises(_estate_client.EstateUnavailable, match="estate did not start"):
+        _estate_client.search("x")
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    assert "estate did not start" in _estate_client.last_failure()["reason"]
     assert _estate_client.stats() is None
 
 
@@ -311,7 +357,7 @@ def test_propose_does_not_mutate_callers_facets(monkeypatch):
 # The transport seam — a broker can replace spawn-per-call transparently
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_broker_seam_swaps_transport_without_touching_callers():
+def test_broker_seam_swaps_transport_without_touching_callers(pinned_graph):
     """`set_dispatch` installs a fake transport; the public API routes through
     it unchanged — the exact property that lets a persistent broker replace
     spawn-per-call later. No subprocess is spawned here."""
@@ -336,7 +382,7 @@ def test_broker_seam_swaps_transport_without_touching_callers():
 # Persistent broker — drop-in contract, thread-safety, reconnect/degrade
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_persistent_broker_is_drop_in_via_set_dispatch(fake_mcp_bin):
+def test_persistent_broker_is_drop_in_via_set_dispatch(fake_mcp_bin, pinned_graph):
     """_PersistentBroker installed via set_dispatch() is a true drop-in.
 
     health() and search() work identically to the spawn-per-call path — no
@@ -710,9 +756,11 @@ _GOVERNED_ENV = (
 
 @pytest.fixture(autouse=True)
 def _clean_governed_mode(monkeypatch):
-    """No test inherits a run / pin from the developer's shell, and none leaks its flags."""
-    for name in _GOVERNED_ENV:
+    """No test inherits a run / pin / broker from the developer's shell, and none leaks its flags.
+    Broker tests set their own WICKED_CREW_URL / WICKED_MCP_TOKEN / WICKED_ESTATE_BROKER and stub requests."""
+    for name in _GOVERNED_ENV + ("WICKED_CREW_URL", "WICKED_MCP_TOKEN", "WICKED_ESTATE_BROKER"):
         monkeypatch.delenv(name, raising=False)
+    _estate_client._set_broker_refusal(None)
     _estate_client.set_readonly(False)
     _estate_client.set_governed(False)
     _estate_client.set_db(None)
@@ -1035,6 +1083,7 @@ def test_main_call_reads_json_from_stdin(monkeypatch, capsys):
     import io
     seen: list = []
     _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"total": 0, "rules": []})))
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")  # rules.recall reads the graph store (#1478)
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(
         {"tool": "rules.recall", "arguments": {"rule_type": "policy"}, "all_pages": False})))
     code, out = _main(capsys, ["--readonly", "call", "-"])
@@ -1130,7 +1179,7 @@ def test_unwrap_still_returns_the_first_block_only():
     assert _estate_client._unwrap(env) == {"a": 1}
 
 
-def test_call_blocks_carries_the_diagnostics_through_the_transport():
+def test_call_blocks_carries_the_diagnostics_through_the_transport(pinned_graph):
     def fake_dispatch(requests, *, db, timeout):
         out = {}
         for r in requests:
@@ -1165,6 +1214,7 @@ def test_cli_call_prints_the_diagnostics_beside_the_result(capsys, monkeypatch):
     """`_estate_client.py call …` — the command every skill names — carries the second block
     in-band as `diagnostics`, so the seat that reads stdout sees the STALENESS marker."""
     monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")  # a graph read needs a graph (#1478)
     monkeypatch.delenv("WICKED_RUN_UNIT", raising=False)
 
     def fake_dispatch(requests, *, db, timeout):
@@ -1188,6 +1238,7 @@ def test_cli_call_prints_the_diagnostics_beside_the_result(capsys, monkeypatch):
 
 def test_cli_call_without_diagnostics_prints_an_empty_list(capsys, monkeypatch):
     monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")  # a graph read needs a graph (#1478)
     monkeypatch.delenv("WICKED_RUN_UNIT", raising=False)
 
     def fake_dispatch(requests, *, db, timeout):
@@ -1251,7 +1302,17 @@ def _lineage_pages(n_pages):
 
 
 def _call(capsys, payload):
-    assert _estate_client.main(["call", json.dumps(payload)]) == 0
+    # A graph read needs a graph behind it (wicked-garden#1478): these tests pin an explicit in-memory one.
+    import os
+    before = os.environ.get("WICKED_ESTATE_DB")
+    os.environ["WICKED_ESTATE_DB"] = ":memory:"
+    try:
+        assert _estate_client.main(["call", json.dumps(payload)]) == 0
+    finally:
+        if before is None:
+            os.environ.pop("WICKED_ESTATE_DB", None)
+        else:
+            os.environ["WICKED_ESTATE_DB"] = before
     return json.loads(capsys.readouterr().out)
 
 
@@ -1279,6 +1340,35 @@ def test_a_failed_page_is_reported_incomplete_never_whole(capsys):
     assert out["result"]["complete"] is False
     assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d0", "d1"]
     assert any("INCOMPLETE" in d for d in out["diagnostics"])
+
+
+@pytest.mark.parametrize("failure_kind", ["error", "unavailable"])
+def test_a_failed_later_page_keeps_estates_diagnostics(capsys, failure_kind):
+    dispatch = _paged_dispatch(_lineage_pages(3), [])
+
+    def failing_page(requests, *, db, timeout):
+        responses = dispatch(requests, db=db, timeout=timeout)
+        if any(r.get("params", {}).get("arguments", {}).get("cursor") == "c1" for r in requests):
+            if failure_kind == "error":
+                responses[2] = {"id": 2, "result": {"isError": True, "content": [
+                    {"type": "text", "text": "continuation cursor rejected"},
+                    {"type": "text", "text": "PAGE-2-DIAG: cursor expired"},
+                ]}}
+            else:
+                _estate_client._unavailable("continuation process exited")
+                responses = {}
+        return responses
+
+    _estate_client.set_dispatch(failing_page)
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s"}})
+    assert out["result"]["complete"] is False
+    assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d0"]
+    if failure_kind == "error":
+        assert "PAGE-2-DIAG: cursor expired" in out["diagnostics"]
+        error = "continuation cursor rejected"
+    else:
+        error = "estate did not start: continuation process exited"
+    assert any(d.startswith("PAGING:") and error in d for d in out["diagnostics"])
 
 
 def test_one_page_on_request_and_unpaged_replies_unchanged(capsys):
@@ -1311,3 +1401,534 @@ def test_resuming_through_an_uncapped_last_page_is_not_whole(capsys):
     assert out["result"]["complete"] is False
     assert any("REST of the answer" in d for d in out["diagnostics"])
     assert not any("whole answer" in d for d in out["diagnostics"])
+
+
+def test_an_unresolved_target_is_never_complete(capsys):
+    """e2e MAJOR-2: estate answers a name it cannot resolve with `resolved: false` and zero
+    rows; the shim must not certify that empty answer as `complete: true`."""
+    miss = [{"resolved": False, "query": "tax", "dependents": [], "total": 0,
+             "truncated": False, "next_cursor": None,
+             "suggestions": [{"symbol": "py . src/pricing.py/tax().", "name": "tax"}]}]
+    _estate_client.set_dispatch(_paged_dispatch(miss, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is False
+    assert out["result"]["resolved"] is False
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # A resolved, uncut single page stays whole.
+    hit = [{**miss[0], "resolved": True, "dependents": [{"symbol": "a"}], "total": 1}]
+    _estate_client.set_dispatch(_paged_dispatch(hit, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is True
+    assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+
+
+def test_an_unresolved_target_is_labelled_on_every_call_path(capsys):
+    """A miss without a `next_cursor` key (a tool that does not page, e.g. TraverseGraph) and a
+    miss fetched with `all_pages: false` both carry the UNRESOLVED: line."""
+    no_cursor = [{"resolved": False, "query": "tax", "nodes": [], "edges": [], "suggestions": []}]
+    _estate_client.set_dispatch(_paged_dispatch(no_cursor, []))
+    out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
+    assert out["result"]["resolved"] is False
+    assert "complete" not in out["result"]
+    assert sum(d.startswith("UNRESOLVED:") for d in out["diagnostics"]) == 1
+    paged_miss = [{"resolved": False, "query": "tax", "dependents": [], "total": 0,
+                   "truncated": False, "next_cursor": None}]
+    _estate_client.set_dispatch(_paged_dispatch(paged_miss, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"},
+                         "all_pages": False})
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # Path's miss (estate marks the operand in `unresolved` AND says `resolved: false`) and a
+    # Lineage miss are labelled the same way.
+    path_miss = [{"hops": [], "found": False, "depth_bounded": False, "node_bounded": False,
+                  "unresolved": "from", "resolved": False, "query": "tax", "suggestions": []}]
+    _estate_client.set_dispatch(_paged_dispatch(path_miss, []))
+    out = _call(capsys, {"tool": "Path", "arguments": {"from": "tax", "to": "total"}})
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    lineage_miss = [{"resolved": False, "query": "tax", "dependencies": [], "total": 0,
+                     "truncated": False, "next_cursor": None}]
+    _estate_client.set_dispatch(_paged_dispatch(lineage_miss, []))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is False
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # A resolved answer is not labelled.
+    _estate_client.set_dispatch(_paged_dispatch([{"resolved": True, "nodes": [1]}], []))
+    out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
+    assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# wicked-garden#1478: a code-graph read with no graph behind it is refused, never answered empty.
+# Unpinned, estate's read-only MCP serves its cwd-relative default as an EMPTY in-memory store, so
+# `{"matches": []}` / "0 dependents" read as "no such symbol / nothing depends on it".
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture()
+def unpinned(monkeypatch, tmp_path):
+    for name in ("WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB", "WICKED_RUN_ID", "WICKED_GATE_SCOPE",
+                 "WICKED_WRITE_ROOTS", "WICKED_GOVERNED", "WICKED_CREW_URL", "WICKED_MCP_TOKEN",
+                 "WICKED_ESTATE_BROKER", "WICKED_STORE_URL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("WICKED_RUNTIME", "local")  # a developer's team shell must not change these tests
+    monkeypatch.chdir(tmp_path)  # no ./.wicked-estate/graph.db
+    _estate_client.set_db(None)
+    sent: list = []
+
+    def dispatch(requests, *, db, timeout):
+        sent.append([r.get("params", {}).get("name") for r in requests if r.get("method") == "tools/call"])
+        out = {r["id"]: {"jsonrpc": "2.0", "id": r["id"], "result": {"serverInfo": {"name": "wicked-estate"}}}
+               for r in requests if r.get("id") is not None}
+        for r in requests:
+            if r.get("method") == "tools/call":
+                out[r["id"]] = _envelope({"matches": [], "items": [], "total": 0})
+        return out
+
+    _estate_client.set_dispatch(dispatch)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
+    yield sent
+    _estate_client.set_db(None)
+
+
+def _refused(out):
+    return out.get("ok") is False and "--db" in out["reason"] and "code_graph_db" in out["reason"] \
+        and "matches" not in out and "result" not in out
+
+
+# The graph arm of estate's `tools/call` routing (wicked-estate crates/wicked-estate-mcp/src/lib.rs),
+# written out here so dropping a tool from the shim's tuple fails a test instead of shrinking it.
+ESTATE_GRAPH_ROUTED = ("SearchEntity", "RetrieveEntity", "TraverseGraph", "Path", "BlastRadius", "FetchContent",
+                       "ContextBundle", "RulesInventory", "rules.recall", "RankHotspots", "Communities", "Lineage",
+                       "SemanticSearch")
+
+
+def test_the_graph_tool_roster_matches_estate_routing():
+    assert sorted(_estate_client.GRAPH_TOOLS) == sorted(ESTATE_GRAPH_ROUTED)
+    # Every relayed tool is classified: a graph read, or a home-store read crew answers.
+    home = {"memory.recall", "knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors", "proposal.submit"}
+    assert set(_estate_client.BROKER_TOOLS) <= set(ESTATE_GRAPH_ROUTED) | home
+
+
+@pytest.mark.parametrize("tool", ESTATE_GRAPH_ROUTED)
+def test_an_unpinned_graph_call_is_refused_never_empty(unpinned, capsys, tool):
+    code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": tool, "arguments": {"symbol": "x"}})])
+    assert code == 0 and _refused(out) and out["graph"] is None
+    assert tool in out["reason"] and unpinned == []
+
+
+@pytest.mark.parametrize("argv", [["search", '{"name": "resolve_db"}'], ["context", '{"query": "x"}'], ["stats"]])
+def test_unpinned_search_context_and_stats_are_refused(unpinned, capsys, argv):
+    code, out = _main(capsys, ["--readonly", *argv])
+    assert code == 0 and _refused(out) and unpinned == []
+
+
+def test_a_pin_to_a_missing_graph_is_refused_naming_it(unpinned, capsys, monkeypatch, tmp_path):
+    """The confused user: a typo'd pin. A read-only estate would serve the missing file empty."""
+    missing = str(tmp_path / "nope" / "graph.db")
+    code, out = _main(capsys, ["--readonly", "--db", missing, "call",
+                               json.dumps({"tool": "BlastRadius", "arguments": {"symbol": "x"}})])
+    assert _refused(out) and missing in out["reason"] and out["graph"] == missing
+    _estate_client.set_db(None)
+    monkeypatch.setenv("WICKED_ESTATE_DB", missing)
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert _refused(out) and missing in out["reason"] and unpinned == []
+
+
+def test_wicked_home_pins_memory_not_the_graph(unpinned, capsys, monkeypatch, tmp_path):
+    """WICKED_HOME (the ACP carrier's pin) names the memory/knowledge stores: graph reads are still
+    refused, home-store reads still go out."""
+    monkeypatch.setenv("WICKED_HOME", str(tmp_path))
+    code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": "BlastRadius", "arguments": {"symbol": "x"}})])
+    assert _refused(out) and unpinned == []
+    for tool in ("memory.recall", "knowledge.recall", "knowledge.recall_about_code", "memory.coverage"):
+        code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": tool, "arguments": {}})])
+        assert "ok" not in out and out["result"] is not None
+    code, out = _main(capsys, ["--readonly", "recall", '{"query": "q"}'])
+    assert out == {"items": []}
+    assert [t for batch in unpinned for t in batch] == ["memory.recall", "knowledge.recall",
+                                                       "knowledge.recall_about_code", "memory.coverage", "memory.recall"]
+
+
+def test_a_real_graph_or_an_explicit_spec_is_served(unpinned, capsys, monkeypatch, tmp_path):
+    (tmp_path / ".wicked-estate").mkdir()
+    (tmp_path / ".wicked-estate" / "graph.db").write_bytes(b"")
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert out == {"matches": []} and unpinned == [["SearchEntity"]]  # a real (if empty) graph answers
+    elsewhere = tmp_path / "other"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    db = tmp_path / "repo.db"
+    db.write_bytes(b"")
+    for pin in (str(db), ":memory:", "sqlite:" + str(db)):
+        monkeypatch.setenv("WICKED_ESTATE_DB", pin)
+        code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": "Lineage", "arguments": {"symbol": "s"}})])
+        assert "ok" not in out, pin
+    assert len(unpinned) == 4
+
+
+def test_a_relayed_graph_call_is_not_refused(unpinned, monkeypatch):
+    """A container seat: crew's broker answers from the run's graph, so no local pin is needed."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_BROKER", "1")
+    monkeypatch.setenv("WICKED_CREW_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("WICKED_MCP_TOKEN", "t")
+    assert _estate_client.use_broker_for("BlastRadius") is True
+    assert _estate_client.graph_refusal("BlastRadius") is None
+
+
+def test_mode_reports_the_graph_pin(unpinned, capsys, tmp_path):
+    code, out = _main(capsys, ["mode"])
+    assert out["graph"] is None and "code_graph_db" in out["graph_refusal"]
+    db = tmp_path / "g.db"
+    db.write_bytes(b"")
+    code, out = _main(capsys, ["--db", str(db), "mode"])
+    assert out["graph"] == str(db) and out["graph_refusal"] is None
+
+
+def test_a_non_ascii_scheme_is_a_path_as_estate_judges_it(unpinned, capsys):
+    """estate's `is_scheme_spec` is ASCII-only: `éé:x.db` is a (missing) path it would serve empty."""
+    code, out = _main(capsys, ["--readonly", "--db", "éé:missing.db", "search", '{"name": "x"}'])
+    assert _refused(out) and unpinned == []
+    _estate_client.set_db(None)
+
+
+def test_an_unreadable_pin_is_refused_not_a_crash(unpinned, capsys, monkeypatch):
+    def denied(self):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(_estate_client.Path, "is_file", denied)
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/locked/graph.db")
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert code == 0 and _refused(out) and "could not be checked" in out["reason"]
+    code, out = _main(capsys, ["mode"])
+    assert code == 0 and "could not be checked" in out["graph_refusal"]
+
+
+def test_the_team_profile_is_left_to_estate(unpinned, capsys, monkeypatch):
+    """WICKED_RUNTIME=team names the shared store itself (WICKED_STORE_URL): not an absent graph."""
+    monkeypatch.setenv("WICKED_RUNTIME", "team")
+    monkeypatch.setenv("WICKED_STORE_URL", "postgres://db.invalid/estate")
+    assert _estate_client.graph_refusal("BlastRadius") is None
+    monkeypatch.setattr(_estate_client, "stats", lambda timeout=8.0: {"nodes": 3})
+    code, out = _main(capsys, ["--readonly", "stats"])
+    assert out == {"nodes": 3}
+    # A plain pin the shim forwards as --db overrides the profile, so a missing one is still refused.
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/nonexistent/graph.db")
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert _refused(out) and unpinned == []
+
+
+@pytest.mark.parametrize("url", [None, "", "   "])
+def test_the_team_profile_without_a_store_url_is_refused_like_local(unpinned, capsys, monkeypatch, tmp_path, url):
+    """#1482: WICKED_RUNTIME=team with no (or a blank) WICKED_STORE_URL has no graph either, so a graph
+    read is refused like local mode, naming both fixes; memory reads still go through."""
+    monkeypatch.setenv("WICKED_RUNTIME", "team")
+    if url is None:
+        monkeypatch.delenv("WICKED_STORE_URL", raising=False)
+    else:
+        monkeypatch.setenv("WICKED_STORE_URL", url)
+    reason = _estate_client.graph_refusal("BlastRadius")
+    assert reason and "WICKED_STORE_URL" in reason and "--db" in reason
+    for argv in (["--readonly", "search", '{"name": "x"}'], ["--readonly", "context", '{"name": "x"}'],
+                 ["--readonly", "stats"],
+                 ["--readonly", "call", json.dumps({"tool": "BlastRadius", "arguments": {"symbol": "x"}})]):
+        code, out = _main(capsys, argv)
+        assert code == 0 and _refused(out) and "WICKED_STORE_URL" in out["reason"], argv
+    assert unpinned == []
+    assert _estate_client.graph_refusal("recall") is None
+    code, out = _main(capsys, ["mode"])
+    assert "WICKED_STORE_URL" in out["graph_refusal"]
+    # A real graph pin is served under team mode too.
+    graph = tmp_path / "graph.db"
+    graph.write_bytes(b"")
+    monkeypatch.setenv("WICKED_ESTATE_DB", str(graph))
+    assert _estate_client.graph_refusal("BlastRadius") is None
+
+
+# cx-shim DES: garden#1480, #1479, #1473, #1476 — failures are distinguishable from empty answers.
+
+@pytest.fixture()
+def dead_estate(monkeypatch, pinned_graph):
+    """A real Python child exits before initialize; no shell or installed estate required."""
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: sys.executable)
+
+    def install(stderr, persistent=False):
+        monkeypatch.setattr(_estate_client, "mcp_argv", lambda exe, db: [
+            exe, "-c", "import sys; sys.stderr.write(" + repr(stderr) + "); sys.exit(1)"])
+        broker = _estate_client._PersistentBroker() if persistent else None
+        _estate_client.set_dispatch(broker if broker is not None else _estate_client._dispatch)
+        return broker
+
+    return install
+
+
+@pytest.mark.parametrize("persistent", [False, True])
+@pytest.mark.parametrize("stderr,detail", [
+    ("startup detail\nlast startup error\n\n", "last startup error"),
+    ("x" * 350 + "\n", "x" * 300),
+    ("\n \n", "no handshake (binary missing, timed out, or exited)"),
+])
+def test_cli_reports_startup_stderr_instead_of_a_null_answer(dead_estate, capsys, persistent, stderr, detail):
+    broker = dead_estate(stderr, persistent)
+    try:
+        code, out = _main(capsys, ["call", '{"tool":"SearchEntity","arguments":{"name":"x"}}'])
+        assert code == 1
+        assert out == {"ok": False, "reason": "estate did not start: " + detail}
+        assert _estate_client.last_failure() == {"kind": "unavailable", "reason": out["reason"]}
+    finally:
+        if broker is not None:
+            broker._close()
+
+
+@pytest.mark.parametrize("action,args", [("search", {"name": "x"}), ("context", {"query": "x"})])
+def test_cli_graph_consumers_do_not_report_empty_after_startup_failure(dead_estate, capsys, action, args):
+    dead_estate("cannot open estate database\n")
+    code, out = _main(capsys, [action, json.dumps(args)])
+    assert code == 1
+    assert out == {"ok": False, "reason": "estate did not start: cannot open estate database"}
+
+
+def _answer_dispatch(envelope):
+    def dispatch(requests, *, db, timeout):
+        return {1: json.loads(_INIT_LINE), 2: envelope}
+    return dispatch
+
+
+@pytest.fixture(params=[
+    {},
+    {2: None},
+    {2: []},
+    {2: {"jsonrpc": "2.0", "id": 2}},
+    {2: {"id": 2, "result": None}},
+    {2: {"id": 2, "result": [], "error": None}},
+])
+def incomplete_call(request, pinned_graph):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {
+        1: json.loads(_INIT_LINE), **request.param})
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_graph_consumers_raise_when_only_the_handshake_landed(incomplete_call, method):
+    reason = "estate answered the handshake but not the call"
+    with pytest.raises(_estate_client.EstateUnavailable, match=reason):
+        getattr(_estate_client, method)("x")
+    assert _estate_client.last_failure() == {"kind": "unavailable", "reason": reason}
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_call_fails_when_only_the_handshake_landed(incomplete_call, capsys, all_pages):
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", "all_pages": all_pages})])
+    assert code == 1
+    assert out == {"ok": False, "reason": "estate answered the handshake but not the call"}
+
+
+def test_cli_call_accepts_a_completed_json_null(pinned_graph, capsys):
+    _estate_client.set_dispatch(_answer_dispatch(_envelope(None)))
+    code, out = _main(capsys, ["call", '{"tool":"SearchEntity"}'])
+    assert code == 0
+    assert out == {"result": None, "diagnostics": []}
+    assert _estate_client.last_failure() is None
+
+
+def _error_answer():
+    return {"jsonrpc": "2.0", "id": 2, "result": {"isError": True, "content": [
+        {"type": "text", "text": "unknown entity parameter"},
+        {"type": "text", "text": "STALENESS: 2 commits\n\nCLAMPED: limit=200"},
+        {"type": "text", "text": "LEXICAL-FALLBACK: embeddings unavailable"},
+    ]}}
+
+
+def _rpc_error_answer():
+    return {"jsonrpc": "2.0", "id": 2,
+            "error": {"code": -32602, "message": "invalid entity parameter"}}
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_all_pages"])
+def test_top_level_rpc_errors_record_the_message(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_rpc_error_answer()))
+    assert getattr(_estate_client, method)("SearchEntity", {}) is None
+    assert _estate_client.last_failure() == {"kind": "error", "text": "invalid entity parameter",
+                                           "diagnostics": []}
+
+
+def test_cli_call_reports_top_level_rpc_errors(pinned_graph, capsys):
+    _estate_client.set_dispatch(_answer_dispatch(_rpc_error_answer()))
+    code, out = _main(capsys, ["call", '{"tool":"SearchEntity"}'])
+    assert code == 1
+    assert out == {"error": "invalid entity parameter", "diagnostics": []}
+
+
+@pytest.mark.parametrize("action,args", [("search", {"name": "x"}), ("context", {"query": "x"})])
+def test_cli_graph_errors_include_diagnostics(pinned_graph, capsys, action, args):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    code, out = _main(capsys, [action, json.dumps(args)])
+    assert code == 1
+    assert out == {"ok": False, "reason": "unknown entity parameter", "diagnostics": [
+        "STALENESS: 2 commits", "CLAMPED: limit=200", "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+def test_fail_open_documentation_describes_cli_failure_shapes():
+    contract = _estate_client.__doc__.split("Fail-open contract", 1)[1].split("Cross-platform", 1)[0]
+    contract = " ".join(contract.split())
+    assert 'CLI `call` surfaces a tool `isError` as ``{"error": …, "diagnostics": [...]}``' in contract
+    assert 'unavailable/refused and `search`/`context` failures' in contract
+    assert '``{"ok": false, "reason": …}``' in contract
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_tool_errors_preserve_text_and_every_diagnostic(pinned_graph, capsys, all_pages):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", "arguments": {},
+                                                "all_pages": all_pages})])
+    assert code == 1
+    assert out == {"error": "unknown entity parameter", "diagnostics": [
+        "STALENESS: 2 commits", "CLAMPED: limit=200", "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+@pytest.mark.parametrize("answer", [_error_answer(), _rpc_error_answer()])
+def test_call_raw_returns_the_error_envelope_itself(pinned_graph, answer):
+    _estate_client.set_dispatch(_answer_dispatch(answer))
+    assert _estate_client.call_raw("SearchEntity", {}) == answer
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_all_pages"])
+def test_low_level_errors_stay_fail_open_and_keep_failure_details(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    assert getattr(_estate_client, method)("SearchEntity", {}) is None
+    assert _estate_client.last_failure() == {"kind": "error", "text": "unknown entity parameter",
+                                           "diagnostics": ["STALENESS: 2 commits", "CLAMPED: limit=200",
+                                                           "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_graph_consumers_raise_on_tool_errors(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    with pytest.raises(_estate_client.EstateUnavailable, match="unknown entity parameter"):
+        getattr(_estate_client, method)("x")
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_raw", "call_all_pages"])
+def test_unpinned_python_graph_calls_are_refused_before_dispatch(unpinned, method):
+    assert getattr(_estate_client, method)("SearchEntity", {"name": "x"}) is None
+    failure = _estate_client.last_failure()
+    assert failure["kind"] == "refused" and "--db" in failure["reason"]
+    assert unpinned == []
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_unpinned_python_graph_consumers_raise_instead_of_answering_empty(unpinned, method):
+    with pytest.raises(_estate_client.EstateUnavailable, match="--db"):
+        getattr(_estate_client, method)("x")
+    assert unpinned == []
+
+
+def test_unpinned_memory_and_knowledge_calls_stay_fail_open(unpinned):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
+    assert _estate_client.graph_refusal("memory.recall") is None
+    assert _estate_client.call("memory.recall", {"query": "x"}) is None
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    assert _estate_client.call("knowledge.recall", {"query": "x"}) is None
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+
+
+@pytest.mark.parametrize("payload", [{"matches": []}, None])
+def test_completed_empty_answers_reset_the_previous_failure(pinned_graph, payload):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
+    assert _estate_client.call("SearchEntity", {}) is None
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    _estate_client.set_dispatch(_answer_dispatch(_envelope(payload)))
+    assert _estate_client.call("SearchEntity", {}) == payload
+    assert _estate_client.last_failure() is None
+
+
+@pytest.mark.parametrize("keys", [{"args": {}}, {"args": {}, "limt": 1}])
+def test_cli_rejects_unknown_call_keys_and_names_arguments(unpinned, capsys, keys):
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", **keys})])
+    assert code == 1
+    assert "arguments" in out["error"]
+    assert all(key in out["error"] for key in keys)
+    assert unpinned == []
+
+
+@pytest.mark.parametrize("store", [None, ":memory:"])
+def test_unresolved_diagnostic_names_the_store_and_index_remedy(monkeypatch, store):
+    monkeypatch.setattr(_estate_client, "resolve_db", lambda: store)
+    blocks = _estate_client.flag_unresolved({"result": {"resolved": False}, "diagnostics": []})
+    line, = blocks["diagnostics"]
+    assert line.startswith("UNRESOLVED:")
+    assert (store or "estate's default store") in line
+    assert "wicked-estate index" in line and "--db" in line
+
+
+# cx-shim2 DES: garden#1492, #1493 — relay failures and per-thread diagnostics.
+
+def test_last_failure_is_local_to_the_calling_thread(pinned_graph):
+    failed = threading.Barrier(2, timeout=5)
+    succeeded = threading.Barrier(2, timeout=5)
+
+    def dispatch(requests, *, db, timeout):
+        if requests[-1]["params"]["arguments"]["name"] == "fail":
+            return {}
+        return {1: json.loads(_INIT_LINE), 2: _envelope({"matches": []})}
+
+    _estate_client.set_dispatch(dispatch)
+
+    def failing_reader():
+        result = _estate_client.call("SearchEntity", {"name": "fail"})
+        failed.wait()
+        succeeded.wait()
+        return result, _estate_client.last_failure()
+
+    def successful_reader():
+        failed.wait()
+        result = _estate_client.call("SearchEntity", {"name": "ok"})
+        succeeded.wait()
+        return result, _estate_client.last_failure()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        failure = pool.submit(failing_reader)
+        success = pool.submit(successful_reader)
+        failed_result, failed_detail = failure.result(timeout=10)
+        successful_result, successful_detail = success.result(timeout=10)
+
+    assert failed_result is None
+    assert failed_detail == {
+        "kind": "unavailable",
+        "reason": "estate did not start: no handshake (binary missing, timed out, or exited)",
+    }
+    assert successful_result == {"matches": []}
+    assert successful_detail is None
+
+
+def test_spawn_transport_uses_utf8_with_replacement(monkeypatch):
+    captured = {}
+
+    class Proc:
+        returncode = 0
+
+        def communicate(self, input=None, timeout=None):
+            return _INIT_LINE + "\n", ""
+
+    def popen(argv, **kwargs):
+        captured.update(kwargs)
+        return Proc()
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", popen)
+    assert 1 in _estate_client._dispatch([_estate_client._initialize_request()], db=None, timeout=1)
+    assert captured.get("encoding") == "utf-8"
+    assert captured.get("errors") == "replace"
+    assert "text" not in captured
+
+
+@pytest.mark.parametrize("transport", ["persistent", "spawn"])
+def test_governed_python_call_keeps_the_no_pin_refusal(monkeypatch, tmp_path, transport):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-no-pin")
+    if transport == "spawn":
+        _estate_client.set_dispatch(_estate_client._dispatch)
+    else:
+        assert isinstance(_estate_client._active_dispatch, _estate_client._PersistentBroker)
+    reason = _estate_client.governed_refusal()
+    assert reason and "no estate store is pinned" in reason
+    # A memory read uses the transport: the graph guard must not mask this refusal.
+    assert _estate_client.call("memory.recall", {"query": "x"}) is None
+    assert _estate_client.last_failure() == {"kind": "refused", "reason": reason}
+

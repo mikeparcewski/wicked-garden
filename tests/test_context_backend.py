@@ -24,6 +24,7 @@ import types
 import pytest
 
 import _context_backend as cb
+from _estate_client import EstateUnavailable
 
 
 @pytest.fixture(autouse=True)
@@ -230,6 +231,20 @@ def test_search_fails_open_when_estate_dead(monkeypatch):
     assert cb.search("anything at all") == []
 
 
+@pytest.mark.parametrize("error", [EstateUnavailable, RuntimeError])
+def test_retrieval_is_silent_and_empty_when_shim_raises(monkeypatch, capsys, error):
+    """#1492/#1493: shim failures must never escape into context hooks."""
+    def fail(*args, **kwargs):
+        raise error("estate broker did not answer")
+
+    _plant_fake_estate(monkeypatch, knowledge_recall=fail, recall=fail)
+    assert cb._estate_search("gate policy") is None
+    assert cb.search("gate policy") == []
+    assert cb.recall_memories("gate policy") == []
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
+
+
 def test_search_fails_open_when_estate_module_is_missing(monkeypatch):
     monkeypatch.setitem(sys.modules, "_estate_client", None)  # import → error
     assert cb.search("anything at all") == []
@@ -284,15 +299,15 @@ def test_capture_memory_calls_memory_capture(monkeypatch):
 
     _plant_fake_estate(monkeypatch, call=call)
     mem_id = cb.capture_memory(
-        "Session goal (turn 1)", "do the thing", tier="working",
-        tags=["session-goal", "auto-captured"],
+        "A title", "do the thing", tier="working",
+        tags=["t1", "t2"],
     )
     assert mem_id == "mem xyz"
     assert captured["tool"] == "memory.capture"
     assert captured["args"]["kind"] == "working"
     assert captured["args"]["tier"] == "working"
-    assert captured["args"]["about"] == ["session-goal", "auto-captured"]
-    assert captured["args"]["content"].startswith("Session goal (turn 1)")
+    assert captured["args"]["about"] == ["t1", "t2"]
+    assert captured["args"]["content"].startswith("A title")
 
 
 def test_capture_memory_fails_open_when_estate_dead(monkeypatch):

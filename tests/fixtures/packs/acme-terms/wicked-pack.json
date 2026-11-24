@@ -6,30 +6,137 @@
   "version": "0.1.0",
   "description": "ACME's terms pack: a terms-check domain, an editor that shows the hits, and the block that produces the checked document. Test fixture for manifest spec 2.",
   "skills_dir": "skills",
-  "domains": [{ "name": "terms" }],
+  "domains": [
+    {
+      "name": "terms"
+    }
+  ],
   "editors": [
     {
       "id": "acme-terms",
       "title": "Terms checker",
       "version": "0.1.0",
-      "protocol": [1],
-      "kinds": ["document", "rfp-response"],
-      "entry": "editors/acme-terms/index.html",
-      "sha256": "ce7ba7897e3595f14f6e16483735288cf54ea9fae6e2efa83f2ffc48e36d801d",
-      "sizes": ["inline", "pane", "full"],
-      "panels": ["checks"],
-      "permissions": [
-        { "id": "artifact.read", "why": "to read the document's text" },
-        { "id": "selection.chip", "why": "to point at a sentence in the message box" },
-        { "id": "artifact.write", "why": "to replace a banned term everywhere, as one version" },
-        { "id": "checks.contribute", "why": "to list the terms it found" }
+      "protocol": [
+        1,
+        2
       ],
-      "limits": { "bundleBytes": 2000000 }
+      "kinds": [
+        "document",
+        "rfp-response"
+      ],
+      "entry": "editors/acme-terms/index.html",
+      "sha256": "bc5edd2d74be434a01962d37c5017fba945188c813e7d481801b2cf8413cc8a9",
+      "sizes": [
+        "inline",
+        "pane",
+        "full"
+      ],
+      "panels": [
+        "checks"
+      ],
+      "permissions": [
+        {
+          "id": "artifact.read",
+          "why": "to read the document's text"
+        },
+        {
+          "id": "selection.chip",
+          "why": "to point at a sentence in the message box"
+        },
+        {
+          "id": "artifact.write",
+          "why": "to replace a banned term everywhere, as one version"
+        },
+        {
+          "id": "checks.contribute",
+          "why": "to list the terms it found"
+        }
+      ],
+      "limits": {
+        "bundleBytes": 2000000
+      },
+      "surfaces": {
+        "card": {
+          "interactive": true,
+          "aspect": "auto",
+          "actions": [
+            {
+              "id": "next",
+              "label": "Next part",
+              "verb": "plugin"
+            },
+            {
+              "id": "ask",
+              "label": "Ask about it",
+              "verb": "host:ask"
+            }
+          ]
+        },
+        "options": {
+          "tabs": [
+            {
+              "id": "parts",
+              "label": "Parts",
+              "render": "plugin"
+            },
+            {
+              "id": "view",
+              "label": "View",
+              "render": "controls",
+              "controls": [
+                {
+                  "id": "density",
+                  "label": "Density",
+                  "type": "segmented",
+                  "options": [
+                    {
+                      "id": "roomy",
+                      "label": "Roomy"
+                    },
+                    {
+                      "id": "compact",
+                      "label": "Compact"
+                    }
+                  ]
+                },
+                {
+                  "id": "numbers",
+                  "label": "Show numbers",
+                  "type": "toggle"
+                }
+              ]
+            }
+          ]
+        },
+        "full": {
+          "modes": [
+            "simple",
+            "advanced"
+          ],
+          "default": "simple"
+        }
+      },
+      "description": "Find banned terms, point at their sentences, and replace them in one saved version.",
+      "visuals": {
+        "icon": "editors/acme-terms/icon.svg",
+        "color": "#224a5e"
+      }
     }
   ],
   "blocks": [
-    { "id": "acme-terms-review", "label": "Check our terms", "preset": "presets/terms-review.json",
-      "produces_kind": "document", "skills": ["acme-terms-checker"] }
+    {
+      "id": "acme-terms-review",
+      "label": "Check our terms",
+      "preset": "presets/terms-review.json",
+      "produces_kind": "document",
+      "skills": [
+        "acme-terms-checker"
+      ]
+    }
   ],
-  "provenance": { "source": "https://github.com/acme/acme-terms-pack", "publisher": "acme", "license": "MIT" }
+  "provenance": {
+    "source": "https://github.com/acme/acme-terms-pack",
+    "publisher": "acme",
+    "license": "MIT"
+  }
 }

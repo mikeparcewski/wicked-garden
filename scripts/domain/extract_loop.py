@@ -43,9 +43,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, rules_file  # noqa: E402
+from domain import _clients, _rule_extractor, business_domains, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
+# Source a first ask frames per unit, and what a placeholder asked again gets (wicked-garden#1536:
+# a program cut at the first cap shows the model its declarations and none of its logic).
+SOURCE_CAP = 4000
+REASK_SOURCE_CAP = 12000
+# How much of a placeholder's stored answer (its RISK requirement) a re-ask shows the model.
+MAX_PRIOR_ANSWER = 800
+# The worklist's list of units OFF the page that the host's apply still takes a rule for
+# (`prepare_worklist.py`, wicked-garden#1535): a coverage review's send-back restates one there.
+OFF_PAGE_KEY = "off_page_ids"
+# wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
+CODE_MISMATCH_ANN = "code_mismatch"
+# wicked-core's `CODE_MEETS`: the value a restatement writes over an earlier mismatch (estate's CLI
+# has no annotation delete; `--replace` on the same key retires the old one).
+CODE_MEETS = _rule_extractor.CODE_MEETS
 
 
 
@@ -116,8 +130,14 @@ def _seat() -> str:
     return f"extract-loop:{agent}" if agent else "extract-loop"
 
 
+def rule_key(sid: str, seat: str) -> str:
+    """The annotation key a seat's rule about `sid` is written under (see `_write_node`)."""
+    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
+    return "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+
+
 def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str,
-                seat: str | None = None, read_back=None) -> None:
+                seat: str | None = None, read_back=None, clear_mismatch: bool = False) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
     (validated=False) + a risk annotation — either way the node is ACCOUNTED, so the
@@ -127,8 +147,34 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     # and wicked-core, which counts agreeing seats by author, would only ever see one. The default
     # seat (no run agent) keeps the historical key, so a standalone re-run still replaces itself.
     seat = seat or _seat()
-    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
-    rid = "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+    rid = rule_key(sid, seat)
+    # Operator ruling 2026-11-06: a true requirement whose code is wrong still counts; the
+    # mismatch is a finding beside it. It is written FIRST, under its own key: if a later write
+    # fails, the node is not yet resolved and the next apply asks it again, so a requirement never
+    # counts without its finding. A rule the code meets writes `CODE_MEETS` over an earlier
+    # mismatch (`clear_mismatch`), so a fixed unit stops showing one.
+    def durable(key: str, value: str | None = None) -> None:
+        # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
+        # reads it back directly (`read_back(sid, key, value)`, one query instead of a third
+        # process). With `value`, the row must hold exactly that (codex r2: an older row on the same
+        # key must not vouch for a replacement that did not land).
+        if read_back is not None:
+            ok = read_back(sid, key, value)
+        else:
+            ok = any(a.get("key") == key and (value is None or a.get("value") == value)
+                     for a in estate.read_annotations(sid))
+        if not ok:
+            raise RuntimeError(f"write not durable: {sid} missing annotation {key} on read-back")
+
+    marker = ""
+    if resolved and rule:
+        marker = _rule_extractor.code_mismatch(rule) or (CODE_MEETS if clear_mismatch else "")
+    if marker:
+        estate.annotate(sid, type=CODE_MISMATCH_ANN, key=f"{rid}:mismatch", value=marker,
+                        confidence=float(rule.get("confidence", 0.9)),
+                        provenance="extract-loop:code-mismatch", replace=True, author=seat)
+        # Verified BEFORE anything counts: a lost finding leaves the unit unresolved (codex r2).
+        durable(f"{rid}:mismatch", marker)
     if resolved and rule:
         stmt = rule["statement"]
         estate.annotate(sid, type="business_rule", key=rid, value=stmt,
@@ -137,7 +183,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         replace=True, author=seat)
         estate.set_requirement(sid, requirement=stmt, validated=True, validated_by=seat)
     else:
-        stmt = (rule or {}).get("statement") or ""
+        stmt = str((rule or {}).get("statement") or "").strip()
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")
         raw_conf = (rule or {}).get("confidence", 0.0)
         try:
@@ -154,14 +200,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         confidence=safe_conf,
                         provenance="extract-loop:risk", replace=True, author=seat)
         estate.set_requirement(sid, requirement=risk_req, validated=False, validated_by=seat)
-    # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
-    # reads it back directly (`read_back(sid, key)`, one query instead of a third process).
-    if read_back is not None:
-        durable = read_back(sid, rid)
-    else:
-        durable = any(a.get("key") == rid for a in estate.read_annotations(sid))
-    if not durable:
-        raise RuntimeError(f"write not durable: {sid} missing annotation {rid} on read-back")
+    durable(rid)
 
 
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
@@ -318,6 +357,26 @@ class _DirectStore:
             return 0
         return self.in_deg.get(sid, 0) + len(self.callees.get(sid, []))
 
+    def mismatch_now(self, symbol_id: str) -> bool:
+        """Does the unit show a code mismatch now: its newest non-blank `code_mismatch` (ts, then
+        row id) is not `CODE_MEETS` (operator ruling 2026-11-06)? A rule the code meets then
+        writes `CODE_MEETS` over it. A store without annotations shows none."""
+        import sqlite3
+        sid = self.sid_of.get(symbol_id)
+        if sid is None:
+            return False
+        try:
+            row = self._c.execute(
+                "SELECT value FROM annotations WHERE node_sym = ? AND type = ? AND trim(value) != '' "
+                "ORDER BY ts DESC, id DESC LIMIT 1", (sid, CODE_MISMATCH_ANN)).fetchone()
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e) or "no such column" in str(e):  # no annotations kept here
+                return False
+            # Any other failed read (a lock) aborts before anything is written (codex r3): a met
+            # restatement must never resolve past a finding it could not see.
+            raise RuntimeError(f"reading {symbol_id}'s code mismatch failed: {e}") from e
+        return row is not None and row[0].strip() != CODE_MEETS
+
     def source_slice(self, symbol_id: str, cap: int = 4000) -> str:
         sid = self.sid_of.get(symbol_id)
         row = self.node_row.get(sid) if sid is not None else None
@@ -406,9 +465,13 @@ def _bare_name(name: str) -> str:
     return tail.split("(", 1)[0].strip()
 
 
-# Test directories in any case (`Tests/` in .NET, `Specs/`); file-name patterns keep their case
-# (`*Tests.cs` is a test, `Contest.py` is not).
-_TEST_DIR = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/", re.IGNORECASE)
+# These rules mirror core's domain_model.rs: TEST_DIR, e2e_test_dirs,
+# estate_not_behaviour and is_product_node. File-name patterns keep their case.
+_TEST_DIR = re.compile(
+    r"(^|/)(tests?|__tests__|__mocks__|specs?|e2e|fixtures?|testdata|"
+    r"(unit|integration|functional|system|acceptance|smoke|regression|contract|component|"
+    r"end[_-]to[_-]end|api|ui|perf|load|stress)[_-]tests?|"
+    r"tests?[_-](utils?|helpers?|support|fixtures?|common))/", re.IGNORECASE)
 _TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|(^|/)conftest\.py$|"
                         r"_test\.(py|go|rs|c|cc|cpp|cxx|h|hpp)$|_spec\.rb$|"
                         r"Tests?\.(cs|java|kt|swift|scala|php)$")
@@ -416,7 +479,8 @@ _TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?
 
 def is_test_path(file: str) -> bool:
     """A test, spec or fixture file: mapped in its turn, never where a page starts."""
-    return bool(_TEST_DIR.search(file or "") or _TEST_PATH.search(file or ""))
+    norm = (file or "").replace("\\", "/")
+    return bool(_TEST_DIR.search(norm) or _TEST_PATH.search(norm))
 
 
 # Files whose "behaviours" are keys and headings, not code: a data fixture, a manifest, a
@@ -430,6 +494,51 @@ _DATA_EXTS = (".json", ".jsonc", ".json5", ".jsonl", ".yaml", ".yml", ".toml", "
 def is_data_path(file: str) -> bool:
     """A data, manifest or document file (by extension): its nodes are not product code."""
     return (file or "").lower().endswith(_DATA_EXTS)
+
+
+_E2E_SUFFIX_DIR = re.compile(r"(^|/)[^/]+[_-]e2e$", re.IGNORECASE)
+NOT_COUNTED_BEHAVIOURS = frozenset({"stub", "data", "test_support"})
+
+
+def e2e_test_dirs(files) -> set[str]:
+    """Directories ending in `_e2e` or `-e2e` whose direct code files are mostly tests."""
+    tally = {}
+    for file in {(file or "").replace("\\", "/") for file in files}:
+        directory, sep, name = file.rpartition("/")
+        if (not sep or not _E2E_SUFFIX_DIR.search(directory) or is_data_path(file)
+                or name == "__init__.py"):
+            continue
+        tests, other = tally.get(directory, (0, 0))
+        if _TEST_PATH.search(file):
+            tests += 1
+        else:
+            other += 1
+        tally[directory] = (tests, other)
+    return {directory for directory, (tests, other) in tally.items() if tests > other}
+
+
+def under_any(file: str, dirs: set[str]) -> bool:
+    """Whether `file` sits under one of `dirs` at any depth."""
+    current = (file or "").replace("\\", "/")
+    while "/" in current:
+        current = current.rsplit("/", 1)[0]
+        if current in dirs:
+            return True
+    return False
+
+
+def behaviour_of(data) -> str | None:
+    """The estate behaviour classification in node JSON, when it is a string."""
+    try:
+        behaviour = json.loads(data or "{}").get("metadata", {}).get("behaviour")
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return behaviour if isinstance(behaviour, str) else None
+
+
+def not_counted(file: str, data, e2e_dirs: set[str]) -> bool:
+    """Whether core leaves this node out by estate classification or an evidenced test directory."""
+    return behaviour_of(data) in NOT_COUNTED_BEHAVIOURS or under_any(file, e2e_dirs)
 
 
 def kind_of_row(row) -> str:
@@ -863,10 +972,28 @@ NOT_PRODUCT_REASON = ("not product code (a test, data or document file): recorde
                       "never a validated requirement")
 
 
+def below_threshold_reason(rule: dict) -> str:
+    """Why a valid rule stays a placeholder, said so the next ask of the unit can act on it
+    (wicked-garden#1536: re-asked units came back at 0.5-0.6 round after round, and the stored
+    reason said only "below confidence threshold"): the confidence it was stated at, the line,
+    and what the model said it could not see or confirm."""
+    conf = float(rule["confidence"])
+    # Two places, unless that would read as the line itself (0.749 is not "0.75", codex r1).
+    shown = f"{conf:.2f}" if round(conf, 2) < RESOLVE_THRESHOLD else repr(conf)
+    return _with_doubt(f"below confidence threshold: stated at {shown}, a rule counts at "
+                       f"{RESOLVE_THRESHOLD:.2f}", rule)
+
+
+def _with_doubt(reason: str, rule: dict | None) -> str:
+    """`reason` with what the model said it could not see or confirm, when it said so."""
+    unsure = _rule_extractor.unsure_text(rule)
+    return f"{reason}; unsure: {unsure}" if unsure else reason
+
+
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
                      seat: str | None = None, read_back=None,
-                     unconfirmed: str | None = None) -> str:
+                     unconfirmed: str | None = None, prior_mismatch=None) -> str:
     """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
     RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
     in a seat container is judged exactly like one the host's own model returned. `unconfirmed`
@@ -886,10 +1013,15 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # penalty on units with no Louvain community; a community boost of up to 1.1 likewise
         # raised rules the seat was unsure of). Communities still frame the unit, never its verdict.
         resolved = float(rule["confidence"]) >= RESOLVE_THRESHOLD
+        # Does the unit show a code mismatch now? The caller's read, else the direct store's: every
+        # writer that holds a store clears a stale finding (codex r2).
+        shows = prior_mismatch or getattr(store, "mismatch_now", None)
+        clear = bool(resolved and shows is not None and shows(sid))
         _write_node(estate, sid, name, rule, resolved,
-                    "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back)
+                    below_threshold_reason(rule) if not resolved else "", seat=seat,
+                    read_back=read_back, clear_mismatch=clear)
         return "resolved" if resolved else "risk"
-    if (rule or {}).get("statement"):
+    if str((rule or {}).get("statement") or "").strip():
         _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
         return "risk"
     if _has_statement(store, sid):
@@ -898,7 +1030,9 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # monotonic.
         print(f"[extract-loop] floor skipped for {sid} (existing statement kept)", file=sys.stderr)
         return "kept"
-    _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
+    # An empty answer's doubt is kept with the floor, so the next ask shows it (codex r1).
+    _write_node(estate, sid, name, rule, False, _with_doubt(reason, rule), seat=seat,
+                read_back=read_back)
     return "risk"
 
 
@@ -919,20 +1053,38 @@ def read_worklist(base: Path, rel: str) -> dict:
     if not isinstance(units, list) or not all(
             isinstance(u, dict) and isinstance(u.get("symbol_id"), str) for u in units):
         raise rules_file.RulesFileRefused(f"{rel!r} has no list of units with symbol ids")
+    off = doc.get(OFF_PAGE_KEY, [])
+    if not isinstance(off, list) or not all(isinstance(s, str) for s in off):
+        raise rules_file.RulesFileRefused(f"{rel!r} has an {OFF_PAGE_KEY} that is not a list of ids")
     return doc
 
 
+def off_page_ids(worklist: dict) -> set[str]:
+    """Units off this page a rule may still name: those an earlier page of this run asked, or that
+    it found changed since the map was built (the host decides again when it applies)."""
+    return set(worklist.get(OFF_PAGE_KEY) or [])
+
+
+def _source_cap(unit: dict) -> int:
+    """How much of a worklist unit's source the model sees: more for a placeholder asked again
+    (it carries its `prior_answer`), whose first ask may have been cut before its logic."""
+    prior = unit.get("prior_answer")
+    return REASK_SOURCE_CAP if isinstance(prior, str) and prior.strip() else SOURCE_CAP
+
+
 def _units_batch(units: list[dict], base_batch: int) -> int:
-    """`_density_batch` over the framed source the worklist already carries."""
+    """`_density_batch` over the framed source the worklist already carries; a batch of long
+    re-asked units packs fewer of them, so a prompt stays about the size of a first ask's."""
     if not units:
         return base_batch
     sample = units[: min(len(units), 12)]
-    avg = sum(len(str(u.get("source") or "")[:2000]) for u in sample) / len(sample)
-    mult = 1.6 if avg < 300 else (0.6 if avg > 1500 else 1.0)
+    avg = sum(len(str(u.get("source") or "")[:_source_cap(u)]) for u in sample) / len(sample)
+    mult = (1.6 if avg < 300 else 1.0 if avg <= 1500 else 0.6 if avg <= 4000
+            else 0.6 * 4000 / avg)
     return max(4, min(64, int(base_batch * mult)))
 
 
-def to_entry(sid: str, rule: dict | None) -> dict:
+def to_entry(sid: str, rule: dict | None, domain_ids: set[str] | None = None) -> dict:
     """A model's rule as a rules-file entry that conforms to the schema. What the model got
     wrong stays wrong (an empty statement, missing provenance) so the host's validator
     RISK-flags it; what cannot be carried at all (a non-number confidence, unknown keys,
@@ -960,9 +1112,75 @@ def to_entry(sid: str, rule: dict | None) -> dict:
                                      and k in rules_file.SOURCE_KINDS][: rules_file.MAX_SOURCE_KINDS]
         if rules_file.check_rule_entry({**entry, "provenance": clean}) is None:
             entry["provenance"] = clean
+    # Operator ruling 2026-11-06 (codex r1): an unmet requirement keeps its finding through the
+    # file. A `code_meets: false` with no usable mismatch stays false with an empty mismatch, so
+    # the host's validator refuses it (a placeholder), never reads it as a rule the code meets.
+    unsure = _rule_extractor.unsure_text(rule)
+    if unsure:
+        entry["unsure"] = unsure
+    if rule.get("code_meets") is False:
+        entry["code_meets"] = False
+        entry["mismatch"] = _rule_extractor.code_mismatch(rule)
+    elif "code_meets" in rule and not isinstance(rule["code_meets"], bool):
+        # Malformed (e.g. "false", 0, null): never read as a rule the code meets (codex r2).
+        entry["statement"] = ""
+    # The business domain the model picked (reqgraph Fix B): carried only when it names a domain
+    # the seat was given; the host checks it again against the stored catalog.
+    dom, dconf = rule.get("domain"), rule.get("domain_confidence")
+    if isinstance(dom, str) and (domain_ids is None or dom in domain_ids) \
+            and isinstance(dconf, (int, float)) and not isinstance(dconf, bool) \
+            and dconf == dconf and 0.0 <= dconf <= 1.0 \
+            and rules_file.check_rule_entry({**entry, "domain": dom,
+                                             "domain_confidence": float(dconf)}) is None:
+        entry["domain"], entry["domain_confidence"] = dom, float(dconf)
     if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
         entry["statement"] = ""
+        entry.pop("mismatch", None)
+        entry.pop("unsure", None)
+        if entry.get("code_meets") is False:
+            entry["mismatch"] = ""
     return entry
+
+
+def _domain_extras(base: Path, rules_rel: str) -> dict:
+    """The `business_domains` / `assignments` a rules file already holds (the seat writes them;
+    a harness rewrite must not drop them)."""
+    try:
+        doc = rules_file.read_json_file(base, rules_rel)
+    except (FileNotFoundError, rules_file.RulesFileRefused, OSError):
+        return {}
+    if not isinstance(doc, dict):
+        return {}
+    return {k: doc[k] for k in ("business_domains", "assignments") if k in doc}
+
+
+def _room(block: dict) -> int:
+    """How many areas the host said this page may add (`business_domains.add`; none from an
+    older host, which stores no added area)."""
+    add = block.get("add")
+    return add if isinstance(add, int) and not isinstance(add, bool) and add > 0 else 0
+
+
+def _page_domains(worklist: dict, extra: dict) -> list[dict] | None:
+    """The domains this page picks from: the worklist's stored catalog with any areas the rules
+    file adds to it, else the proposal in the rules file when it has the catalog's shape. None
+    when there are none."""
+    block = worklist.get("business_domains")
+    if isinstance(block, dict) and isinstance(block.get("catalog"), list) and block["catalog"]:
+        stored = [d for d in block["catalog"] if isinstance(d, dict) and isinstance(d.get("id"), str)]
+        try:
+            # Areas the seat added to the stored catalog (wicked-garden#1537) are picked from too.
+            added = business_domains.check_additions(
+                [d for d in stored if isinstance(d.get("name"), str)],
+                extra.get("business_domains"), room=_room(block)) \
+                if "business_domains" in extra else []
+        except business_domains.CatalogRefused:
+            added = []
+        return [*stored, *added]
+    try:
+        return business_domains.check_catalog_shape(extra.get("business_domains"))
+    except business_domains.CatalogRefused:
+        return None
 
 
 def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: float, limit: int,
@@ -990,7 +1208,15 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
     except rules_file.RulesFileRefused as e:
         print(f"[extract-loop] starting {rules_rel} afresh: {e}", file=sys.stderr)
     unit_ids = {u["symbol_id"] for u in units}
-    done = [e for e in done if e["symbol_id"] in unit_ids]  # an earlier pass's leftovers drop out
+    # An earlier pass's leftovers drop out; a restatement of a unit off the page stays (a coverage
+    # review's send-back about an earlier page's rule, wicked-garden#1535).
+    keep = unit_ids | off_page_ids(worklist)
+    done = [e for e in done if e["symbol_id"] in keep]
+    # The business domains (reqgraph Fix B): the stored catalog the worklist carries, else the one
+    # the seat proposed in this rules file. What the seat wrote beside the rules is kept on rewrite.
+    extra = _domain_extras(base, rules_rel)
+    domains = _page_domains(worklist, extra)
+    domain_ids = {d["id"] for d in domains} if domains else None
     stated = {e["symbol_id"] for e in done}
     pending = [u for u in units if u["symbol_id"] not in stated]
     print(f"[extract-loop] file mode: {len(units)} unit(s) in the worklist, {len(stated)} already "
@@ -1014,8 +1240,20 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
             break
         take = take[:room]
         framed = [_rule_extractor.frame_context(
-            u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
+            u, str(u.get("source") or "")[:_source_cap(u)], cluster_label=u.get("cluster"),
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
+        for f, u in zip(framed, take):
+            # A placeholder asked again (wicked-garden#1536): its stored answer and why it did not
+            # count, so the model fixes what it could not confirm instead of guessing again.
+            if isinstance(u.get("prior_answer"), str) and u["prior_answer"].strip():
+                f["prior_answer"] = u["prior_answer"][:MAX_PRIOR_ANSWER]
+            # A mapped unit whose code changed since the map was built (wicked-garden#1425, codex
+            # r2): the prompt says so and shows the earlier statement, as data.
+            if u.get("changed_since_build") is True:
+                f.update(changed_since_build=True,
+                         prior_statement=str(u.get("prior_statement") or "")[:600])
+            if domains:
+                f["business_domains"] = domains
         ids = {u["symbol_id"] for u in take}
         by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
         if by_id == _NO_MODEL:
@@ -1031,8 +1269,9 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         if isinstance(by_id, int):
             rc = by_id
             break
-        grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"])) for u in take]
-        doc = rules_file.rules_doc(seat, grown)
+        grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"]), domain_ids)
+                        for u in take]
+        doc = rules_file.rules_doc(seat, grown, extra)
         if len(rules_file.encoded(doc)) > rules_file.MAX_RULES_BYTES:
             print(f"[extract-loop] {rules_rel} is at the size one file may carry; stopping here",
                   file=sys.stderr)
@@ -1046,7 +1285,7 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         # apply step refuses instead of applying an empty one; resume continues from the start.
         print("[extract-loop] no unit was stated in this pass", file=sys.stderr)
         rc = 75
-    final = rules_file.rules_doc(seat, done)
+    final = rules_file.rules_doc(seat, done, extra)
     if rc == 0 and len(rules_file.encoded(final)) <= rules_file.MAX_RULES_BYTES:
         # Also when nothing new was stated (an empty worklist, a finished resume), so the host's
         # apply step finds the file. After an outage (rc 75) a pass that stated nothing leaves no
@@ -1057,6 +1296,106 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
     print(f"[extract-loop] {len(done)} of {len(units)} unit(s) in {rules_rel} ({with_rule} with a "
           f"stated rule); the host's extract-apply step checks and writes them", file=sys.stderr)
     return rc
+
+
+class _WorktreeEvidence:
+    """File membership and directories visible to the seat without consulting git."""
+
+    def __init__(self, base: Path):
+        self.base = base.resolve()
+
+    def _path(self, rel: str) -> Path | None:
+        try:
+            path = self.base / rel
+            if path.is_symlink():
+                return None
+            real = path.resolve()
+            return real if self.base in real.parents else None
+        except (OSError, ValueError):
+            return None
+
+    def __contains__(self, rel: str) -> bool:
+        path = self._path(rel)
+        return path is not None and path.is_file()
+
+    def is_dir(self, rel: str) -> bool:
+        path = self._path(rel)
+        return path is not None and path.is_dir()
+
+
+def _evidence_problems(proposed: list[dict], dropped: list[dict]) -> list[dict]:
+    """Each dropped evidence item (or domain) as a check problem naming where it is."""
+    positions = {d["id"]: i for i, d in enumerate(proposed)}
+    out = []
+    for item in dropped:
+        where = f"business_domains[{positions[item['domain']]}]"
+        if item["index"] is not None:
+            where += f".evidence[{item['index']}]"
+        out.append({"index": None, "symbol_id": None, "why": f"{where}: {item['why']}"})
+    return out
+
+
+def check_domains(doc: dict, worklist: dict, accepted: list[dict], base: Path) -> list[dict]:
+    """What the seat's business-domain answers get wrong against the worklist (reqgraph Fix B):
+    the seat's own check of what the host will check again. One `{index, symbol_id, why}` each."""
+    block = worklist.get("business_domains")
+    if not isinstance(block, dict):
+        return []  # an older host asked for no domains
+    problems: list[dict] = []
+    proposed = doc.get("business_domains")
+    domains = None
+    dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
+    if isinstance(block.get("catalog"), list) and block["catalog"]:
+        domains = block["catalog"]
+        if proposed is not None:
+            # Areas added to the stored catalog (wicked-garden#1537): only new ones, grounded.
+            try:
+                added = business_domains.check_additions(
+                    [d for d in domains if isinstance(d, dict) and isinstance(d.get("id"), str)
+                     and isinstance(d.get("name"), str)], proposed, dirs, room=_room(block))
+                added, dropped = business_domains.check_catalog_evidence(
+                    added, _WorktreeEvidence(base), lambda file, symbol: "",
+                    business_domains.repo_reader(str(base)),
+                    lambda file, kind: not business_domains.not_product(file, kind), min_kept=0)
+                domains = [*domains, *added]
+                problems += _evidence_problems(proposed, dropped)
+            except business_domains.CatalogRefused as e:
+                problems.append({"index": None, "symbol_id": None,
+                                 "why": f"{e} (the worklist's business_domains.catalog is stored: "
+                                        "list only areas it lacks)"})
+    elif proposed is None:
+        if worklist.get("units") or worklist.get("assign"):
+            problems.append({"index": None, "symbol_id": None,
+                             "why": "business_domains: the worklist asks for the repository's "
+                                    "business domains (business_domains.propose); propose them "
+                                    "as the wicked-garden-domain-modeler skill says"})
+    else:
+        try:
+            domains = business_domains.check_catalog_shape(proposed, dirs)
+            # Symbol presence is not checked in the seat; the host checks it against the store.
+            domains, dropped = business_domains.check_catalog_evidence(
+                domains, _WorktreeEvidence(base), lambda file, symbol: "",
+                business_domains.repo_reader(str(base)),
+                lambda file, kind: not business_domains.not_product(file, kind))
+            problems += _evidence_problems(proposed, dropped)
+        except business_domains.CatalogRefused as e:
+            problems.append({"index": None, "symbol_id": None, "why": str(e)})
+    ids = {d["id"] for d in domains or [] if isinstance(d, dict) and isinstance(d.get("id"), str)}
+    for e in accepted:
+        if "domain" in e and e["domain"] not in ids:
+            problems.append({"index": None, "symbol_id": e["symbol_id"],
+                             "why": f"domain {e['domain']!r} is not an id of the business domains"})
+    if "assignments" in doc:
+        asked = {a.get("symbol_id") for a in worklist.get("assign") or [] if isinstance(a, dict)}
+        try:
+            ok, bad = business_domains.check_assignments(doc["assignments"], ids)
+        except business_domains.CatalogRefused as e:
+            return problems + [{"index": None, "symbol_id": None, "why": str(e)}]
+        problems += [{**b, "why": f"assignment: {b['why']}"} for b in bad]
+        problems += [{"index": None, "symbol_id": a["symbol_id"],
+                      "why": "assignment: not in the worklist's assign list"}
+                     for a in ok if a["symbol_id"] not in asked]
+    return problems
 
 
 def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
@@ -1073,16 +1412,26 @@ def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
     left = ""
     if worklist_rel:
         try:
-            units = read_worklist(base, worklist_rel)["units"]
+            worklist = read_worklist(base, worklist_rel)
         except (FileNotFoundError, rules_file.RulesFileRefused) as e:
             print(f"[extract-loop] worklist {worklist_rel}: {e}", file=sys.stderr)
             return 1
+        units = worklist["units"]
+        refused += check_domains(rules_file.read_json_file(base, rules_rel), worklist, accepted,
+                                 base)
         unit_ids = {u["symbol_id"] for u in units}
+        off = off_page_ids(worklist) - unit_ids
         refused += [{"index": None, "symbol_id": e["symbol_id"],
-                     "why": "is not a unit of the worklist (copy the symbol_id verbatim)"}
-                    for e in accepted if e["symbol_id"] not in unit_ids]
+                     "why": f"is not a unit of this page and not in its {OFF_PAGE_KEY} (copy the "
+                            "symbol_id verbatim). A unit in neither has not been asked by this run, "
+                            "so this page cannot restate it: leave it out and say so in your report "
+                            "(a later page or a later mapping run asks it)"}
+                    for e in accepted if e["symbol_id"] not in unit_ids and e["symbol_id"] not in off]
         have = {e["symbol_id"] for e in accepted}
         left = f"; {sum(1 for u in units if u['symbol_id'] not in have)} worklist unit(s) not stated"
+        restated = sum(1 for e in accepted if e["symbol_id"] in off)
+        if restated:
+            left += f"; {restated} entr(ies) restate units off this page"
     for r in refused[:50]:
         print(f"[extract-loop] entry {r['index'] if r['index'] is not None else '-'} "
               f"({r['symbol_id'] or '?'}): {r['why']}", file=sys.stderr)
