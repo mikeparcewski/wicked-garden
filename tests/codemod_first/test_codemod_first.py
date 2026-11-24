@@ -162,7 +162,7 @@ mechanical-first:
     (BLOCK.format(count=12, residue=1).replace("  residue: 1", "  residue: 1\n  residue: 2"), "given twice"),
     (BLOCK.format(count=12, residue=1).replace("  gate: npm test", "  gates: npm test"), "not one of the keys"),
     ("mechanical-first: rejected — ", "no reason"),
-    ("mechanical-first: rejected - 3 sites", "no mechanical-first decision"),   # the em dash is the contract
+    ("mechanical-first: rejected - 3 sites", "em dash"),   # the em dash is the contract, and it says so
     (BLOCK.format(count=1, residue=0) + "\n\nmechanical-first: rejected — tiny", "exactly one"),
     (BLOCK.format(count=12, residue=1).replace("```\n", "", 1).replace("\n```", ""), "no mechanical-first decision"),
 ])
@@ -173,6 +173,101 @@ def test_a_malformed_decision_fails_and_says_why(text, needle):
 
 def test_a_rejection_inside_a_code_block_is_not_a_decision():
     assert not _mf().check("```\nmechanical-first: rejected — quoted, not decided\n```")["ok"]
+
+
+VALID = BLOCK.format(count=12, residue=1)
+REJECTION = "mechanical-first: rejected — 2 sites, a codemod costs more"
+
+
+@pytest.mark.parametrize("text", [
+    # a closer must be the opener's character, at least as long, with nothing after it: an
+    # info-bearing line inside a fence does not close it, so the quoted rejection stays code
+    "```markdown\n```python\n" + REJECTION + "\n```\n```",
+    "~~~markdown\n~~~python\n" + REJECTION + "\n~~~\n~~~",
+    "````\n```\n" + REJECTION + "\n```\n````",
+    "```\n~~~\n" + REJECTION + "\n~~~\n```",
+    # an indented code block (4 spaces or a tab) is code too
+    "    " + REJECTION,
+    "\t" + REJECTION,
+    "\n".join("    " + ln for ln in VALID.splitlines()),
+], ids=["info-closer", "tilde-info-closer", "shorter-run", "other-char", "indent-4", "indent-tab", "indented-fence"])
+def test_a_decision_quoted_as_code_is_not_a_decision(text):
+    report = _mf().check(text)
+    assert not report["ok"] and report["form"] is None, report
+
+
+@pytest.mark.parametrize("text", [
+    "  " + REJECTION,
+    "   " + VALID.replace("\n", "\n   "),
+    VALID.replace("```", "~~~~"),
+    VALID.replace("```", "```text", 1),
+    VALID.replace("\n", "\r\n"),
+], ids=["rejection-indent-2", "fence-indent-3", "tilde-fence", "info-string", "crlf"])
+def test_a_decision_in_valid_markdown_positions_passes(text):
+    assert _mf().check(text)["ok"], _mf().check(text)
+
+
+@pytest.mark.parametrize("extra, needle", [
+    ("mechanical-first: rejected - wrong dash", "em dash"),
+    ("mechanical-first: rejected – en dash", "em dash"),
+    ("mechanical-first:rejected — no space", "em dash"),
+    (VALID.replace("mechanical-first:", "mechanical-first: extra"), "exactly `mechanical-first:`"),
+])
+def test_a_malformed_second_declaration_is_an_error_beside_a_valid_one(extra, needle):
+    for valid in (VALID, REJECTION):
+        report = _mf().check(valid + "\n\n" + extra)
+        assert not report["ok"] and any(needle in e for e in report["errors"]), (valid, report)
+
+
+def test_a_quoted_rejection_in_a_fence_beside_a_decision_is_still_only_a_quote():
+    assert _mf().check(VALID + "\n\n```\n" + REJECTION + "\n```")["ok"]
+
+
+def test_an_oversized_number_is_a_report_not_a_crash():
+    report = _mf().check(BLOCK.format(count="9" * 5000, residue=1))
+    assert not report["ok"] and any("too large" in e for e in report["errors"]), report["errors"]
+    proc = subprocess.run([sys.executable, str(SCRIPT), "check", "-"], input=BLOCK.format(count="9" * 5000, residue="9" * 5000),
+                          capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 1 and json.loads(proc.stdout)["ok"] is False
+
+
+@pytest.mark.parametrize("request_text", [
+    "Rename the foo API to bar",
+    "rename getUser to fetchUser across the codebase",
+    "Replace the moment library with date-fns",
+    "replace lodash with native array methods",
+    "Apply this same change to 30 similar sites",
+    "move from Node 18 → 22",
+    "go from version 2.1 to 3.0",
+    "roll out the new eslint config",
+])
+def test_applies_catches_the_documented_request_shapes(request_text):
+    assert _mf().applies(request_text)["applies"], request_text
+
+
+@pytest.mark.parametrize("request_text", [
+    "Fix this one-line bug: change the timeout from 1 to 2 seconds",
+    "Fix this one-line bug: replace == with ===",
+    "Write a new feature: adopt the new dashboard layout",
+    "show 2 to 3 options",
+    "we bumped into a crash in the report",
+    "replace this line with that one",
+    "see version 2 of the doc",
+])
+def test_applies_stays_quiet_on_ordinary_fixes_and_features(request_text):
+    assert not _mf().applies(request_text)["applies"], (request_text, _mf().applies(request_text))
+
+
+def test_the_refs_name_every_refusal_the_checker_makes():
+    fails = BLOCK_REF.read_text(encoding="utf-8").split("## What fails", 1)[1]
+    for words in ("fence", "unknown key", "em dash", "exactly `mechanical-first:`", "indented"):
+        assert words in fails, words
+
+
+def test_the_worked_inventory_counts_matches_not_printed_lines():
+    for path in (BLOCK_REF, CASES / "responses" / "with-block.md"):
+        text = path.read_text(encoding="utf-8")
+        assert "| wc -l" not in text and "--json=compact" in text, path
 
 
 def test_the_check_reads_stdin_and_reports_a_usage_error():
