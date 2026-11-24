@@ -247,7 +247,7 @@ def extract_call(repo, tby, call):
     with open(call["text_file"]) as fh:
         batch = fh.read()
     p = XP.replace("{{CARD}}", card_for(call, ts)).replace("{{BATCH}}", batch).replace("{{TARGETS}}", json.dumps([tgt_json(t) for t in ts], indent=0))
-    out, rc = calls.claude("extract", call["id"], p, timeout=2400)
+    out, rc = calls.claude("extract", call["id"], p, timeout=2400, max_output_tokens=calls.WRITER_MAX_OUTPUT)
     if not calls.answered(out, rc):
         raise calls.CallFailed(f"the writer's extract call {call['id']} did not answer (exit {rc}); nothing was stored")
     j = calls.parse_json(out) or {}
@@ -265,7 +265,7 @@ def extract_call(repo, tby, call):
     if fl:
         prev = json.dumps({"targets": [res.get(f["target"]) or {"target": f["target"], "statements": [], "not_rules": []} for f in fl]})
         rp = RM.replace("{{FAILURES}}", json.dumps(fl, indent=0)).replace("{{PREVIOUS}}", prev) + "\n\n=== CONTEXT (the same batch and targets as before) ===\n" + p
-        out2, rc2 = calls.claude("mrepair", call["id"], rp, timeout=2400)
+        out2, rc2 = calls.claude("mrepair", call["id"], rp, timeout=2400, max_output_tokens=calls.WRITER_MAX_OUTPUT)
         repaired = True
         failed = {f["target"] for f in fl}
         # A repair answer replaces only a target that failed: one that passed keeps its first answer.

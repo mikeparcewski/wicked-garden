@@ -1,6 +1,6 @@
 """The J6 v3 prompts, cards and contract are the proof's frozen files, byte for byte (DES-j6-build G2).
 
-``scripts/domain/SHA256SUMS`` holds the hashes the proof froze (``proof-v3/FROZEN.sha256`` and its ``frozen/``
+``PROOF`` below and ``scripts/domain/SHA256SUMS`` hold the hashes the proof froze (``proof-v3/FROZEN.sha256`` and its ``frozen/``
 tree) and the prose calibration's three prompts (DES-j6-build §6: ``prose_v2`` as ``prose.txt``, check v2, repair). A change to any of these files is a change to the calibrated pipeline, so it changes this list on purpose.
 """
 import hashlib
@@ -9,13 +9,32 @@ import os
 HERE = os.path.join(os.path.dirname(__file__), "..", "..", "scripts", "domain")
 
 
-def test_every_frozen_file_matches_its_recorded_hash():
-    with open(os.path.join(HERE, "SHA256SUMS")) as fh:
-        rows = [line.split() for line in fh if line.strip()]
-    assert len(rows) == 12
-    for digest, rel in rows:
+# The proof's own hashes, copied from its records, never from this repository: ``proof-v3/FROZEN.sha256`` (check_C6,
+# confirm_R, facts_cobol_R, cards/cobol.md), ``sha256sum`` over ``proof-v3/frozen/`` (extract, repair, repair_m,
+# cards/generic.md, contract.json) and over the prose calibration's ``prose-cal/prompts/`` (prose_v2 as prose.txt,
+# prose_check, prose_repair). A file here that drifts from the proof fails, whatever SHA256SUMS says.
+PROOF = {
+    "prompts/check_C6.txt": "b11016de9cad72b7745fa6a71bd0a28a16148f0c962c0a6c21aa65d0a73ca3fc",
+    "prompts/confirm_R.txt": "6db2cf9db957219278812367e185e966b57669498f37cf77964ae56e13185603",
+    "prompts/facts_cobol_R.txt": "ba4ae3dd8041ef9a3ca9002f157a4c39d7d547edc5ef98f5fae6545367cef36c",
+    "cards/cobol.md": "4523328d4adaa1dcdc0300b90cf02e1329006d60b00d53f09007f3fa67855fbb",
+    "prompts/extract.txt": "1a7f851637bef36841d29433913272e23b15000f975cb9c52f7340dcdd55efd6",
+    "prompts/repair.txt": "645889df305eb27e1fb6286632269bd0907e6de946da12707ea42e9f03dd4234",
+    "prompts/repair_m.txt": "62779b9799c402a3c46c0a4858e5637544a7e27060093f145f8cf7cf50cd69b1",
+    "cards/generic.md": "f1d2d08d5059d2cc1d1af53460d299f900e5b757aa225bd030a80d1a09e9c763",
+    "contract.json": "6657f142ea3dd09a43d998af5801fd598775677dca2c98d6aa9ef9aeec8278b2",
+    "prompts/prose.txt": "00ddf9bf9ccb5d81bcb5ba8a7ec41e5fbd616a1823454b510a87a81105ad9e2d",
+    "prompts/prose_check.txt": "391d74b3a88ca2bbeca6c13f331a088b8eed2e37a4c8ed8354c7ba7a889e8ce2",
+    "prompts/prose_repair.txt": "1b2f5d4f5788a263a5d9d29fdad0fc3732446b50aee015de207c79edba06edaa",
+}
+
+
+def test_every_frozen_file_matches_the_proofs_own_hash():
+    for rel, digest in PROOF.items():
         with open(os.path.join(HERE, rel), "rb") as fh:
             assert hashlib.sha256(fh.read()).hexdigest() == digest, rel
+    with open(os.path.join(HERE, "SHA256SUMS")) as fh:
+        assert {line.split()[1]: line.split()[0] for line in fh if line.strip()} == PROOF
 
 
 def test_every_prompt_the_pipeline_reads_is_listed():

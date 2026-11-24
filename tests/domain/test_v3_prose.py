@@ -72,7 +72,8 @@ def test_a_sentence_that_fails_after_its_one_repair_is_withheld_with_its_reason(
     assert "OVERREACH SCOPE: drops a test" in sent[2][2] and "M4 `9999-ABEND`" in sent[2][2]
     (g,) = res["groups"]
     assert g["rule"] is None
-    assert g["withheld"] == [dict(id="g1.r", layer="rule", text="Hours over 40 are overtime.", reason="OVERREACH SCOPE: drops a test")]
+    assert g["withheld"] == [dict(id="g1.r", layer="rule", text="Hours over 40 are overtime.", reason="OVERREACH SCOPE: drops a test",
+                                 cites=["S1"])]
     assert [(d["id"], d["fate"], d["text"]) for d in g["details"]] == [("g1.d1", "as written", "`isCouncilSize(v)` holds"),
                                                                         ("g1.d2", "repaired", "`WS-DONE` is set")]
     assert res["counts"]["m_failed"] == 1 and res["counts"]["check_flagged"] == 1

@@ -147,12 +147,12 @@ def _objection(v, mf):
     return "; ".join(mf)
 
 
-def write_all(rows, desc):
-    """One writer call per pack; group numbers run on across packs."""
-    groups, gmax = [], 0
+def write_all(rows, desc, step="prose", start=0):
+    """One writer call per pack; group numbers run on across packs, after ``start``."""
+    groups, gmax = [], start
     for k, pk in enumerate(packs(rows)):
         body = "\n\n".join(f"[{r['sid']}]\n{r['text']}" for r in pk)
-        out, rc = calls.claude("prose", f"w{k}", WRITE.replace("{{REPO_DESC}}", desc).replace("{{STATEMENTS}}", body), timeout=1500)
+        out, rc = calls.claude(step, f"w{k}", WRITE.replace("{{REPO_DESC}}", desc).replace("{{STATEMENTS}}", body), timeout=1500)
         if not calls.answered(out, rc):
             raise calls.CallFailed(f"the prose writer's call w{k} did not answer (exit {rc}); nothing was stored")
         got = [g for g in (calls.parse_json(out) or {}).get("groups") or [] if isinstance(g, dict)]
@@ -168,19 +168,56 @@ def write_all(rows, desc):
     return groups
 
 
-def prose_all(statements, desc):
+def shape_fail(g):
+    """Why a writer's group cannot be checked (``None`` when it can): its kind, title, and every sentence's text and
+    cites."""
+    if g.get("kind") not in ("business", "housekeeping"):
+        return f"kind {g.get('kind')!r} is not business or housekeeping"
+    if not isinstance(g.get("title"), str) or not g["title"].strip():
+        return "the group has no title"
+    if not isinstance(g.get("details") or [], list):
+        return "details is not a list"
+    for x in [g.get("rule")] + list(g.get("details") or []):
+        if not (isinstance(x, dict) and isinstance(x.get("text"), str) and isinstance(x.get("cites"), list)
+                and all(isinstance(c, str) for c in x["cites"])):
+            return "a sentence without text or cites"
+    return None
+
+
+def _cited(groups, by):
+    return {c for g in groups for x in [g["rule"]] + list(g.get("details") or []) for c in x["cites"] if c in by}
+
+
+def _tried(g, by):
+    """The statements a malformed group cites, as far as its shape lets them be read."""
+    ds = g.get("details") if isinstance(g.get("details"), list) else []
+    return sorted({c for x in [g.get("rule")] + ds if isinstance(x, dict) and isinstance(x.get("cites"), list)
+                   for c in x["cites"] if isinstance(c, str) and c in by}, key=lambda c: int(c[1:]))
+
+
+def prose_all(statements, desc, start=0):
     """The run's rule groups: {rows, groups, uncited, counts}. Each sentence carries ``fate``: as written, repaired
-    or withheld (then ``reason``); a group whose RULE is withheld has ``rule: None`` and lists it in ``withheld``."""
+    or withheld (then ``reason``) and the checker's ``verdict``; a group whose RULE is withheld has ``rule: None`` and
+    lists it in ``withheld``. A group the writer gave a shape that cannot be checked is withheld whole, with its
+    reason. Statements no group cites go to the writer once more (the coverage repair); group numbers start after
+    ``start``."""
     rows = rows_of(statements)
     if not rows:
         return dict(rows=[], groups=[], uncited=[], counts={})
     by = {r["sid"]: r for r in rows}
-    groups = write_all(rows, desc)
+    written = write_all(rows, desc, start=start)
+    groups = [g for g in written if not shape_fail(g)]
+    left = [r for r in rows if r["sid"] not in _cited(groups, by)]
+    if left:
+        more = write_all(left, desc, step="prose-left", start=max([start] + [g["g"] for g in written]))
+        written += more
+        groups += [g for g in more if not shape_fail(g)]
+    malformed = [g for g in written if shape_fail(g)]
     mfail, uncited = mcheck(groups, rows)
     sents = sentences(groups)
     v1 = check(sents, by, "prose-check")
     bad = [s for s in sents if (v1.get(s["id"]) or {}).get("verdict") != "SUPPORTED" or s["id"] in mfail]
-    fixed = {}
+    fixed, v2 = {}, {}
     if bad:
         need = sorted({c for s in bad for c in s["cites"] if c in by}, key=lambda x: int(x[1:]))
         body = "\n\n".join(f"[{s['id']}] layer={s['layer'].upper()} cites={','.join(s['cites'])}\nTEXT: {s['text']}\n"
@@ -214,17 +251,27 @@ def prose_all(statements, desc):
         for s in [g["rule"]] + [d for d in g.get("details") or [] if isinstance(d, dict)]:
             f = fixed.get(s["id"])
             if f and f["withheld"]:
-                og["withheld"].append(dict(id=s["id"], layer=s["layer"], text=s["text"], reason=f["reason"]))
+                og["withheld"].append(dict(id=s["id"], layer=s["layer"], text=s["text"], reason=f["reason"],
+                                           cites=[c for c in s.get("cites") or [] if c in by]))
                 fates["withheld"] += 1
                 continue
+            v = (v2.get(s["id"]) if f else v1.get(s["id"])) or {}
             row = dict(id=s["id"], text=f["text"] if f else s["text"], cites=f["cites"] if f else s["cites"],
-                       fate="repaired" if f else "as written")
+                       fate="repaired" if f else "as written", verdict=v.get("verdict"))
             fates[row["fate"]] += 1
             if s["layer"] == "rule":
                 og["rule"] = row
             else:
                 og["details"].append(row)
         out_groups.append(og)
+    for g in malformed:
+        why = shape_fail(g)
+        out_groups.append(dict(g=g["g"], title=g["title"] if isinstance(g.get("title"), str) else None, area=g.get("area"),
+                               kind=g.get("kind") if g.get("kind") in ("business", "housekeeping") else "business",
+                               rule=None, details=[], withheld=[dict(id=f"g{g['g']}", layer="group", text="",
+                                                                     reason=f"M1 shape: {why}", cites=_tried(g, by))]))
+        fates["withheld"] += 1
+    out_groups.sort(key=lambda g: g["g"])
     return dict(rows=rows, groups=out_groups, uncited=uncited,
                 counts=dict(groups=len(out_groups), sentences=len(sents), m_failed=len(mfail),
                             check_flagged=sum(1 for s in sents if (v1.get(s["id"]) or {}).get("verdict") != "SUPPORTED"), **fates))

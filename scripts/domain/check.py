@@ -213,8 +213,16 @@ def r_round(repo, tag, sts, U, num, extra_of, shown=None):
     return rows
 
 
-def status3(s, U, num, rrow):
-    """Checked / flagged / unverifiable / noresult from the union after R."""
+def answered_all(r, s):
+    """One pass's result names every claim of ``s``."""
+    got = {c.get("i") for c in (r or {}).get("claims", [])}
+    return bool(r) and all(c.get("i") in got for c in s["claims"])
+
+
+def status3(s, U, num, rrow, both=True):
+    """Checked / flagged / unverifiable / noresult from the union after R. ``both``: each of the two passes answered
+    on every claim; a statement one pass did not answer is never Checked (it is noresult, checked again next run),
+    though a finding the other pass made still stands."""
     r = U["raw"].get(num[s["id"]])
     if not r:
         return "noresult"
@@ -229,7 +237,7 @@ def status3(s, U, num, rrow):
     vs = [(c.get("verdict") or "").upper() for i, cs in by.items() for c in cs if (c.get("verdict") or "").upper() not in FLAG]
     if any(v == "UNVERIFIABLE" for v in vs):
         return "unverifiable"
-    return "Checked" if all(v == "SUPPORTED" for v in vs) else "noresult"
+    return "Checked" if both and all(v == "SUPPORTED" for v in vs) else "noresult"
 
 
 def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True, shown=None):
@@ -245,7 +253,8 @@ def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True, shown=None):
             shown.setdefault(s["id"], set()).update(sa.get(s["id"], set()) | sb.get(s["id"], set()))
     U, num = union_of(out_dir, tag, sts, ra, rb)
     rr = r_round(repo, tag, sts, U, num, ext, shown=shown)
-    st = {s["id"]: status3(s, U, num, rr.get(s["id"])) for s in sts}
+    st = {s["id"]: status3(s, U, num, rr.get(s["id"]), answered_all(ra.get(s["id"]), s) and answered_all(rb.get(s["id"]), s))
+          for s in sts}
     return U, num, rr, st, ext, {s["id"]: sorted(set(la.get(s["id"], []) + lb.get(s["id"], []))) for s in sts}
 
 
@@ -261,7 +270,7 @@ def repair_one(repo, tby, call, sts):
         batch = fh.read()
     card = X.card_for(call, [tby[x] for x in call["targets"]])
     p = RP.replace("{{CARD}}", card).replace("{{BATCH}}", batch).replace("{{ITEMS}}", json.dumps(its, indent=0))
-    out, rc = calls.claude("repair", call["id"], p, timeout=2400)
+    out, rc = calls.claude("repair", call["id"], p, timeout=2400, max_output_tokens=calls.WRITER_MAX_OUTPUT)
     return calls.parse_json(out) or {}
 
 

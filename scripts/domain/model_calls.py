@@ -3,9 +3,12 @@ seat (``wicked-core model-call --family claude|codex``, the Tool step's channel)
 
 The call log keeps the J6 v3 proof's shape (``proof-v3/scripts/calls.py``): each call's prompt and text under
 ``<calls>/<step>/<id>.*``, one ``ledger.jsonl`` row per call, a re-run reuses a completed call whose prompt is
-byte-identical, and a different prompt under an existing step and id is refused. Only the transport changed: the
-proof ran the CLIs on its own host; here the engine runs the signed-in seat (under the container floor, in the seat
-container through the gateway). Stdlib only.
+byte-identical, and a different prompt under an existing step and id is refused. The transport changed: the proof
+ran the CLIs on its own host; here the engine runs the signed-in seat (under the container floor, in the seat
+container through the gateway). What the proof set per call is carried through it: the writer's output cap
+(``CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000`` on extract, M-repair and repair; :data:`WRITER_MAX_OUTPUT`) is
+``model-call --max-output-tokens``. The proof's ``tools``, ``cwd`` and ``env`` arguments are not: the engine's
+tool-free posture and the seat's own home replace them. Stdlib only.
 """
 import json
 import os
@@ -15,6 +18,7 @@ import subprocess
 import time
 
 WRITER, CHECKER = "claude", "codex"
+WRITER_MAX_OUTPUT = 64000  # the proof's CLAUDE_CODE_MAX_OUTPUT_TOKENS on extract, M-repair and repair (38.7K seen)
 FAMILY = {"claude": "anthropic", "codex": "openai"}
 CORE_ENV = "WICKED_CORE_BIN"
 _state = {"calls": None}
@@ -96,8 +100,9 @@ def _cached(base, prompt):
     return None
 
 
-def call(family, step, cid, prompt, timeout=1500, role=None):
-    """One call to the ``family`` seat. Returns ``(text, rc)``: rc 0 answered, else the client's exit code."""
+def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=None):
+    """One call to the ``family`` seat. Returns ``(text, rc)``: rc 0 answered, else the client's exit code.
+    ``max_output_tokens`` caps the seat's answer (``model-call --max-output-tokens``)."""
     role = role or ("extractor" if family == WRITER else "validator")
     d, base = _paths(step, cid)
     _no_overwrite(base, prompt)
@@ -109,8 +114,11 @@ def call(family, step, cid, prompt, timeout=1500, role=None):
     out = base + ".out.tmp"
     t0 = time.time()
     try:
-        r = subprocess.run([core_bin(), "model-call", "--family", family, "--in", base + ".prompt.txt", "--out", out,
-                            "--timeout-s", str(int(timeout))], capture_output=True, text=True, timeout=timeout + 180)
+        cmd = [core_bin(), "model-call", "--family", family, "--in", base + ".prompt.txt", "--out", out,
+               "--timeout-s", str(int(timeout))]
+        if max_output_tokens:
+            cmd += ["--max-output-tokens", str(int(max_output_tokens))]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 180)
         rc, err = r.returncode, r.stderr
     except subprocess.TimeoutExpired:
         rc, err = 124, "TIMEOUT"
@@ -124,9 +132,9 @@ def call(family, step, cid, prompt, timeout=1500, role=None):
     return text, rc
 
 
-def claude(step, cid, prompt, tools=None, cwd=None, timeout=1500, role="extractor", env=None):
-    """The writer (the proof's signature; ``tools``, ``cwd`` and ``env`` are the seat's, never the caller's)."""
-    return call(WRITER, step, cid, prompt, timeout=timeout, role=role)
+def claude(step, cid, prompt, timeout=1500, role="extractor", max_output_tokens=None):
+    """The writer."""
+    return call(WRITER, step, cid, prompt, timeout=timeout, role=role, max_output_tokens=max_output_tokens)
 
 
 def codex(step, cid, prompt, timeout=1500, role="validator"):

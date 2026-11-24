@@ -78,7 +78,7 @@ def test_an_extract_answer_missing_a_target_gets_one_m_repair_with_the_failures(
     repo, S, C = cobol_run
     sent = []
 
-    def fake(step, cid, prompt, timeout=1500, role="extractor"):
+    def fake(step, cid, prompt, timeout=1500, role="extractor", **kw):
         sent.append((step, cid, prompt))
         return "{}", 0
     monkeypatch.setattr(model_calls, "claude", fake)
@@ -102,3 +102,30 @@ def test_the_machine_checks_refuse_a_citation_outside_the_batch_and_an_unshown_l
     assert any("claim 2 line ref app/cbl/OTHER.cbl:1 is not inside the batch" in e for e in errs), errs
     assert any("claim 1 quotes the literal `DOUBLE`" in e for e in errs), errs
     assert not any("claim 0" in e for e in errs), errs
+
+
+def test_the_proof_output_cap_reaches_the_writer_invocation_for_extract_and_m_repair(cobol_run, tmp_path, monkeypatch):
+    """The proof ran its writer with a 64000-token answer cap (CLAUDE_CODE_MAX_OUTPUT_TOKENS); two of its extract
+    answers were over 35K tokens. The port carries it on the model-call command line, for every writer call that
+    answers a whole batch: extract and its M-repair."""
+    repo, S, C = cobol_run
+    model_calls.configure(str(tmp_path / "calls"))
+    monkeypatch.setenv(model_calls.CORE_ENV, "wicked-core")
+    argvs = []
+
+    class Done:
+        returncode, stderr = 0, ""
+
+    def run(cmd, **kw):
+        argvs.append(cmd)
+        with open(cmd[cmd.index("--out") + 1], "w") as fh:
+            fh.write("{}")
+        return Done()
+    monkeypatch.setattr(model_calls.subprocess, "run", run)
+    extract.extract_all(repo, S, C)
+    assert [c[c.index("--family") + 1] for c in argvs] == [model_calls.WRITER, model_calls.WRITER]
+    assert all(c[c.index("--max-output-tokens") + 1] == "64000" for c in argvs), argvs
+    # the checker's answers are short; it gets no cap
+    argvs.clear()
+    model_calls.codex("check", "c0", "p")
+    assert "--max-output-tokens" not in argvs[0]

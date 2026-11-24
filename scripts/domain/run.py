@@ -113,26 +113,37 @@ def extract_some(repo, S, C, tids):
     return extract.extract_all(repo, S, dict(C, calls=cs))
 
 
-def prose_for(statements, desc, prior):
-    """The run's rule groups: the stored ones when the writer's input is unchanged, else ``prose.prose_all``. Also
-    returns the statements the writer left out of every group (``uncited``, by statement id)."""
+def prose_for(statements, desc, desc_key, prior):
+    """The run's rule groups (DES §5): a stored group is reused, with 0 calls, while every statement it rests on reads
+    the same and the run's description is the same (``desc_key``: the scope's own, never the checkout's folder name);
+    the statements no reused group rests on are written again (``prose.prose_all``). Returns (groups, meta, reused
+    whole, counts, uncited): ``meta`` is what the store keeps to decide the next run's reuse."""
     rows = prose.rows_of(statements)
-    # the writer's whole input: its statements and the repository description it is given
-    rows_hash = store.sha(json.dumps([desc] + [(r["sid"], r["id"], r["text"]) for r in rows]).encode())
-    stored = [v for v in prior[store.GROUP].values() if v.get("rows_hash") == rows_hash]
-    if rows and stored and len(stored) == len(prior[store.GROUP]):
-        groups = sorted((v["group"] for v in stored), key=lambda g: g.get("g") or 0)
-        return groups, rows_hash, True, {}, stored[0].get("uncited") or []
+    text_of = {r["id"]: store.sha(r["text"].encode()) for r in rows}
+    meta = dict(text_of=text_of, desc=desc_key)
     if not rows:
-        return [], rows_hash, False, {}, []
-    res = prose.prose_all(statements, desc)
-    sid_of = {r["sid"]: r["id"] for r in res["rows"]}
-    uncited = [sid_of[s] for s in res.get("uncited") or [] if s in sid_of]
+        return [], meta, False, {}, []
+    reused, covered, left_out = [], set(), set()
+    for v in prior[store.GROUP].values():
+        if not isinstance(v, dict) or v.get("desc") != desc_key:
+            continue
+        inp = v.get("inputs") or {}
+        if inp and all(text_of.get(i) == h for i, h in inp.items()):
+            reused.append(v["group"])
+            covered |= set(inp)
+        left_out |= {i for i, h in (v.get("uncited") or {}).items() if text_of.get(i) == h}
+    todo = {i for i in text_of if i not in covered and i not in left_out}
+    reused.sort(key=lambda g: g.get("g") or 0)
+    if not todo:
+        return reused, meta, True, {}, sorted(left_out)
+    res = prose.prose_all([s for s in statements if s.get("id") in todo], desc,
+                          start=max([0] + [g.get("g") or 0 for g in reused]))
     sid = {r["sid"]: r["id"] for r in res["rows"]}
     for g in res["groups"]:
-        for s in ([g["rule"]] if g.get("rule") else []) + g.get("details", []):
-            s["cites"] = [sid[c] for c in s.get("cites") or [] if c in sid]
-    return res["groups"], rows_hash, False, res.get("counts") or {}, uncited
+        for x in ([g["rule"]] if g.get("rule") else []) + g.get("details", []) + g.get("withheld", []):
+            x["cites"] = [sid[c] for c in x.get("cites") or [] if c in sid]
+    uncited = sorted(left_out | {sid[c] for c in res.get("uncited") or [] if c in sid})
+    return sorted(reused + res["groups"], key=lambda g: g.get("g") or 0), meta, False, res.get("counts") or {}, uncited
 
 
 def made_calls(calls_dir):
@@ -179,7 +190,7 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         say(log, f"{c['id']} · checked {sum(s['status'] == 'Checked' for s in mine)}/{len(mine)} · "
                  f"{sum(s['status'] == 'open' for s in mine)} open · {ok}/{len(c['targets'])} targets accounted")
     desc = scope_in.get("description") or os.path.basename(os.path.abspath(root))
-    groups, rows_hash, prose_reused, pcounts, uncited = prose_for(live, desc, prior)
+    groups, pmeta, prose_reused, pcounts, uncited = prose_for(live, desc, scope_in.get("description") or "", prior)
     withheld = sum(len(g.get("withheld") or []) for g in groups)
     say(log, f"prose · {len(groups)} groups · {withheld} withheld" + (f" · {len(uncited)} statements in no group" if uncited else "")
         + (" · reused" if prose_reused else ""))
@@ -193,7 +204,7 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         rec = store.target_record(repo, t, call_of[t["id"]], sts, tn, R["targets"].get(t["id"]) or {}, spans, S["targets"])
         rec["anchor_symbol"] = t.get("anchor_symbol")
         records.append(rec)
-    rows, unplaced = store.rows_for(repo, dict(statements=live), records, groups, rows_hash, fu, prior,
+    rows, unplaced = store.rows_for(repo, dict(statements=live), records, groups, pmeta, fu, prior,
                                     lambda s: render(s, s.get("name")), uncited=uncited)
     report = write(db, rows)
     accounted = sum(1 for t in S["targets"] if not (R["targets"].get(t["id"]) or {}).get("unaccounted"))

@@ -11,7 +11,8 @@ which every reader skips):
 - ``domain_target:<target id>`` on the target's anchor node: the target, its text hash, its batch (files and hash),
   its pieces, its statement ids, its not-rules and its state. This is what reuse reads.
 - ``rule_group:<group hash>`` on the anchor of the group's first cited statement: the group (``prose.prose_all``)
-  and ``rows_hash``, the hash of the writer's input. Prose is reused when the next run's input hashes the same.
+  and its ``inputs`` (each statement it rests on, with the hash of its text as the writer read it) and ``desc``.
+  A group is reused while every one of its inputs reads the same; only the others are written again.
 - ``domain_followup:<row hash>`` on the target's node, or the file's node for a range or the scope.
 
 **Reuse, per target of the new scope** (v1 §3.8; the proof's ``step10.decide``):
@@ -290,7 +291,16 @@ def symbol_for(repo, f, sym=None):
     return best["sym"]
 
 
-def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, render, uncited=()):
+def content_hash(st):
+    """What a statement says, apart from where it sits: its file and its claims (type, text, guards), never line
+    numbers. A ruling on a statement keys on it, so a ruling never moves to a different statement that took the same
+    positional id, and survives a move of the same statement."""
+    a = st.get("anchor") if isinstance(st.get("anchor"), dict) else {}
+    claims = [[c.get(k) for k in ("type", "text", "when", "unless", "of")] for c in st.get("claims") or [] if isinstance(c, dict)]
+    return sha(json.dumps([a.get("file"), claims], sort_keys=True, default=str).encode())
+
+
+def rows_for(repo, result, records, groups, prose_meta, followup_rows, prior, render, uncited=()):
     """The annotate rows of one run, and the prior keys it retires. ``render(statement)`` is the statement text."""
     rows, unplaced = [], []
     rec_by_stmt = {sid: r for r in records for sid in r["statements"]}
@@ -318,7 +328,7 @@ def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, ren
             text = render(st) if usable else None
         except (KeyError, IndexError, TypeError, ValueError):
             text = None
-        add(sym, RULE, st["id"], dict(statement=text or "(open: the writer's statement could not be rendered; see its "
+        add(sym, RULE, st["id"], dict(content_hash=content_hash(st), statement=text or "(open: the writer's statement could not be rendered; see its "
                                                          "follow-up)", contract=st, status=st["status"], batch_hash=rec["batch_hash"],
                                       target_hash=rec["target_hash"], fetched_files=st.get("fetched_files") or []))
     written = {RULE: {r["key"].split(":", 1)[1] for r in rows}}
@@ -341,7 +351,10 @@ def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, ren
             # every sentence withheld: the group (its reasons) is still stored, on the scope's first target
             sym = symbol_for(repo, records[0]["file"], records[0].get("anchor_symbol")) if records else None
         if sym:
-            add(sym, GROUP, name, dict(group=g, rows_hash=rows_hash, uncited=list(uncited)))
+            text_of = (prose_meta or {}).get("text_of") or {}
+            add(sym, GROUP, name, dict(group=g, desc=(prose_meta or {}).get("desc"),
+                                       inputs={i: text_of.get(i) for i in _group_ids(g)},
+                                       uncited={i: text_of.get(i) for i in uncited}))
             written[GROUP].add(name)
     written[FOLLOWUP] = set()
     for r in followup_rows:
@@ -362,6 +375,11 @@ def rows_for(repo, result, records, groups, rows_hash, followup_rows, prior, ren
             if sym:
                 add(sym, typ, name, dict(status=RETIRED))
     return rows, unplaced
+
+
+def _group_ids(g):
+    return sorted({c for x in ([g["rule"]] if g.get("rule") else []) + list(g.get("details") or []) + list(g.get("withheld") or [])
+                   for c in x.get("cites") or []})
 
 
 def _prior_symbol(prior, typ, name):

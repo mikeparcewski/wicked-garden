@@ -236,9 +236,10 @@ def test_a_group_whose_every_sentence_was_withheld_is_still_stored(tmp_path):
     rec = dict(target=t["id"], file=PROG, anchor_symbol=t["anchor_symbol"], statements=[])
     g = dict(g=1, title="Overtime", area="A", kind="business", rule=None, details=[],
              withheld=[dict(id="g1.r", layer="rule", text="x", reason="OVERREACH SCOPE: y")])
-    rows, _ = store.rows_for(repo, dict(statements=[]), [rec], [g], "h", [], store.load(repo.db), str, uncited=["a#0"])
+    meta = dict(text_of={"a#0": "h0"}, desc="")
+    rows, _ = store.rows_for(repo, dict(statements=[]), [rec], [g], meta, [], store.load(repo.db), str, uncited=["a#0"])
     (row,) = [r for r in rows if r["type"] == store.GROUP]
-    assert json.loads(row["value"]) == dict(group=g, rows_hash="h", uncited=["a#0"])
+    assert json.loads(row["value"]) == dict(group=g, desc="", inputs={}, uncited={"a#0": "h0"})
 
 
 def test_an_empty_scope_is_refused_and_retires_nothing(tmp_path, monkeypatch):
@@ -436,13 +437,18 @@ def test_a_typed_path_settles_a_program_id_in_two_files(tmp_path):
     assert S["targets"] and S["ambiguous_phrases"] == [] and PROG in S["target_files"]
 
 
-def test_the_prose_is_written_again_when_the_repository_description_changes(monkeypatch):
+def test_the_prose_is_written_again_when_the_scope_description_changes_never_the_folder_name(monkeypatch):
     from tests.domain.test_v3_prose import STATEMENTS
-    monkeypatch.setattr(prose, "prose_all", lambda sts, desc: dict(rows=prose.rows_of(sts), groups=[], uncited=[], counts={}))
-    _, h1, _, _, _ = run.prose_for(STATEMENTS, "payroll", {store.GROUP: {}})
-    prior = {store.GROUP: {"x": dict(group=dict(g=1), rows_hash=h1)}}
-    assert run.prose_for(STATEMENTS, "payroll", prior)[2] is True
-    assert run.prose_for(STATEMENTS, "billing", prior)[2] is False
+    rows = prose.rows_of(STATEMENTS)
+    text_of = {r["id"]: store.sha(r["text"].encode()) for r in rows}
+    seen = []
+    monkeypatch.setattr(prose, "prose_all", lambda sts, desc, start=0: seen.append(desc) or dict(rows=[], groups=[], uncited=[], counts={}))
+    g = dict(g=1, rule=dict(id="g1.r", cites=sorted(text_of)), details=[], withheld=[])
+    prior = {store.GROUP: {"x": dict(group=g, desc="", inputs=dict(text_of), uncited={})}}
+    # no description: the writer is told the folder's name, which is not part of the reuse key
+    assert run.prose_for(STATEMENTS, "checkout-a", "", prior)[2] is True
+    assert run.prose_for(STATEMENTS, "checkout-b", "", prior)[2] is True and seen == []
+    assert run.prose_for(STATEMENTS, "billing", "billing", prior)[2] is False and seen == ["billing"]
 
 
 def test_two_runs_in_one_second_get_two_evidence_directories(tmp_path, monkeypatch):
@@ -538,3 +544,109 @@ def test_an_r_prompt_s_copybooks_are_in_its_statements_batch(tmp_path, monkeypat
     shown = {}
     check.r_round(repo, "t", sts, dict(raw={"1": {}}), {"s1": "1"}, {}, shown=shown)
     assert "app/cpy/PAYREC.cpy" in shown["s1"]
+
+
+# ---------------- coord round 2 ----------------
+def _supported(prompt):
+    res = []
+    for ln in prompt.splitlines():
+        if ln.startswith('{"n":'):
+            it = json.loads(ln)
+            res.append(dict(n=it["n"], claims=[dict(i=c["i"], verdict="SUPPORTED") for c in it["claims"]]))
+    return json.dumps(dict(results=res))
+
+
+def test_a_statement_is_checked_only_when_both_passes_answered_it(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    st = lambda k: dict(id=f"s{k:02d}", anchor=dict(file=PROG, lines=[23, 28]), claims=[
+        dict(i=0, type="condition", text="`PAY-HOURS > 40`", lines=[f"{PROG}:24"])])
+    sts = [st(k) for k in range(11)]  # two chunks of the C6 round: s00..s09, then s10
+
+    def codex(step, cid, prompt, timeout=1500, role=None):
+        if step == "t-a" and cid == "c1":
+            return "", 1  # pass a's second chunk fails; pass b answers it
+        return _supported(prompt), 0
+    monkeypatch.setattr(model_calls, "codex", codex)
+    model_calls.configure(str(tmp_path / "calls"))
+    _, _, _, status, _, _ = check.check3(repo, str(tmp_path), "t", sts, fetch=False)
+    assert status["s10"] == "noresult"
+    assert all(status[f"s{k:02d}"] == "Checked" for k in range(10)), status
+
+
+def test_a_ruling_keys_on_what_a_statement_says_never_its_position_or_lines():
+    a = dict(id="t#0", anchor=dict(file=PROG, lines=[23, 28]), claims=[dict(i=0, type="condition", text="`X > 40`", lines=["p:24"])])
+    moved = dict(a, id="t#3", anchor=dict(file=PROG, lines=[40, 45]), claims=[dict(a["claims"][0], lines=["p:41"])])
+    other = dict(a, claims=[dict(a["claims"][0], text="`X > 45`")])
+    assert store.content_hash(a) == store.content_hash(moved) != store.content_hash(other)
+
+
+def test_every_stored_rule_row_carries_its_content_hash(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    seats = FakeSeats(scope.build_scope(repo, "PAYCALC1"))
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    _, R, _, _ = run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r"), write=fake_write)
+    rules = stored(repo.db)[store.RULE]
+    by = {s["id"]: s for s in R["statements"]}
+    assert rules and all(v["content_hash"] == store.content_hash(by[k]) for k, v in rules.items())
+
+
+def test_only_the_groups_whose_statements_changed_are_written_again(monkeypatch):
+    from tests.domain.test_v3_prose import STATEMENTS
+    text_of = {r["id"]: store.sha(r["text"].encode()) for r in prose.rows_of(STATEMENTS)}
+    g1 = dict(g=1, title="A", kind="business", rule=dict(id="g1.r", text="a", cites=["a#0"]), details=[], withheld=[])
+    g2 = dict(g=2, title="B", kind="business", rule=dict(id="g2.r", text="b", cites=["b#0"]), details=[], withheld=[])
+    prior = {store.GROUP: {"x": dict(group=g1, desc="", inputs={"a#0": text_of["a#0"]}, uncited={}),
+                           "y": dict(group=g2, desc="", inputs={"b#0": "stale"}, uncited={})}}
+    asked = []
+
+    def prose_all(sts, desc, start=0):
+        asked.append(([s["id"] for s in sts], start))
+        rows = prose.rows_of(sts)
+        return dict(rows=rows, groups=[dict(g=start + 1, title="B2", kind="business", rule=dict(id="x", text="b2", cites=["S1"]),
+                                            details=[], withheld=[])], uncited=[], counts={})
+    monkeypatch.setattr(prose, "prose_all", prose_all)
+    groups, meta, whole, _, uncited = run.prose_for(STATEMENTS, "repo", "", prior)
+    assert asked == [(["b#0"], 1)] and whole is False and uncited == []
+    assert [g["g"] for g in groups] == [1, 2] and groups[0] is g1 and groups[1]["rule"]["cites"] == ["b#0"]
+    assert meta == dict(text_of=text_of, desc="")
+
+
+def _prose_seats(monkeypatch, answers):
+    sent = []
+
+    def claude(step, cid, prompt, timeout=1500, role=None, **kw):
+        sent.append((step, prompt))
+        return json.dumps(answers[step]), 0
+
+    def codex(step, cid, prompt, timeout=1500, role=None):
+        sent.append((step, prompt))
+        return json.dumps(dict(verdicts=[dict(id=i, verdict="SUPPORTED") for i in __import__("re").findall(r"^\[(g\d+\.\w+)\]", prompt, 8)])), 0
+    monkeypatch.setattr(model_calls, "claude", claude)
+    monkeypatch.setattr(model_calls, "codex", codex)
+    return sent
+
+
+def test_a_malformed_group_is_withheld_with_its_reason_and_its_statements_are_written_again(monkeypatch):
+    from tests.domain.test_v3_prose import STATEMENTS
+    bad = dict(g=1, title="Overtime", kind="rules", rule=dict(text="Hours over 40 are overtime.", cites=["S1"]), details=[])
+    good = dict(g=1, title="Overtime", kind="business", rule=dict(text="Hours over 40 are overtime.", cites=["S1", "S2"]), details=[])
+    sent = _prose_seats(monkeypatch, {"prose": dict(groups=[bad]), "prose-left": dict(groups=[good])})
+    res = prose.prose_all(STATEMENTS, "COBOL/JCL Demo")
+    assert [s for s, _ in sent] == ["prose", "prose-left", "prose-check"]
+    (w, ok) = res["groups"]
+    assert w["g"] == 1 and w["rule"] is None and w["withheld"] == [
+        dict(id="g1", layer="group", text="", reason="M1 shape: kind 'rules' is not business or housekeeping", cites=["S1"])]
+    assert ok["g"] == 2 and ok["rule"]["cites"] == ["S1", "S2"] and ok["rule"]["verdict"] == "SUPPORTED"
+    assert res["uncited"] == []
+
+
+def test_a_statement_the_writer_left_out_goes_to_the_writer_once_more(monkeypatch):
+    from tests.domain.test_v3_prose import STATEMENTS
+    one = dict(g=1, title="Overtime", kind="business", rule=dict(text="Hours over 40 are overtime.", cites=["S1"]), details=[])
+    two = dict(g=1, title="Council", kind="business", rule=dict(text="A council size is checked.", cites=["S2"]), details=[])
+    sent = _prose_seats(monkeypatch, {"prose": dict(groups=[one]), "prose-left": dict(groups=[two])})
+    res = prose.prose_all(STATEMENTS, "COBOL/JCL Demo")
+    left = next(p for s, p in sent if s == "prose-left")
+    assert "[S2]" in left and "[S1]" not in left
+    assert [g["g"] for g in res["groups"]] == [1, 2] and res["uncited"] == []
