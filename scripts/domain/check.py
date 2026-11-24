@@ -179,7 +179,8 @@ def r_round(repo, tag, sts, U, num, extra_of, shown=None):
         w = v2lib.want(repo, s, extra_of.get(s["id"]))
         code = facts(f) + "\n" + v2lib.render_code(repo, w)
         us.append(dict(n=int(n), item=item(int(n), s), finds=fs, code=code, file=f, anchor_line=s["anchor"]["lines"][0]))
-        rfiles[int(n)] = (s["id"], set(w) | {f})
+        # the R prompt's reachability context reads the program's copybooks too
+        rfiles[int(n)] = (s["id"], set(w) | {f} | set(v2lib.defs.copybooks(f)))
     for u in us:
         n = str(u["n"])
         keep[n] = [fd for fd in u["finds"] if (fd.get("case") or "").upper() != "SCOPE"]
@@ -306,7 +307,8 @@ def check_all(repo, S, C, A, out_dir):
             errs = [] if reps else ["repair returned no statement"]
             cov = set()
             for x in reps:
-                x.setdefault("anchor", {})
+                if not isinstance(x.get("anchor"), dict):
+                    x["anchor"] = {}
                 x["anchor"]["symbol_id"] = x["anchor"].get("symbol_id") or t["anchor_symbol"]
                 errs += X.check_statement(repo, x, t, call)
                 if not X.is_rule(x):

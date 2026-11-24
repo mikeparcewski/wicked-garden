@@ -134,9 +134,29 @@ def codex(step, cid, prompt, timeout=1500, role="validator"):
     return call(CHECKER, step, cid, prompt, timeout=timeout, role=role)
 
 
+# The answer fields that hold lists of objects: a model's `null` is an empty list and a non-object element is
+# dropped, so no reader of an answer meets a shape the prompts never asked for.
+OBJECT_LISTS = frozenset(("targets", "results", "repairs", "claims", "statements", "verdicts", "groups", "findings",
+                          "not_rules", "details"))
+
+
+def _shape(v):
+    if isinstance(v, dict):
+        return {k: ([_shape(x) for x in (v[k] or []) if isinstance(x, dict)]
+                    if k in OBJECT_LISTS and (v[k] is None or isinstance(v[k], list)) else _shape(v[k])) for k in v}
+    if isinstance(v, list):
+        return [_shape(x) for x in v]
+    return v
+
+
 def parse_json(text):
-    """The first top-level JSON object in a model's text (strips code fences)."""
-    t = text.strip()
+    """The first top-level JSON object in a model's text (strips code fences), shaped (:data:`OBJECT_LISTS`)."""
+    j = _parse(text)
+    return _shape(j) if isinstance(j, dict) else None
+
+
+def _parse(text):
+    t = (text or "").strip()
     t = re.sub(r"^```(?:json)?\s*", "", t)
     t = re.sub(r"\s*```\s*$", "", t)
     try:

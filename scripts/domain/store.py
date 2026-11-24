@@ -81,6 +81,17 @@ def batch_hash(repo, files):
 MAX_CITED = 5000  # lines one citation may span; a longer (model-made) range counts by its first line only
 
 
+def oversized(st):
+    """The files a statement cites by a range longer than :data:`MAX_CITED` (their whole file is one piece)."""
+    out = set()
+    for c in st.get("claims") or []:
+        for r in [r for key in ("lines", "guards") if isinstance(c, dict) and isinstance(c.get(key), list) for r in c[key]]:
+            p = lookup.pref(r)
+            if p and p[2] - p[1] >= MAX_CITED:
+                out.add(p[0])
+    return out
+
+
 def cited(st):
     """The (file, line) pairs a statement cites: its claims' lines and guards, and its context references."""
     out = set()
@@ -122,6 +133,8 @@ def pieces(repo, t, statements, spans, targets):
     """[file, first line, line count, hash] for the target and the enclosing unit of every line its statements cite."""
     want = {(t["file"], t["lines"][0], t["lines"][1])}
     for st in statements:
+        for f in oversized(st):
+            want.add((f, 1, max(len(_blines(repo, f) or []), 1)))
         for f, i in cited(st):
             sp = enclosing(spans, targets, f, i)
             if sp is None:

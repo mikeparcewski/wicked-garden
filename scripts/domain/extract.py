@@ -108,7 +108,11 @@ def check_statement(repo, st, t, call):
     errs = []
     if not isinstance(st, dict):
         return ["M1 statement is not an object"]
-    an = st.get("anchor") or {}
+    an = st.get("anchor") if isinstance(st.get("anchor"), dict) else {}
+    ctx = st.get("context")
+    if ctx is not None and not (isinstance(ctx, list) and all(isinstance(x, dict) and isinstance(x.get("at", ""), str)
+                                                              for x in ctx)):
+        errs.append("M1 context is not a list of {symbol, at}")
     cl = st.get("claims")
     if not isinstance(cl, list) or not cl:
         return ["M1 claims missing or empty"]
@@ -117,6 +121,8 @@ def check_statement(repo, st, t, call):
         if not isinstance(c, dict) or c.get("type") not in TYPES:
             errs.append(f"M1 claim {k} type {c.get('type') if isinstance(c, dict) else c!r} not in {sorted(TYPES)}")
             continue
+        if not isinstance(c.get("text"), str):
+            errs.append(f"M1 claim {k} has no text")
         i = c.setdefault("i", k)  # a claim without `i` is claim k, so the checker's table names it
         if not isinstance(i, int) or isinstance(i, bool) or i in idx:
             errs.append(f"M1 claim {k} has a missing or duplicate integer `i`")
@@ -125,8 +131,8 @@ def check_statement(repo, st, t, call):
     conds = {i for i, c in idx.items() if c.get("type") == "condition"}
     for i, c in idx.items():
         for key in ("when", "unless"):
-            v = c.get(key) or []
-            if not isinstance(v, list) or any(not isinstance(x, int) or x not in conds for x in v):
+            v = [] if c.get(key) is None else c.get(key)
+            if not isinstance(v, list) or any(not isinstance(x, int) or isinstance(x, bool) or x not in conds for x in v):
                 errs.append(f"M1 claim {i} `{key}` {v} must list indices of this statement's condition claims")
         if c.get("type") == "value" and c.get("of") is not None and (not isinstance(c.get("of"), int) or c.get("of") not in idx):
             errs.append(f"M1 claim {i} `of` {c.get('of')} names no claim")
@@ -172,7 +178,9 @@ def check_target(repo, tout, t, call):
     nrs = [dict(n) for n in (tout.get("not_rules") or []) if isinstance(n, dict)]
     keep, fails, tf = [], {}, []
     for st in sts:
-        an = st.setdefault("anchor", {})
+        if not isinstance(st.get("anchor"), dict):
+            st["anchor"] = {}
+        an = st["anchor"]
         an["symbol_id"] = an.get("symbol_id") or t["anchor_symbol"]
         e = check_statement(repo, st, t, call)
         if not e and not is_rule(st):

@@ -13,6 +13,7 @@ Usage: batches.py --root <tree> --db <estate.db> --scope <scope.json> --out <dir
 """
 import argparse
 import collections
+import hashlib
 import json
 import os
 import re
@@ -60,7 +61,8 @@ def cobol_plan(repo, S, T, out_dir):
     base = collections.Counter(os.path.basename(p) for p in progs)
     for p in progs:
         # a program's batch is named by its file name, or by its path when two scoped programs share a file name
-        name = os.path.basename(p) if base[os.path.basename(p)] == 1 else p.replace("/", "_")
+        name = (os.path.basename(p) if base[os.path.basename(p)] == 1
+                else f"{os.path.basename(p)}-{hashlib.sha256(p.encode()).hexdigest()[:8]}")
         files = list(dict.fromkeys([p] + v2lib.defs.copybooks(p) + [jf for jf, u in unit_of.items() if u == p and jf != p]))
         text = "\n".join(numbered(repo, f) for f in files)
         ts = sorted([t for t in T if unit_of.get(t["file"]) == p], key=lambda t: (t["file"] != p, t["file"], t["lines"][0]))

@@ -61,8 +61,9 @@ def scope_cobol(repo, intent, all_files):
             found[os.path.splitext(os.path.basename(f))[0].upper()].append(f)
     # a program id in one file is that file; in more, the one whose path the intent types (`app/cbl/X.cbl`)
     progs = {p: fs[0] for p, fs in found.items() if len(fs) == 1}
+    paths = {os.path.normpath(x) for x in re.findall(r"[\w./-]+\.(?:cbl|cob)\b", intent, re.I)}
     for p, fs in found.items():
-        typed = [f for f in fs if f in intent]
+        typed = [f for f in fs if os.path.normpath(f) in paths]
         if len(fs) > 1 and len(typed) == 1:
             progs[p] = typed[0]
     toks = sorted(set(re.findall(r"\b[A-Z][A-Z0-9]{5,7}\b", intent)))

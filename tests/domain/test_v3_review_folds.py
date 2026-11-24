@@ -420,9 +420,10 @@ def test_every_file_an_r_prompt_showed_is_in_each_of_its_statements_batch(tmp_pa
     monkeypatch.setattr(r_stage, "flagged_claims", lambda r: [dict(i=0, case="SCOPE")])
     monkeypatch.setattr(r_stage, "run_calls", lambda step, units, per=4: {})
     monkeypatch.setattr(r_stage, "decide", lambda u, res: [])
+    check.v2lib.use_repo(repo)
     shown = {}
     check.r_round(repo, "t", sts, dict(raw={"1": {}, "2": {}}), {"s1": "1", "s2": "2"}, {}, shown=shown)
-    want = {PROG, "app/cpy/s1.cpy", "app/cpy/s2.cpy"}
+    want = {PROG, "app/cpy/s1.cpy", "app/cpy/s2.cpy", "app/cpy/PAYREC.cpy"}
     assert shown == {"s1": want, "s2": want}
 
 
@@ -461,12 +462,20 @@ def test_two_scoped_programs_with_one_file_name_get_two_batches(tmp_path):
     S = dict(target_files=["a/X.cbl", "b/X.cbl"], targets=[], reached_from=[])
     plan, _ = batches.cobol_plan(repo, S, [], str(tmp_path / "b"))
     assert plan == []  # no targets, but the batch texts are two files
-    assert sorted(os.listdir(tmp_path / "b")) == ["a_X.cbl.txt", "b_X.cbl.txt"]
+    names = sorted(os.listdir(tmp_path / "b"))
+    assert len(names) == 2 and all(n.startswith("X.cbl-") and n.endswith(".txt") for n in names), names
+    # paths that flatten alike still get two names
+    os.makedirs(tmp_path / "c")
+    batches.cobol_plan(repo, dict(target_files=["a/b/X.cbl", "a_b/X.cbl"], targets=[], reached_from=[]), [], str(tmp_path / "c"))
+    assert len(os.listdir(tmp_path / "c")) == 2
 
 
 @pytest.mark.parametrize("claim", [dict(i=[0], type="condition", text="x", lines=[f"{PROG}:24"]),
                                    dict(i=0, type="condition", text="x", lines=f"{PROG}:24"),
-                                   dict(i=0, type="effect", text=7, when=[[0]], lines=[f"{PROG}:24"])])
+                                   dict(i=0, type="effect", text=7, when=[[0]], lines=[f"{PROG}:24"]),
+                                   dict(i=0, type="condition", text=7, lines=[f"{PROG}:24"]),
+                                   dict(i=0, type="effect", text="x", when=0, lines=[f"{PROG}:24"]),
+                                   dict(i=0, type="effect", text="x", when=[True], lines=[f"{PROG}:24"])])
 def test_a_malformed_claim_is_refused_not_raised(tmp_path, claim):
     repo = make_repo(tmp_path, "mini-cobol")
     S = scope.build_scope(repo, "PAYCALC1")
@@ -475,3 +484,57 @@ def test_a_malformed_claim_is_refused_not_raised(tmp_path, claim):
     call = next(c for c in C["calls"] if t["id"] in c["targets"])
     errs = extract.check_statement(repo, dict(anchor=dict(file=PROG, lines=t["lines"]), claims=[claim]), t, call)
     assert errs and all(e.startswith(("M1", "M2", "M4")) for e in errs), errs
+
+
+# ---------------- review round 3 ----------------
+def test_a_model_answer_s_nulls_and_stray_elements_are_shaped_before_any_reader():
+    j = model_calls.parse_json('{"targets": null, "results": [1, {"n": 1, "claims": null}], "x": [1]}')
+    assert j == {"targets": [], "results": [{"n": 1, "claims": []}], "x": [1]}
+    assert model_calls.parse_json("[1, 2]") is None
+
+
+@pytest.mark.parametrize("anchor", [None, "app/cbl/PAYCALC1.cbl", [20, 29]])
+def test_a_statement_with_a_malformed_anchor_or_context_is_refused(tmp_path, anchor):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    C = batches.plan_batches(repo, S, str(tmp_path / "b"))
+    t = _target(repo, S, "READ-PARA")
+    call = next(c for c in C["calls"] if t["id"] in c["targets"])
+    st = dict(anchor=anchor, context=5, claims=[dict(i=0, type="condition", text="`PAY-HOURS > 40`", lines=[f"{PROG}:24"])])
+    keep, _, fails, _ = extract.check_target(repo, dict(statements=[st], not_rules=[]), t, call)
+    assert any(e.startswith("M2 anchor") for e in fails[0]) and any(e.startswith("M1 context") for e in fails[0])
+
+
+def test_a_full_typed_path_is_matched_exactly(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    os.makedirs(os.path.join(repo.root, "archive", "app", "cbl"))
+    with open(os.path.join(repo.root, PROG), "rb") as a, open(os.path.join(repo.root, "archive", PROG), "wb") as b:
+        b.write(a.read())
+    S = scope.build_scope(graph.Repo(repo.root, repo.db), f"rules of archive/{PROG}")
+    assert f"archive/{PROG}" in S["target_files"] and PROG not in S["target_files"]
+
+
+def test_an_oversized_citation_makes_its_whole_file_one_piece(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    t = _target(repo, S, "READ-PARA")
+    st = dict(claims=[dict(lines=[f"{PROG}:1-{10 ** 12}"])])
+    n = len(graph.flines(repo, PROG))
+    ps = store.pieces(repo, t, [st], store._unit_spans(repo), S["targets"])
+    assert any(p[:3] == [PROG, 1, n] for p in ps), ps
+
+
+def test_an_r_prompt_s_copybooks_are_in_its_statements_batch(tmp_path, monkeypatch):
+    from domain import r_stage
+    repo = make_repo(tmp_path, "mini-cobol")
+    sts = [dict(id="s1", anchor=dict(file=PROG, lines=[20, 29]), claims=[])]
+    monkeypatch.setattr(check.v2lib, "want", lambda repo, s, extra=None: {PROG: {1}})
+    monkeypatch.setattr(check.v2lib, "render_code", lambda repo, w: "")
+    monkeypatch.setattr(check, "facts", lambda f: "")
+    monkeypatch.setattr(r_stage, "flagged_claims", lambda r: [dict(i=0, case="SCOPE")])
+    monkeypatch.setattr(r_stage, "run_calls", lambda step, units, per=4: {})
+    monkeypatch.setattr(r_stage, "decide", lambda u, res: [])
+    check.v2lib.use_repo(repo)
+    shown = {}
+    check.r_round(repo, "t", sts, dict(raw={"1": {}}), {"s1": "1"}, {}, shown=shown)
+    assert "app/cpy/PAYREC.cpy" in shown["s1"]
