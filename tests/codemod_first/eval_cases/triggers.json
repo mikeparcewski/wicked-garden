@@ -1,0 +1,11 @@
+{
+  "$comment": "Trigger evals for wicked-garden-codemod-first (garden#1334). Each prompt is graded two ways: deterministically by tests/codemod_first/test_codemod_first.py (scripts/engineering/mechanical_first.py applies, plus the skill description naming the case's trigger family), and, user-triggered only, by giving the prompt to an agent with garden installed and recording whether it loads the skill before its first edit (see README.md).",
+  "cases": [
+    {"id": "react-17-18", "prompt": "upgrade react 17→18", "expect": "activate", "family": "upgrade"},
+    {"id": "tokio-bump", "prompt": "bump tokio to 1.40 and fix breakages", "expect": "activate", "family": "bump"},
+    {"id": "moment-date-fns", "prompt": "replace moment with date-fns", "expect": "activate", "family": "replace-library"},
+    {"id": "deprecated-foo", "prompt": "remove deprecated `foo()` calls", "expect": "activate", "family": "deprecated"},
+    {"id": "one-line-bug", "prompt": "fix this one-line bug", "expect": "skip"},
+    {"id": "new-feature", "prompt": "write a new feature", "expect": "skip"}
+  ]
+}
