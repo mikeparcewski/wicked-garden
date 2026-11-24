@@ -111,7 +111,7 @@ def test_the_plan_lists_every_skill_and_block_on_both_choices(tmp_path, sample):
     ]
     phases = json.loads((sample / "presets" / "terms-review.json").read_text(encoding="utf-8"))["phases"]
     assert plan["blocks"] == [{"id": "acme-terms-review", "label": "Check our terms", "produces_kind": "document",
-                               "phases": phases, "skills": ["acme-terms-checker"]}]
+                               "preset": "presets/terms-review.json", "phases": phases, "skills": ["acme-terms-checker"]}]
     for choice in plan["choices"]:
         whats = [w["what"] for w in choice["writes"]]
         for skill in plan["skills"]:
@@ -265,3 +265,85 @@ def test_the_docs_install_the_whole_pack_on_the_plan_s_bound_choice():
     text = (REPO / "docs" / "extending.md").read_text(encoding="utf-8")
     section = text.split("#### Install the whole pack", 1)[1].split("####", 1)[0]
     assert "--target <" in section and "choices" in section
+
+
+# ── review round 2 (delta) ────────────────────────────────────────────────────────────────────
+
+def test_a_relative_dir_and_a_linked_ancestor_plan_and_install(tmp_path, sample):
+    """The documented command passes a relative --dir; a pack under a linked directory (macOS /tmp) works too."""
+    with FakeDaemon() as d:
+        full = {k: v for k, v in os.environ.items() if k not in ROOT_VARS}
+        full["WICKED_CREW_URL"] = d.origin
+        done = subprocess.run([sys.executable, str(SCRIPTS / "install.py"), "--dir", "acme-terms", "--dry-run",
+                               "--install-root", str(tmp_path / "root")], capture_output=True, text=True,
+                              env=full, cwd=sample.parent, timeout=240)
+        assert done.returncode == 0, done.stderr
+        assert [s["name"] for s in json.loads(done.stdout)["skills"]] == ["acme-terms", "acme-terms-checker"]
+        if os.name != "nt":
+            alias = tmp_path / "alias"
+            alias.symlink_to(sample.parent, target_is_directory=True)
+            plan = _plan(alias / "acme-terms", tmp_path / "root", d.origin)
+            assert plan["skills"][0]["name"] == "acme-terms"
+            assert _install(alias / "acme-terms", tmp_path / "root", d).returncode == 0
+
+
+def test_an_equivalent_skills_dir_spelling_keeps_the_names(tmp_path, sample):
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["skills_dir"] = "./skills/"
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    with FakeDaemon() as d:
+        plan = _plan(sample, tmp_path / "root", d.origin)
+    assert [s["name"] for s in plan["skills"]] == ["acme-terms", "acme-terms-checker"]
+
+
+def test_two_blocks_sharing_a_preset_read_it_once():
+    mod = _module()
+    manifest = json.loads((SAMPLE / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["blocks"].append({**manifest["blocks"][0], "id": "acme-terms-again"})
+    inventory = mod.pack_inventory(SAMPLE, manifest)
+    assert [rel for rel, _ in inventory.files].count("presets/terms-review.json") == 1
+    assert inventory.blocks[0]["phases"] == inventory.blocks[1]["phases"] == ["critique"]
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="FIFOs are POSIX")
+def test_a_fifo_in_a_skill_refuses_promptly(tmp_path, sample):
+    os.mkfifo(sample / "skills" / "acme-terms" / "pipe")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "not a plain file" in done.stderr
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_a_link_to_a_directory_inside_the_pack_is_refused_too(tmp_path, sample):
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    (sample / "presets" / "via").symlink_to(sample / "presets", target_is_directory=True)
+    manifest["blocks"][0]["preset"] = "presets/via/terms-review.json"
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "link" in done.stderr
+
+
+def test_a_readme_that_is_also_a_preset_cannot_swap_the_approved_bytes(tmp_path, sample, monkeypatch):
+    """Another staging write landing on an approved path (here the README copy over a preset) refuses."""
+    mod = _module()
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["blocks"][0]["preset"] = "README.md"
+    (sample / "README.md").write_text('{"phases": ["critique"]}', encoding="utf-8")
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    real_stage = mod.stage
+
+    def stage_then_edit(src, m, next_dir, *inventory):
+        (src / "README.md").write_text('{"phases": ["deliver"]}', encoding="utf-8")
+        return real_stage(src, m, next_dir, *inventory)
+
+    monkeypatch.setattr(mod, "stage", stage_then_edit)
+    monkeypatch.setenv("WICKED_CREW_URL", "http://127.0.0.1:9")
+    args = mod.argparse.Namespace(dir=sample, from_run=False, target=("daemon", None), crew_url=None,
+                                  install_root=tmp_path / "root")
+    with pytest.raises(mod.Failure) as refused:
+        mod.do_install(args)
+    assert "differ from the files read for the plan" in str(refused.value)
+    assert not (tmp_path / "root" / "acme-terms" / "current").exists()

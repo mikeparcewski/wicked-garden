@@ -35,7 +35,7 @@ the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch o
 nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices": [{"id", "label",
 "default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": [],
 "asks"?: [{"editor", "permission", "why"}], "skills"?: [{"dir", "name", "installs_as"}],
-"blocks"?: [{"id", "label", "produces_kind", "phases", "skills"}]}``; each skill and block is also a
+"blocks"?: [{"id", "label", "produces_kind", "preset", "phases", "skills"}]}``; each skill and block is also a
 write row on both choices. An editor that
 declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
 "This plugin can start and talk to MCP servers", with the exact per-build token the install writes
@@ -184,37 +184,51 @@ def locate(args) -> tuple[Path, dict]:
 SKILL_NAME_RE = re.compile(r"^name:\s*['\"]?([^'\"]+?)['\"]?\s*$")
 
 
-def _inside(pack: Path, rel: object, what: str) -> Path:
-    """``rel`` as a plain relative path inside ``pack`` (POSIX separators, no drive, no ``..`` escape)."""
+def _redirects(path: Path) -> bool:
+    """A link, or a Windows junction / reparse point: either could point the tree somewhere else."""
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(st.st_mode):
+        return True
+    reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    return bool(getattr(st, "st_file_attributes", 0) & reparse)
+
+
+def _norm_rel(rel: object, what: str) -> str:
+    """A manifest path as one normalized pack-relative POSIX form (``./skills/`` → ``skills``); refuses an
+    absolute, drive, backslash or ``..`` form. Every key, lookup and staged path uses this one spelling."""
     if not isinstance(rel, str) or not rel or rel.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", rel) \
             or "\\" in rel:
         raise PackError(f"{what} must be a relative path inside the pack (got {rel!r})")
-    path = (pack / Path(*rel.split("/"))).resolve()
-    if path != pack.resolve() and pack.resolve() not in path.parents:
+    parts = [p for p in rel.split("/") if p not in ("", ".")]
+    if not parts or ".." in parts:
         raise PackError(f"{what} must be a relative path inside the pack (got {rel!r})")
+    return "/".join(parts)
+
+
+def _plain_path(root: Path, rel: str) -> Path:
+    """``root/rel`` with no link or junction on ANY component (a redirect inside the pack is refused too: the
+    plan names lexical paths, so they must be the real ones)."""
+    path = root
+    for part in rel.split("/"):
+        path = path / part
+        if _redirects(path):
+            raise PackError(f"{path.relative_to(root).as_posix()} is a link; a pack's skills and presets are staged "
+                            "as plain files only")
     return path
 
 
-def _redirects(path: Path) -> bool:
-    """A link, or a Windows junction / reparse point: either could point the tree outside the pack."""
-    isjunction = getattr(os.path, "isjunction", None)
-    return path.is_symlink() or bool(isjunction and isjunction(path))
-
-
-def _confined(pack_real: Path, path: Path, rel: str) -> None:
-    if _redirects(path):
-        raise PackError(f"{rel} is a link; a pack's skills and presets are staged as plain files only")
-    real = Path(os.path.realpath(path))
-    if pack_real not in real.parents:
-        raise PackError(f"{rel} resolves outside the pack (a link or junction on its path); nothing is staged")
-
-
-def _read_plain(pack_real: Path, path: Path, rel: str) -> bytes:
-    """One read of a plain file inside the pack: refuse a link (not followed on open), a junction, or anything
-    that is not a regular file. The bytes read here are the bytes planned, digested and staged."""
-    _confined(pack_real, path, rel)
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_BINARY", 0)
+def _read_plain(root: Path, rel: str) -> bytes:
+    """One read of a plain file inside the pack: no redirect on any component, a regular file before the open
+    (so a FIFO never blocks the plan), opened without following a final link and non-blocking, and still a
+    regular file after it. The bytes read here are the bytes planned, digested and staged."""
+    path = _plain_path(root, rel)
     try:
+        if not stat.S_ISREG(os.lstat(path).st_mode):
+            raise PackError(f"{rel} is not a plain file")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
         fd = os.open(path, flags)
     except OSError as err:
         raise PackError(f"{rel} cannot be read as a plain file ({err.strerror})") from err
@@ -277,49 +291,47 @@ class Inventory:
 
 
 def pack_inventory(pack: Path, manifest: dict) -> Inventory:
-    """Every skill file under ``skills_dir`` and each block's preset, read once. A skill is a non-hidden entry
-    under ``skills_dir`` holding at least one file (crew lists the staged copy's entries, and an empty
-    directory is never staged). A link, a junction, an unreadable directory or a preset outside the pack
-    refuses: a partial or redirected tree is never planned or staged."""
-    pack_real = Path(os.path.realpath(pack))
+    """Every skill file under ``skills_dir`` and each block's preset, each read once. A skill is a non-hidden
+    entry under ``skills_dir`` holding at least one file (crew lists the staged copy's entries, and an empty
+    directory is never staged). A link or junction on any component, an unreadable directory, a non-regular
+    file or a preset outside the pack refuses: a partial or redirected tree is never planned or staged."""
+    root = Path(os.path.abspath(pack))
     files: dict[str, bytes] = {}
     skills: list[dict] = []
-    skills_dir = manifest.get("skills_dir", "skills")
-    base = _inside(pack, skills_dir, "skills_dir")
-    names = sorted(n for n in os.listdir(base) if not n.startswith(".")) if base.is_dir() else []
+    skills_dir = _norm_rel(manifest.get("skills_dir", "skills"), "skills_dir")
+    base = root / skills_dir
+    names = sorted(n for n in os.listdir(_plain_path(root, skills_dir)) if not n.startswith(".")) \
+        if base.is_dir() and not _redirects(base) else []
 
     def refuse(err: OSError) -> None:
         raise PackError(f"{skills_dir}: a directory cannot be read ({err}); nothing is staged")
 
     for name in names:
-        top = base / name
         rel_top = f"{skills_dir}/{name}"
-        _confined(pack_real, top, rel_top)
+        top = _plain_path(root, rel_top)
         held: dict[str, bytes] = {}
-        if top.is_file():
-            held[rel_top] = _read_plain(pack_real, top, rel_top)
-        else:
+        if stat.S_ISDIR(os.lstat(top).st_mode):
             for here, dirs, leaves in os.walk(top, onerror=refuse):
+                here_rel = Path(here).relative_to(root).as_posix()
                 for entry in sorted(dirs):
-                    _confined(pack_real, Path(here) / entry, (Path(here) / entry).relative_to(pack).as_posix())
+                    _plain_path(root, f"{here_rel}/{entry}")
                 for entry in sorted(leaves):
-                    path = Path(here) / entry
-                    rel = path.relative_to(pack).as_posix()
-                    held[rel] = _read_plain(pack_real, path, rel)
+                    rel = f"{here_rel}/{entry}"
+                    held[rel] = _read_plain(root, rel)
+        else:
+            held[rel_top] = _read_plain(root, rel_top)
         if held:
             files.update(held)
             skills.append({"dir": name, "name": _skill_name(held.get(f"{rel_top}/SKILL.md", b"")),
                            "installs_as": f"wicked-garden-{name}"})
     blocks: list[dict] = []
     for block in pack_blocks(manifest):
-        preset = block.get("preset")
-        what = f"block {block.get('id')!r} preset"
-        _inside(pack, preset, what)
-        body = _read_plain(pack_real, pack / Path(*preset.split("/")), preset)
-        files[preset] = body
+        preset = _norm_rel(block.get("preset"), f"block {block.get('id')!r} preset")
+        if preset not in files:  # a preset shared by two blocks (or inside a skill) is read once
+            files[preset] = _read_plain(root, preset)
         listed = block.get("skills")
         blocks.append({"id": str(block.get("id")), "label": block.get("label"), "produces_kind": block.get("produces_kind"),
-                       "phases": _preset_phases(body),
+                       "preset": preset, "phases": _preset_phases(files[preset]),
                        "skills": [s for s in listed if isinstance(s, str)] if isinstance(listed, list) else []})
     return Inventory(sorted(files.items()), skills, blocks)
 
@@ -570,6 +582,18 @@ def do_install(args) -> tuple[int, dict]:
     if not same:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"{pack / MANIFEST_NAME} changed while it was being installed; nothing was installed")
+    # The staged skills and presets must be exactly the inventory: another staging write (an editor image
+    # declared inside a skill, a README that is also a preset) never adds or changes an approved file.
+    try:
+        staged_inventory = pack_inventory(key_root / "next", manifest)
+    except (OSError, PackError) as err:
+        staged_inventory = None
+        reason = str(err)
+    if staged_inventory is None or staged_inventory.files != inventory.files:
+        shutil.rmtree(key_root / "next", ignore_errors=True)
+        raise Failure(1, "the staged skills and block presets differ from the files read for the plan ("
+                         + (reason if staged_inventory is None else "another staged file overlaps them")
+                         + "); nothing was installed")
     if approved is not None and plan_digest(staged, inventory.files) != approved:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"{pack / MANIFEST_NAME} changed after the plan the operator approved (its permissions, "
