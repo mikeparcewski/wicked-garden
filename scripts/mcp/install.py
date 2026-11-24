@@ -52,7 +52,7 @@ daemon's registry. Neither set exits 2 naming the remedy.
 6. **CLI configs** through ``wicked-installer mcp upsert`` (never written here), run only from
    PATH: it is never downloaded, so the install writes exactly what the plan listed (garden#1540).
    No installer on PATH, or one without the verb, is reported with the remedy, not failed; the
-   plan lists the same CLIs as skipped, with the same remedy, so the consent card still opens.
+   plan lists the same CLIs as skipped, with the remedy, so the consent card still opens.
 7. **Record** ``<root>/<key>/installed.json`` and print one JSON record.
 
 Exit 0 staged (a pending credential or an absent daemon are disclosed in the record), 1 a
@@ -86,10 +86,14 @@ CLIS = ("claude", "codex", "opencode", "antigravity", "pi")
 # What an installer result that writes nothing says (the plan's skipped rows and the install's ``clis``). The
 # installer is never downloaded here: the plan could not list what a downloaded one would write (garden#1540).
 SKIPPED = "skipped: "
-NO_INSTALLER = (f"{SKIPPED}wicked-installer is not installed on this host, so the server is not added to any CLI's "
-                "MCP config. To add it: run npm install -g wicked-installer, then run this step again")
-NO_VERB = (f"{SKIPPED}the installed wicked-installer is too old to add MCP servers to CLI configs. To add it: run "
-           "npm install -g wicked-installer@latest, then run this step again")
+# Each is (the reason, the fix). ``skip`` says it once, with a remedy the reader can act on where they read it
+# (garden#1543): the consent card offers no rerun of its own step, so the plan's remedy is decline, fix, start over.
+NO_INSTALLER = ("wicked-installer is not installed on this host", "run npm install -g wicked-installer")
+NO_VERB = ("the installed wicked-installer is too old to add MCP servers",
+           "run npm install -g wicked-installer@latest")
+ON_PLAN = "To add the server to the CLIs: decline, {fix}, then start the run again"
+ON_INSTALL = "To add the server to the CLIs: {fix}, then install the server again"
+ON_UNINSTALL = "To remove the server from the CLIs: {fix}, then run the uninstall again"
 NPM_TIMEOUT_S = 600
 PROBE_TIMEOUT_S = 30
 HTTP_TIMEOUT_S = 60
@@ -418,31 +422,39 @@ def register(origin: str, key: str, server_js: Path, var: str | None) -> dict:
 
 # ── 6. CLI configs ─────────────────────────────────────────────────────────────────────────
 
-def installer(argv: list[str]):
-    """Run ``wicked-installer <argv> --json`` from PATH: its envelope, or the reportable condition (a string). Never
-    ``npx -y``: a downloaded installer would write CLI configs the dry run could not list (garden#1540)."""
+def skip(cause: tuple[str, str], remedy: str) -> str:
+    """One reason no CLI config is written, said once, then the remedy for where it is read (``ON_*``)."""
+    reason, fix = cause
+    return f"{SKIPPED}{reason}. {remedy.format(fix=fix)}"
+
+
+def installer(argv: list[str], remedy: str):
+    """Run ``wicked-installer <argv> --json`` from PATH: its envelope, or the reportable condition (a string, its
+    remedy worded for the caller: ``ON_PLAN``, ``ON_INSTALL`` or ``ON_UNINSTALL``). Never ``npx -y``: a downloaded
+    installer would write CLI configs the dry run could not list (garden#1540)."""
     exe = shutil.which("wicked-installer")
     if exe is None:
-        return NO_INSTALLER
+        return skip(NO_INSTALLER, remedy)
     try:
         done = subprocess.run([exe, *argv], capture_output=True, text=True, timeout=300)
     except (OSError, subprocess.TimeoutExpired) as err:
-        return (f"{SKIPPED}wicked-installer did not run ({err.__class__.__name__}). To add the CLI configs: check "
-                "that wicked-installer --version runs on this host, then run this step again")
+        return skip((f"wicked-installer did not run ({err.__class__.__name__})",
+                     "check that wicked-installer --version runs on this host"), remedy)
     text = f"{done.stdout}\n{done.stderr}".lower()
     if done.returncode == 2 or "unknown command" in text or "unknown verb" in text:
         try:
             envelope = json.loads(done.stdout)
         except ValueError:
-            return NO_VERB
+            return skip(NO_VERB, remedy)
         if not isinstance(envelope, dict) or "clis" not in envelope:
-            return NO_VERB
+            return skip(NO_VERB, remedy)
     try:
         envelope = json.loads(done.stdout)
     except ValueError:
+        # Not a skip: the plan fails on it (no card opens), so the remedy names no card action.
         return (f"failed: wicked-installer exited {done.returncode} without a JSON result. Check that "
-                "wicked-installer --version runs on this host (or reinstall it with npm install -g "
-                "wicked-installer@latest), then run this step again")
+                "wicked-installer --version runs on this host, or reinstall it with npm install -g "
+                "wicked-installer@latest")
     if isinstance(envelope, dict) and "clis" in envelope:
         return envelope["clis"]
     return envelope
@@ -606,13 +618,14 @@ def do_install(args) -> tuple[int, dict]:
         out["clis"] = "skipped: --cli none"
     elif args.no_cli:
         out["clis"] = (f"{SKIPPED}the approved install plan listed no CLI config (wicked-installer could not be "
-                       "asked when it was planned). To add the CLI configs: plan the install again and approve it")
+                       "asked when it was planned). To add the server to the CLIs: install wicked-installer, then "
+                       "start the run again")
         if args.target == "operator":
             out["operatorClis"] = out["clis"]
     else:
-        out["clis"] = installer([*upsert, *worker_home_args()])
+        out["clis"] = installer([*upsert, *worker_home_args()], ON_INSTALL)
         if args.target == "operator":
-            out["operatorClis"] = installer(upsert)
+            out["operatorClis"] = installer(upsert, ON_INSTALL)
     return code, out
 
 
@@ -677,10 +690,10 @@ def do_plan(args) -> dict:
     if clis != "none":
         upsert = ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis,
                   "--dry-run", "--json"]
-        worker_plan = installer([*upsert, *worker_home_args()])
+        worker_plan = installer([*upsert, *worker_home_args()], ON_PLAN)
         _cli_rows(worker_plan, clis, root, worker_writes, skipped)
         operator_writes = list(worker_writes)
-        operator_plan = installer(upsert)
+        operator_plan = installer(upsert, ON_PLAN)
         _cli_rows(operator_plan, clis, root, operator_writes, skipped)
         if any(isinstance(e, str) and e.startswith(SKIPPED) for e in (worker_plan, operator_plan)):
             suffix = NO_CLI
@@ -715,9 +728,9 @@ def do_uninstall(args) -> tuple[int, dict]:
     if clis == "none":
         out["clis"] = "skipped: --cli none"
     else:
-        out["clis"] = installer(["mcp", "remove", key, "--json", *worker_home_args()])
+        out["clis"] = installer(["mcp", "remove", key, "--json", *worker_home_args()], ON_UNINSTALL)
         if args.target == "operator":
-            out["operatorClis"] = installer(["mcp", "remove", key, "--json"])
+            out["operatorClis"] = installer(["mcp", "remove", key, "--json"], ON_UNINSTALL)
     key_root = install_root(args.install_root) / key
     out["removed"] = str(key_root) if key_root.exists() else None
     if key_root.exists():
