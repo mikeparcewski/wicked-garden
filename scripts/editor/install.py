@@ -13,13 +13,16 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 2. **Stage** into ``<root>/<name>/next/`` (root: ``--install-root``, ``$WICKED_EDITOR_INSTALL_ROOT``,
    else ``$WICKED_HOME/editors``, else ``~/.wicked/editors``, a program-owned place; an empty variable counts
    as unset): ``wicked-pack.json``, every editor's entry
-   file and its accepted declared card images at their manifest paths, and the README. Malformed
-   cosmetic images are skipped, as in pack check (PK089); they never refuse an install. Nothing else
-   of the tree is copied (an editor is ONE
-   self-contained file; a pack with skills or blocks is refused by the daemon until their approval
-   step exists).
+   file and its accepted declared card images at their manifest paths, the README, and (a pack that
+   also ships skills or blocks, wicked-crew#1703) every entry under its ``skills_dir`` and each
+   block's ``preset`` file, at their manifest paths. Malformed cosmetic images are skipped, as in pack
+   check (PK089); they never refuse an install. A link anywhere in the skills tree, or a preset outside
+   the pack, refuses it. Nothing else of the tree is copied (an editor is ONE self-contained file).
 3. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``.
-4. **Register** with wicked-crew: ``POST /api/v1/editors {packRoot: <root>/<name>/current, enabled}``.
+4. **Register** with wicked-crew: ``POST /api/v1/editors {packRoot: <root>/<name>/current, enabled}``,
+   plus ``approve: {skills: [<skill dir>…], blocks: [<block id>…]}`` for a pack with skills or blocks:
+   the lists the operator approved, which crew adds (each skill as ``wicked-garden-<dir>``, each block's
+   preset as a workflow preset) in the same install, or refuses with nothing installed.
    The daemon re-runs garden's ``pack check`` and this skill's **conformance run** against the staged
    copy itself, refuses on any failure (fail closed: no headless browser is a refusal), pins each
    entry's sha256 and records it in its editor registry. A refusal swaps ``previous/`` back (or
@@ -31,7 +34,9 @@ the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch o
 → Developer → Editor plugins. Both write the same places, all program-owned. ``--dry-run`` writes
 nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices": [{"id", "label",
 "default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": [],
-"asks"?: [{"editor", "permission", "why"}]}``. An editor that
+"asks"?: [{"editor", "permission", "why"}], "skills"?: [{"dir", "name", "installs_as"}],
+"blocks"?: [{"id", "label", "produces_kind", "phases", "skills"}]}``; each skill and block is also a
+write row on both choices. An editor that
 declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
 "This plugin can start and talk to MCP servers", with the exact per-build token the install writes
 (``editor:<id>@<version>#<sha256>/mcp.session``). The install consent is that grant; no rule allows it.
@@ -39,7 +44,8 @@ declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GR
 install itself grants (``INSTALL_GRANTED``) is a write row above and never an ask.
 
 **The approval is bound to the plan.** Each choice id carries a digest of the planned
-``wicked-pack.json`` bytes, the same bytes the plan's lines were read from (``daemon_<d>``,
+``wicked-pack.json`` bytes (and, for a pack with skills or blocks, of every skill and preset file it
+stages), the same bytes the plan's lines were read from (``daemon_<d>``,
 ``daemon-off_<d>``; ``<d>`` = 21 base64url characters of its sha256, 126 bits), and the gated step passes it
 back as ``--target``. If the staged copy differs (another permission, version or entry hash), the install
 refuses and writes nothing, so the operator is asked again. Inside a governed run only a bound choice
@@ -163,12 +169,99 @@ def locate(args) -> tuple[Path, dict]:
         for p in plugins:
             entry_path(pack, p, kind="plugin")
             plugin_extra_paths(pack, p)
+        pack_extra_files(pack, manifest)
     except PackError as err:
         raise Failure(2, str(err)) from err
     name = manifest.get("name")
     if not isinstance(name, str) or not ID_RE.match(name) or len(name) > 64:
         raise Failure(2, f"{pack / MANIFEST_NAME}: invalid pack name {name!r}")
     return pack, manifest
+
+
+# ── the pack's skills and block presets (wicked-crew#1703) ────────────────────────────────
+
+SKILL_NAME_RE = re.compile(r"^name:\s*['\"]?([^'\"\n]+?)['\"]?\s*$", re.MULTILINE)
+
+
+def _inside(pack: Path, rel: object, what: str) -> Path:
+    """``rel`` as a plain relative path inside ``pack`` (POSIX separators, no drive, no ``..`` escape)."""
+    if not isinstance(rel, str) or not rel or rel.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", rel) \
+            or "\\" in rel:
+        raise PackError(f"{what} must be a relative path inside the pack (got {rel!r})")
+    path = (pack / Path(*rel.split("/"))).resolve()
+    if path != pack.resolve() and pack.resolve() not in path.parents:
+        raise PackError(f"{what} must be a relative path inside the pack (got {rel!r})")
+    return path
+
+
+def pack_skills(pack: Path, manifest: dict) -> tuple[str, list[str]]:
+    """The skills dir and its entries as crew lists them: every non-hidden name under it, sorted."""
+    skills_dir = manifest.get("skills_dir", "skills")
+    base = _inside(pack, skills_dir, "skills_dir")
+    if not base.is_dir():
+        return skills_dir, []
+    return skills_dir, sorted(n for n in os.listdir(base) if not n.startswith("."))
+
+
+def pack_blocks(manifest: dict) -> list[dict]:
+    blocks = manifest.get("blocks")
+    return [b for b in blocks if isinstance(b, dict)] if isinstance(blocks, list) else []
+
+
+def pack_extra_files(pack: Path, manifest: dict) -> list[tuple[str, Path]]:
+    """Every skill file and block preset an install stages, as ``(manifest-relative path, source)``, sorted.
+    A link in the skills tree or a preset outside the pack refuses (a link could stage a file from anywhere)."""
+    files: dict[str, Path] = {}
+    skills_dir, names = pack_skills(pack, manifest)
+    for name in names:
+        top = pack / Path(*skills_dir.split("/")) / name
+        if top.is_symlink():
+            raise PackError(f"{skills_dir}/{name} is a link; a pack's skills are staged as plain files only")
+        if top.is_file():
+            files[f"{skills_dir}/{name}"] = top
+            continue
+        for here, dirs, leaves in os.walk(top):
+            for entry in sorted(dirs + leaves):
+                path = Path(here) / entry
+                rel = path.relative_to(pack).as_posix()
+                if path.is_symlink():
+                    raise PackError(f"{rel} is a link; a pack's skills are staged as plain files only")
+                if path.is_file():
+                    files[rel] = path
+    for block in pack_blocks(manifest):
+        preset = block.get("preset")
+        path = _inside(pack, preset, f"block {block.get('id')!r} preset")
+        if path.is_symlink() or not path.is_file():
+            raise PackError(f"block {block.get('id')!r} preset {preset!r} is not a plain file in the pack")
+        files[preset] = path
+    return sorted(files.items())
+
+
+def _skill_name(path: Path) -> str:
+    """A SKILL.md's frontmatter ``name`` ('' when it has none)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return ""
+    head = text.split("---", 2)[1] if text.startswith("---") and text.count("---") >= 2 else ""
+    m = SKILL_NAME_RE.search(head)
+    return m.group(1).strip() if m else ""
+
+
+def _preset_phases(path: Path) -> list[str]:
+    try:
+        preset = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    phases = preset.get("phases") if isinstance(preset, dict) else None
+    return [p for p in phases if isinstance(p, str)] if isinstance(phases, list) else []
+
+
+def approve_lists(pack: Path, manifest: dict) -> dict | None:
+    """``approve`` for the register call: the skill dirs and block ids the plan listed (None: none)."""
+    _, skills = pack_skills(pack, manifest)
+    blocks = [str(b.get("id")) for b in pack_blocks(manifest)]
+    return {"skills": skills, "blocks": blocks} if skills or blocks else None
 
 
 # ── 2-3. stage and swap ────────────────────────────────────────────────────────────────────
@@ -214,6 +307,14 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
             shutil.copy2(extra_src, extra_dest)
             if rel_str not in copied:
                 copied.append(rel_str)
+    for rel_str, source in pack_extra_files(pack, manifest):
+        dest = (next_dir / Path(*rel_str.split("/"))).resolve()
+        if root not in dest.parents:
+            raise PackError(f"{rel_str!r} would stage outside {next_dir}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        if rel_str not in copied:
+            copied.append(rel_str)
     if (pack / "README.md").is_file():
         shutil.copy2(pack / "README.md", next_dir / "README.md")
         copied.append("README.md")
@@ -297,10 +398,19 @@ def permission_asks(entries: list[dict]) -> list[dict]:
     return rows
 
 
-def plan_digest(raw: bytes) -> str:
+def plan_digest(raw: bytes, extras: list[tuple[str, bytes]] = ()) -> str:
     """The manifest bytes' sha256 as base64url, cut to fit a choice id: what the plan showed (permissions,
-    version, entry hashes)."""
-    return base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).decode("ascii")[:DIGEST_CHARS]
+    version, entry hashes). A pack with skills or blocks also binds each staged skill and preset file
+    (its manifest path and bytes, sorted), so a file changed after the plan refuses the bound install.
+    An editor-only pack has no extras and keeps the manifest-only digest."""
+    h = hashlib.sha256(raw)
+    for rel, body in sorted(extras):
+        h.update(b"\0" + rel.encode("utf-8") + b"\0" + str(len(body)).encode("ascii") + b"\0" + body)
+    return base64.urlsafe_b64encode(h.digest()).decode("ascii")[:DIGEST_CHARS]
+
+
+def _extras(base: Path, manifest: dict) -> list[tuple[str, bytes]]:
+    return [(rel, path.read_bytes()) for rel, path in pack_extra_files(base, manifest)]
 
 
 def parse_target(value: str) -> tuple[str, str | None]:
@@ -336,7 +446,26 @@ def do_plan(args) -> dict:
                 f"({', '.join(str(x.get('id')) for x in editors + plugins)}; daemon-editors.json in its state home)",
                 "operator_owned": False}]
     writes += install_grants(manifest)
-    digest = plan_digest(raw)
+    try:
+        extras = _extras(pack, manifest)
+    except (OSError, PackError) as err:
+        raise Failure(2, f"{pack}: {err}") from err
+    skills_dir, skill_dirs = pack_skills(pack, manifest)
+    skills = [{"dir": d, "name": _skill_name(pack / Path(*skills_dir.split("/")) / d / "SKILL.md"),
+               "installs_as": f"wicked-garden-{d}"} for d in skill_dirs]
+    blocks = [{"id": b.get("id"), "label": b.get("label"), "produces_kind": b.get("produces_kind"),
+               "phases": _preset_phases(_inside(pack, b.get("preset"), "preset")),
+               "skills": [s for s in b.get("skills", []) if isinstance(s, str)] if isinstance(b.get("skills"), list) else []}
+              for b in pack_blocks(manifest)]
+    for s in skills:
+        writes.append({"path": f"{origin}/api/v1/editors", "operator_owned": False,
+                       "what": f"skill {s['dir']} into the daemon's skills root as {s['installs_as']} "
+                               f"(from pack {key}; every seat gets it)"})
+    for b in blocks:
+        writes.append({"path": f"{origin}/api/v1/editors", "operator_owned": False,
+                       "what": f"workflow preset {b['id']} ({b['label']}): phases {', '.join(b['phases'])} "
+                               f"(from pack {key})"})
+    digest = plan_digest(raw, extras)
     plan: dict = {"dry_run": True, "key": key, "choices": [
         {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
         {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
@@ -344,6 +473,10 @@ def do_plan(args) -> dict:
     asks = permission_asks(editors + plugins)
     if asks:
         plan["asks"] = asks
+    if skills:
+        plan["skills"] = skills
+    if blocks:
+        plan["blocks"] = blocks
     if plugins:
         plan["plugins"] = [
             {
@@ -383,15 +516,24 @@ def do_install(args) -> tuple[int, dict]:
     if not same:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"{pack / MANIFEST_NAME} changed while it was being installed; nothing was installed")
-    if approved is not None and plan_digest(staged) != approved:
+    try:
+        staged_extras = _extras(key_root / "next", manifest)
+    except (OSError, PackError) as err:
+        shutil.rmtree(key_root / "next", ignore_errors=True)
+        raise Failure(1, f"the staged copy could not be read back ({err}); nothing was installed") from err
+    if approved is not None and plan_digest(staged, staged_extras) != approved:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"{pack / MANIFEST_NAME} changed after the plan the operator approved (its permissions, "
-                         "version or entry hash may differ); nothing was installed: plan and approve it again")
+                         "version, entry hash, skills or block presets may differ); nothing was installed: plan "
+                         "and approve it again")
     swap(key_root)
     current = key_root / "current"
     try:
-        status, body = http_json("POST", f"{origin}/api/v1/editors",
-                                 {"packRoot": str(current.resolve()), "enabled": target == "daemon"})
+        request = {"packRoot": str(current.resolve()), "enabled": target == "daemon"}
+        approve = approve_lists(current, manifest)
+        if approve is not None:
+            request["approve"] = approve  # the skills and blocks the plan listed (wicked-crew#1703)
+        status, body = http_json("POST", f"{origin}/api/v1/editors", request)
     except (urllib.error.URLError, OSError) as err:
         unswap(key_root, had_previous)
         raise Failure(1, f"no daemon at {origin} ({err}); nothing was installed") from err

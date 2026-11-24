@@ -160,7 +160,7 @@ def test_a_linked_file_in_the_skills_tree_refuses_the_install(tmp_path, sample):
     with FakeDaemon() as d:
         done = _install(sample, tmp_path / "root", d)
         assert d.requests == []
-    assert done.returncode == 1 and "link" in json.loads(done.stdout)["error"]
+    assert done.returncode in (1, 2) and "link" in json.loads(done.stdout)["error"]
     assert not (tmp_path / "root" / "acme-terms" / "current").exists()
 
 

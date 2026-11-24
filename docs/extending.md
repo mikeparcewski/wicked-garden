@@ -205,13 +205,31 @@ hash names its exact bytes and grants are tied to that build.
 To verify the checked-in sample, use the same commands with
 `tests/fixtures/packs/acme-terms` as the pack directory. Pack check should report no warnings.
 
-#### Install the editor-only pack
+#### Install the whole pack: editor, skills and block
 
-**Crew today refuses a pack that also ships skills or blocks** with HTTP 501,
-`pack_ships_skills_or_blocks`, until their own **Add these** approval step exists
-(mikeparcewski/wicked-crew#1703). The complete
-`acme-terms` sample therefore cannot be installed through crew today, and passing conformance does
-not establish the full editor-plugin journey for its skills and block.
+A pack that also ships skills or blocks installs through one consent. The plan
+(`--dry-run`) lists:
+- the editor's permissions;
+- every skill, with the name crew adds it as (`wicked-garden-<skill dir>`, so a worker invokes it as
+  `wicked-garden:<skill dir>`);
+- every block, with its preset's phases.
+
+The approved install stages the skills tree and each block's preset beside the editor. It hands crew
+the approved skill and block lists, and crew adds them in the same install, or refuses and installs
+nothing. A block preset's `phases` must be catalog phases (the sample uses `critique`); crew refuses
+any other phase and names the options. A skill or preset file edited after the plan refuses the
+approved install, so the operator is asked again.
+
+```bash
+wicked-garden run scripts/editor/install.py --dir tests/fixtures/packs/acme-terms --crew-url <crew-origin> --dry-run
+wicked-garden run scripts/editor/install.py --dir tests/fixtures/packs/acme-terms --crew-url <crew-origin> --json
+```
+
+This needs a crew with the skills and blocks approval step (mikeparcewski/wicked-crew#1703). An
+older crew refuses such a pack with HTTP 501 `pack_ships_skills_or_blocks`. On an older crew,
+install the editor by itself, as below.
+
+#### Install the editor-only pack
 
 The scaffolded `terms-editor` directory above is already editor-only. To install the sample's editor
 by itself, copy its `editors/` directory (including `icon.svg`) into a new pack, and use a manifest
@@ -241,7 +259,8 @@ wicked-garden run scripts/editor/install.py --dir ./acme-terms-editor --crew-url
 wicked-garden run scripts/editor/install.py --dir ./acme-terms-editor --crew-url <crew-origin> --json
 ```
 
-The installer stages the manifest, entry, accepted declared images and README when present under
+The installer stages the manifest, entry, accepted declared images, the skills tree and block presets
+(when the pack has them) and README when present under
 `<root>/<name>/current/`, where the root is `--install-root`, else `$WICKED_EDITOR_INSTALL_ROOT`, else
 `$WICKED_HOME/editors`, else `~/.wicked/editors`. Crew re-runs pack check and conformance against the staged copy
 before recording the editor; a refusal restores the previous installation. `--target daemon-off`
