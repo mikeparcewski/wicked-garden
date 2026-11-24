@@ -11,7 +11,8 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 1. **Locate**: ``--from-run`` finds the one spec-2 ``wicked-pack.json`` with editors under
    the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/.git/dist; ``--dir`` names it.
 2. **Stage** into ``<root>/<name>/next/`` (root: ``--install-root``, ``$WICKED_EDITOR_INSTALL_ROOT``,
-   else ``~/.wicked/editors``, a program-owned place): ``wicked-pack.json``, every editor's entry
+   else ``$WICKED_HOME/editors``, else ``~/.wicked/editors``, a program-owned place; an empty variable counts
+   as unset): ``wicked-pack.json``, every editor's entry
    file and its accepted declared card images at their manifest paths, and the README. Malformed
    cosmetic images are skipped, as in pack check (PK089); they never refuse an install. Nothing else
    of the tree is copied (an editor is ONE
@@ -99,10 +100,16 @@ def crew_origin(flag: str | None) -> str:
 
 
 def install_root(flag: Path | None) -> Path:
+    """``--install-root``, else ``$WICKED_EDITOR_INSTALL_ROOT``, else the daemon's state home: ``$WICKED_HOME/editors``,
+    else ``~/.wicked/editors``. An empty variable counts as unset (garden#1532: a daemon on a scratch home staged
+    editors in the live ``~/.wicked``)."""
     if flag is not None:
         return flag
     env = os.environ.get("WICKED_EDITOR_INSTALL_ROOT")
-    return Path(env) if env else Path.home() / ".wicked" / "editors"
+    if env:
+        return Path(env)
+    home = os.environ.get("WICKED_HOME")
+    return Path(os.path.abspath((Path(home) if home else Path.home() / ".wicked") / "editors"))
 
 
 def http_json(method: str, url: str, body: dict | None = None) -> tuple[int, dict]:
@@ -463,7 +470,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--crew-url", help="the wicked-crew origin (default $WICKED_CREW_URL; no port is assumed)")
     parser.add_argument("--dry-run", "--plan", dest="dry_run", action="store_true",
                         help="write nothing; print the plan as one JSON line")
-    parser.add_argument("--install-root", type=Path, help="default $WICKED_EDITOR_INSTALL_ROOT, else ~/.wicked/editors")
+    parser.add_argument("--install-root", type=Path, help="default $WICKED_EDITOR_INSTALL_ROOT, else $WICKED_HOME/editors, else ~/.wicked/editors")
     parser.add_argument("--json", action="store_true", help="print the record as one compact JSON line")
     args = parser.parse_args(argv)
     if args.dry_run:

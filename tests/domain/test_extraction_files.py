@@ -1723,6 +1723,118 @@ def test_a_closed_page_reworked_with_no_rules_file_still_fails_closed(tmp_path, 
         _apply(wt, db, repo, estate, core)
 
 
+def _two_pages(tmp_path, monkeypatch):
+    """Page 1 framed 4 units, the seat stated them, apply wrote them and extract-next closed the
+    page; page 2 is prepared. Returns (db, repo, wt, estate, core, page-1 ids, page-2 worklist)."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule(s) for s in first])
+    assert _apply(wt, db, repo, estate, core)["applied"]["resolved"] == 4
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    second = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 2, estate=estate,
+                                      core=core)
+    return db, repo, wt, estate, core, first, second
+
+
+def test_a_send_back_restates_a_unit_an_earlier_page_framed(tmp_path, monkeypatch, capsys):
+    """wicked-garden#1535 (train 12, CardDemo runs 94fa39f3 and 96bda11b): the coverage review
+    FAILed on a rule an earlier page stored and sent the run back to extract; the seat stated the
+    fix, but `--check-rules` refused it as "not a unit of the worklist", and the harness's resume
+    dropped it, so every round looped to the rework cap. The worklist now lists the units off the
+    page the host still takes a rule for, and the restatement passes the check, survives a resume
+    and is applied. Falsifier: drop `off_page_ids` from prepare (or from the check) and the
+    check refuses the restatement."""
+    db, repo, wt, estate, core, first, second = _two_pages(tmp_path, monkeypatch)
+    page2 = [u["symbol_id"] for u in second["units"]]
+    assert page2 and not set(first) & set(page2)
+    # Exactly the units an earlier page asked: never this page's, never the frontier a later page
+    # frames (2 of the 8 are still unmapped and on no page yet).
+    assert set(second[extract_loop.OFF_PAGE_KEY]) == set(first)
+    assert len(page2) == 2
+    # The new page starts with no rules file, so a plain harness run states only this page.
+    assert not (wt / rules_file.RULES_REL).exists()
+    assert extract_loop.run_files(wt, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 0
+    _, fresh, _ = rules_file.check_rules_doc(rules_file.read_json_file(wt, rules_file.RULES_REL))
+    assert [e["symbol_id"] for e in fresh] == page2
+    fixed = _rule(first[0], statement="A closed account accepts no new charges.")
+    _write_rules(wt, "codex", [*[_rule(s) for s in page2], fixed])
+    monkeypatch.chdir(wt)
+    check = ["--check-rules", rules_file.RULES_REL, "--worklist", rules_file.WORKLIST_REL]
+    capsys.readouterr()
+    extract_loop.main(check)  # the fixture's page also asks for business domains: not this test's
+    err = capsys.readouterr().err
+    assert "not a unit" not in err and "1 entr(ies) restate units off this page" in err, err
+    # The seat runs the harness again on the send-back: it keeps the restatement.
+    assert extract_loop.run_files(wt, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 0
+    _, kept, _ = rules_file.check_rules_doc(rules_file.read_json_file(wt, rules_file.RULES_REL))
+    assert fixed in kept
+    report = _apply(wt, db, repo, estate, core)
+    assert first[0] not in {r["symbol_id"] for r in report["refused"]}, report["refused"]
+    assert report["reworked"] == 1
+    assert estate.writes[first[0]]["req"][0] == "A closed account accepts no new charges."
+
+
+def test_an_earlier_pages_unit_gone_from_the_store_is_not_offered(tmp_path, monkeypatch):
+    """codex+agy r1 on #1552: the host restates only a unit the store still has, in a file git
+    tracks; one an earlier page asked that has left the store is not listed, so the seat's check
+    never passes what apply then refuses."""
+    import sqlite3
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    generation.record_answered(db, "run-1", first)
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    c = sqlite3.connect(db)
+    c.execute("DELETE FROM nodes WHERE symbol = (SELECT sid FROM symbols WHERE sym = ?)",
+              (first[0],))
+    c.commit()
+    c.close()
+    second = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 2, estate=estate,
+                                      core=core)
+    assert set(second[extract_loop.OFF_PAGE_KEY]) == set(first[1:])
+
+
+def test_check_rules_refuses_a_unit_neither_on_the_page_nor_off_it_and_says_why(tmp_path,
+                                                                               monkeypatch,
+                                                                               capsys):
+    """A real requirement this run never asked cannot be restated by it: the check says so, so the
+    seat reports it instead of looping (wicked-garden#1535, wicked-garden#1433)."""
+    _worklist(tmp_path, n=1)
+    doc = rules_file.read_json_file(tmp_path, rules_file.WORKLIST_REL)
+    rules_file.write_json_file(tmp_path, rules_file.WORKLIST_REL,
+                               {**doc, extract_loop.OFF_PAGE_KEY: ["s::earlier"]})
+    monkeypatch.chdir(tmp_path)
+    check = ["--check-rules", rules_file.RULES_REL, "--worklist", rules_file.WORKLIST_REL]
+    _write_rules(tmp_path, "", [_rule("s::0"), _rule("s::earlier")])
+    assert extract_loop.main(check) == 0
+    assert "1 entr(ies) restate units off this page" in capsys.readouterr().err
+    _write_rules(tmp_path, "", [_rule("s::0"), _rule("s::resolved-long-ago")])
+    assert extract_loop.main(check) == 1
+    assert "this page cannot restate it" in capsys.readouterr().err
+
+
+def test_a_worklist_whose_off_page_list_is_not_ids_is_refused(tmp_path):
+    _worklist(tmp_path, n=1)
+    doc = rules_file.read_json_file(tmp_path, rules_file.WORKLIST_REL)
+    rules_file.write_json_file(tmp_path, rules_file.WORKLIST_REL,
+                               {**doc, extract_loop.OFF_PAGE_KEY: [{"symbol_id": "s::x"}]})
+    with pytest.raises(rules_file.RulesFileRefused, match="off_page_ids"):
+        extract_loop.read_worklist(tmp_path, rules_file.WORKLIST_REL)
+
+
 def test_no_rules_file_outside_a_run_or_without_a_record_still_fails_closed(tmp_path,
                                                                            monkeypatch):
     db, repo, wt, estate, core = _current_map(tmp_path)

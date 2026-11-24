@@ -209,7 +209,8 @@ config's `key`:
 2. **Stage**: `npm ci --ignore-scripts && npm run build` in the server dir, then `dist/`,
    `package.json`, `package-lock.json`, `tools.json` and `mcp-server.config.json` are copied
    to `<root>/<key>/next/` and `npm ci --omit=dev --ignore-scripts` runs there. The root is
-   `--install-root`, else `$WICKED_MCP_INSTALL_ROOT`, else `~/.wicked/mcp-servers`.
+   `--install-root`, else `$WICKED_MCP_INSTALL_ROOT`, else `$WICKED_HOME/mcp-servers`, else
+   `~/.wicked/mcp-servers`.
    `--from-npm` installs a published package there instead.
 3. **Smoke**: the probe, passing `<SERVER>_TOKEN` through. A failure naming that variable is
    `smoke: "pending_credential"` (disclosed, not failed); any other failure exits 1 with
@@ -225,8 +226,10 @@ config's `key`:
    of THIS install only: before anything is staged, a registry entry under the key that is a
    different server (another `kind`, command or args — say a REST server with the same name)
    exits 1 naming it, with nothing written. Pick another key, or remove that server first.
-6. **CLI configs** through `wicked-installer mcp upsert` (never written by this script); an
-   installer without the verb is reported as `clis: "skipped: …"`, not failed. **`--target
+6. **CLI configs** through `wicked-installer mcp upsert` (never written by this script), run
+   from PATH only — never downloaded, so the install writes what the plan listed. No installer
+   on PATH, or one without the verb, is reported as `clis: "skipped: …"` with the remedy
+   (`npm install -g wicked-installer`), not failed. **`--target
    worker`** (the default) registers the server only in the worker seats' CLI configs under
    the worker home (`$WICKED_WORKER_HOME`, else `~/.wicked-worker`: `claude/.claude.json`,
    `codex/config.toml`, `opencode/config/opencode/`); **`--target operator`** also writes the
@@ -238,7 +241,10 @@ config's `key`:
 JSON line, the plan the install gate shows: `{"dry_run": true, "key", "choices": [{"id":
 "worker" | "operator", "label", "default"?, "writes": [{"path", "what", "cli"?,
 "operator_owned"}]}], "skipped": [{"cli", "why"}]}` — every path absolute, each choice listing
-everything it would write, the CLI rows from `wicked-installer mcp upsert --dry-run`. It exits
+everything it would write, the CLI rows from `wicked-installer mcp upsert --dry-run`. With no usable installer every
+requested CLI is a `skipped` row carrying the remedy, the plan still exits 0, and the choice
+ids carry `_no-cli` (`worker_no-cli`): an install approved from that card writes no CLI config,
+even if an installer appeared meanwhile. It exits
 non-zero (the reason on stderr) when it cannot plan.
 7. **Record** `<root>/<key>/installed.json` `{key, version, source, command, args,
    envNames, installedAt, registered, smoke}` and print it with `probe`, `registry` and `clis`.

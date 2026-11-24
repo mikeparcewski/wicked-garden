@@ -51,10 +51,19 @@ and only this:
    the file with `wicked-garden run scripts/domain/extract_loop.py --check-rules
    .wicked/domain/rules.json --worklist .wicked/domain/worklist.json` and fix what it names.
    With `"units": []` and an empty `assign` list, write the rules file with `"rules": []` and
-   no other entries, and say so in one line. The engine fails the extract step when the file is
+   no other entries (unless a review sent the run back about a unit off this page: see below),
+   and say so in one line. The engine fails the extract step when the file is
    missing or older than this page, so always write it. The host finishes that page ("map
-   already current … nothing to extract") and refuses a missing file for a page that had units. A review that sends back a page with no units asks for work the
-   host cannot apply: say so plainly, and the person decides at the step's gate.
+   already current … nothing to extract") and refuses a missing file for a page that had units.
+
+**A review sent the run back about a unit that is not on this page** (the coverage step
+names an earlier page's rule, for example). Look its `symbol_id` up in the worklist's
+`off_page_ids`: the units off this page the host still takes a rule for (the units this run
+asked on an earlier page or found changed since the map was built). When it is there, add one entry for
+it to `.wicked/domain/rules.json` beside the page's own, stated from its source as below, and
+keep the page's entries. When it is not, this run has not asked that unit, and this page
+cannot restate it: write nothing for it and say so plainly in your report (the
+person can land with it carried; a later page or mapping run asks it).
 
 **Business domains first.** Read the worklist's `business_domains` block. When it says
 `propose: true`, propose the repository's business domains as the `wicked-garden-domain-modeler`

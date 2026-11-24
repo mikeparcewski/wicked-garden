@@ -84,7 +84,8 @@ least one is `[unknown]`; `page_count.py` exits 1 before 3 (an over-budget estim
 Finding kinds — contrast: `contrast`, `size` (carries `scale` when a zoom/transform factor was
 applied: the reported `font_pt` is the *effective* size), `unknown` (UNVERIFIED pair, with a
 `detail` saying what and what to do); claims: `placeholder`, `uncited-number`, `uncited-url`,
-`unsourced-url`, `mock-label-hidden`, `mock-unlabelled`, `dangling-source`. The contrast report
+`unsourced-url`, `mock-label-hidden`, `mock-unlabelled`, `dangling-source`, `escaped-source` (a
+`data-source` that leaves every `--repo` folder: an absolute path, a `..`, or a link that leads out), `cite-off`. The contrast report
 also carries `notes` — e.g. colour-declaring rules whose selectors (`:nth-child`, `:is`, `:has`…)
 the checker does not evaluate and therefore did NOT judge; check those elements by hand. With
 `--mode both` a pair failing in both media is one finding tagged `print+screen`.
