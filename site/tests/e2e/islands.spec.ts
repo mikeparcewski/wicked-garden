@@ -303,7 +303,23 @@ test('CopyChip: copying never moves or cuts the command', async ({ page }) => {
         const r = el.getBoundingClientRect();
         return { x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), cut: el.scrollWidth > el.clientWidth + 1 };
       });
-      const before = await box();
+      // a web font that lands between the two reads changes the line box too: let pending loads finish,
+      // then take as the baseline a box that holds still across two animation frames
+      await page.evaluate(() => document.fonts.ready.then(() => undefined));
+      const frames = () => chip.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
+      let before = await box();
+      await expect
+        .poll(
+          async () => {
+            await frames();
+            const now = await box();
+            const still = JSON.stringify(now) === JSON.stringify(before);
+            before = now;
+            return still;
+          },
+          { timeout: 10_000, message: `${sel} should hold still at rest before it is measured` },
+        )
+        .toBe(true);
       expect(before.cut, `${sel} cut at rest at ${vp.width}`).toBe(false);
       await chip.click();
       await expect(chip).toContainText('copied');
