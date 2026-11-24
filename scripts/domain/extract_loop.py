@@ -1060,8 +1060,8 @@ def read_worklist(base: Path, rel: str) -> dict:
 
 
 def off_page_ids(worklist: dict) -> set[str]:
-    """Units off this page a rule may still name: an earlier page's unit of this run, a
-    placeholder, an unmapped behaviour (the host decides again when it applies)."""
+    """Units off this page a rule may still name: those an earlier page of this run asked, or that
+    it found changed since the map was built (the host decides again when it applies)."""
     return set(worklist.get(OFF_PAGE_KEY) or [])
 
 
@@ -1423,9 +1423,9 @@ def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
         off = off_page_ids(worklist) - unit_ids
         refused += [{"index": None, "symbol_id": e["symbol_id"],
                      "why": f"is not a unit of this page and not in its {OFF_PAGE_KEY} (copy the "
-                            "symbol_id verbatim). A unit that is in neither is a real requirement "
-                            "this run never asked, so this run cannot restate it: leave it out and "
-                            "say so in your report"}
+                            "symbol_id verbatim). A unit in neither has not been asked by this run, "
+                            "so this page cannot restate it: leave it out and say so in your report "
+                            "(a later page or a later mapping run asks it)"}
                     for e in accepted if e["symbol_id"] not in unit_ids and e["symbol_id"] not in off]
         have = {e["symbol_id"] for e in accepted}
         left = f"; {sum(1 for u in units if u['symbol_id'] not in have)} worklist unit(s) not stated"

@@ -799,7 +799,7 @@ def test_the_extractor_handles_assignment_only_worklists():
     # wicked-garden#1535: a send-back about a unit off the page restates it when the worklist's
     # `off_page_ids` holds it, and says plainly when it cannot.
     assert "Look its `symbol_id` up in the worklist's `off_page_ids`" in text
-    assert "this run cannot restate it: write nothing for it and say so plainly" in text
+    assert "this page cannot restate it: write nothing for it and say so plainly" in text
 
 
 def test_the_extractor_chooses_business_domains_from_each_symbols_source():
