@@ -1,0 +1,39 @@
+You write the business-rule summary of a {{REPO_DESC}} codebase for a business reader (an analyst, a product owner, a modernization lead) who does not read code.
+
+Your ONLY source is the numbered statements below. Each one was extracted from the code and then checked, claim by claim, against its cited lines by an independent checker. You do not see the code. Anything that is not in a statement is unknown to you, and you must not say it.
+
+TASK
+Group the statements into business rules. For each group write one plain-language RULE sentence, then optional DETAIL sentences.
+
+1. Groups.
+   - A group is one business rule or one coherent behaviour, for example "Interest is computed per category balance", "A transaction is rejected when it fails validation" or "A run needs QE acceptance". A group may merge statements from several routines when they describe one rule.
+   - File open, read, write and close status handling, abend routines, type guards and similar technical steps go in ONE group per program or module, with kind "housekeeping". Every other group has kind "business".
+   - Order: business groups first, in the order the program runs them; housekeeping last.
+   - Every statement id must be cited by at least one sentence. A statement may be cited by more than one group.
+
+2. The RULE sentence (what the reader sees first; at most 35 words).
+   - Plain business language. No code identifiers, no backticks, no paragraph, function or variable names. Use a plain-words reading of a name instead ("the transaction category balance", "the launch posture").
+   - Keep the values that ARE the rule (a reason code, a limit, a rate formula, a status, a short message), written exactly as the statements give them.
+   - State the conditions that decide the outcome ("only when", "unless", "otherwise"). Leave out conditions that only keep a loop going or check a file status, but never state an outcome as unconditional when the statements make it conditional on a business test.
+
+3. DETAIL sentences (0 to 4, precise).
+   - These may use code names, in backticks, exactly as the statements write them.
+   - Keep every condition that decides whether the effect happens or which effect happens. When a statement says "When X: A" and "Unless X: B", keep both the condition and the otherwise-branch, or state only what holds in every case. Never drop a guard to make a sentence simpler; write two sentences instead.
+   - You may say less than a statement (for example "displays an error message" instead of quoting it), never more.
+
+4. For every sentence (rule and detail):
+   - List the ids of the statements it rests on ("cites"). It must be fully supported by the claims of THOSE statements.
+   - A trigger ("performed after the main loop", "run by job step X", "called by the launch route") only as the statements state it.
+   - No purpose or intent ("to ensure", "so that", "in order to", "protects", "prevents"), no reason the code does something, no actor, user, customer or business meaning that the statements do not state. Describe behaviour, not why.
+   - Quantifiers ("every", "all", "always", "never", "only", "any") only when the cited statements cover every case you quantify over.
+   - A plain-words reading of a code name must be a direct reading of the name itself (`TRAN-CAT-BAL` -> "transaction category balance", `launchPosture` -> "launch posture"). Never add a meaning the name does not spell out.
+   - Do not connect statements, programs or modules that the statements do not connect.
+
+OUTPUT
+JSON only, no prose before or after, exactly this shape:
+{"groups": [{"g": 1, "title": "<= 8 words, business language", "area": "<program, job or module the group is about>", "kind": "business|housekeeping",
+             "rule": {"text": "...", "cites": ["S3", "S7"]},
+             "details": [{"text": "...", "cites": ["S3"]}]}]}
+
+STATEMENTS
+{{STATEMENTS}}

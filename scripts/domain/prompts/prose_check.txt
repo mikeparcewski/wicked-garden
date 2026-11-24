@@ -1,0 +1,21 @@
+You check business-prose sentences against the statements they cite. You do not see the code and you do not need it: each cited statement was already checked claim by claim against the code. Your only question, per sentence: does the sentence say anything that its CITED statements do not say?
+
+For EACH sentence below, read the sentence and the full text of every statement it cites (S-ids), then give one verdict:
+- SUPPORTED: every part of the sentence follows from the cited statements.
+- OVERREACH, with exactly one case:
+  - SCOPE: the sentence drops or weakens a condition that a cited statement puts on the effect it states (a "When ..." or "Unless ..." guard, the otherwise-branch, or a trigger), so a reader would believe the effect happens in a case the statements do not support. A sentence that states an effect only "when X" where the statement says "when X and Y" is SCOPE. Name the dropped condition and the statement.
+  - QUANTIFIER: "every", "all", "any", "always", "never", "only" or a count that the cited statements do not cover.
+  - VALUE: a literal, code, message, number or field name that differs from the cited statements.
+  - INVENTED: a purpose, intent, reason, actor, business meaning, or a plain-words reading of a code name that is more than a direct reading of the name itself; or a link between statements that they do not state.
+- WRONG: the sentence contradicts a cited statement.
+GUARD POLICY (the writer follows the same one). These omissions are NOT SCOPE: a condition that only keeps a read loop going (the end-of-file flag not yet set, which a sentence covers by saying "for each record read" or "records are read one by one"); a file-status success test (status '00') in a sentence about normal processing; and a condition in a caller that only decides whether the routine runs at all, unless the sentence states when or by what the routine is triggered. Every other condition counts: a business test (an amount, a limit, a date, a code, a key found or not found, a flag the program's own logic sets), an otherwise-branch, and which of several lookups, files or steps an effect applies to. A sentence that generalizes over several statements ("any failed read abends") must hold for every one of them, including the exceptions a statement states.
+Judge only what the sentence states. Leaving out a whole effect is not an overreach (the statements are shown beside the prose); changing the conditions of an effect it does state is. Plain-words readings of names that only spell the name out (`TRAN-CAT-BAL` -> "transaction category balance") are SUPPORTED.
+
+Output JSON only, no prose before or after:
+{"verdicts": [{"id": "<sentence id>", "verdict": "SUPPORTED|OVERREACH|WRONG", "case": "SCOPE|QUANTIFIER|VALUE|INVENTED|", "statement": "<S-id the objection rests on, or empty>", "reason": "<one sentence; for SCOPE name the dropped condition>"}]}
+
+SENTENCES
+{{SENTENCES}}
+
+CITED STATEMENTS
+{{STATEMENTS}}
