@@ -1,18 +1,18 @@
 ---
 name: wicked-garden-editor-scaffold
 description: |
-  Build an artifact editor plugin for wicked-studio: scaffold a
-  wicked-pack.json spec-2 pack with one self-contained HTML editor speaking
-  wicked.editor/2 (its card, options and full-screen surfaces, Simple/Advanced)
-  and /1 to older hosts, ask only for the permissions it needs, re-pin its hash,
-  run the conformance cases in headless Chromium against studio's own
-  plugin host, then install it into a wicked-crew daemon's editors.
+  Build an artifact editor plugin or a third-party run plugin ("phase plugin") for
+  wicked-studio: scaffold a wicked-pack.json spec-2 pack with one self-contained HTML
+  entry speaking wicked.editor/2 (/1 to older hosts) or wicked.editor/3 (run plugins:
+  observe topics and run.details panels), ask only for the permissions or observe topics
+  it needs, re-pin its hash, run the conformance cases in headless Chromium against
+  studio's own plugin host, then install it into a wicked-crew daemon's editors.
 
   Use when: "build an editor plugin", "make a custom editor", "an editor for
-  this artifact kind", "scaffold an editor", "check my editor plugin",
-  "run the editor conformance", "install this editor plugin", studio
-  Settings → Developer → "Create an editor plugin", or a phase of the
-  `editor-plugin` workflow. NOT for granting an editor's permissions
+  this artifact kind", "build a phase plugin", "build a run plugin", "scaffold an editor",
+  "check my editor plugin", "run the editor conformance", "install this editor plugin",
+  studio Settings → Developer → "Create an editor plugin", `/plugin phase`, or a phase
+  of the `editor-plugin` workflow. NOT for granting an editor's permissions
   (studio Settings does that) or for editing a document (studio's built-in
   editors do that).
 metadata:
@@ -38,9 +38,11 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 ```
 wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<name> --title "<plain words>" --kinds <kind[,kind]> [--permissions <id[,id]>] [--surfaces <file.json>] --out <dir>
+wicked-garden run scripts/editor/scaffold.py --kind run-plugin --vendor <vendor> --id <vendor>-<name> --title "<plain words>" [--observe <topic[,topic]>] --out <dir>
 ```
 
-- **The pack** is `wicked-pack.json` spec 2 with one `editors[]` entry, plus
+- **The pack** is `wicked-pack.json` spec 2 with one `editors[]` entry (or, with `--kind run-plugin`,
+  one `plugins[]` entry, `plugins/<id>/index.html`, and `samples/events.ndjson` — see `refs/run-plugin.md`), plus
   `editors/<id>/index.html` (the whole editor: ONE file, every script and style inline) and a
   README. `--out` may be a repo root or a subdirectory; every file it would write must be absent
   (it refuses naming the first collision and writes nothing).
@@ -77,7 +79,13 @@ The template's plumbing is what the conformance run checks; keep it and put your
   Render content with `textContent` or `DOMParser` — never as live markup.
 - **Writes** (`version.write {base, ops, summary}`) carry text and colours only: `{op:'text',
   anchor, value, before}`, `{op:'style', anchor, style:{background?, color?}}`, `{op:'remove',
-  anchor}`. A `stale` or `head_moved` reply is shown to the user, never retried silently.
+  anchor}`. A `stale` or `head_moved` reply is shown to the user, never retried silently. An editor that asks
+  `artifact.write` marks the control that saves an edit with `data-wicked-save` (conformance case 7 fills its
+  empty text fields with valid values, presses the first visible marked control and expects exactly one version).
+  Mark toggles that open folded fields with `data-wicked-reveal`: case 7 first clicks each visible one once.
+- **Show what you open**: an editor opens an artifact to show it. Ask `artifact.read`, read on the handshake and
+  render it (case 18 reads your frame and its visible nested frames, 3 deep and 16 frames at most; a protocol-2
+  editor is judged on its full surface, else its card), and read again on `artifact.changed`.
 - **Events you answer**: `host.ping` within 2 s; `host.size` (inline / pane / full — the same
   frame, never a reload or a re-read); `host.theme`; `artifact.changed` (re-read unless `by` is
   `this-editor`). Ignore any unknown `type`; a malformed message is dropped, never a crash.
@@ -114,19 +122,28 @@ Runs each editor in headless Chromium inside studio's own conformance host page,
 the daemon (`--host-url`, else `$WICKED_CREW_URL` — never a typed port) or served from a studio
 `dist`. It serves the candidate's entry on the bundle route itself (hash-checked, no network) and
 runs: 0 manifest (`pack check`), 1 handshake, 2 sizes, 3 no network, 4 permissions withdrawn,
-5 typing never acts, 6 key forwarding, 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
-12 the pinned hash; for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
+5 typing never acts, 6 key forwarding, 7 an edit saved through your `data-wicked-save` control (first click each
+visible `data-wicked-reveal` toggle once to open folded fields; one version; a
+viewer that asks no `artifact.write` passes), 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
+12 the pinned hash, 18 it shows what it is handed (it asks `artifact.read`, the page's text is visible in it, and it
+reads again when another version lands); for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
 14 the card (height, actions answered in 2 s), 15 each options tab mounted as its own options
 instance, told its tab (and `host.tab` to the others and back; the controls' values),
-16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-12 under the
-protocol-2 host. Its report lists the gaps it cannot see (case 7, a scripted edit, is your
-editor's own UI; axe is not run; WebRTC is invisible to request interception). Each page load and
+16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-6 and 8-12 under the
+protocol-2 host. Its report lists the gaps it cannot see (case 7 drives only your marked control,
+your other edits are your own tests'; axe is not run; WebRTC is invisible to request interception). Each page load and
 daemon read may take `--timeout` seconds (else `$WG_EDITOR_CONFORMANCE_TIMEOUT`, default 120): a slow
 host never fails a correct editor, and the editor's own 3 s / 2 s deadlines never stretch (crew's install
 reads the variable from the daemon's environment, inside its own overall cap). Exit 0 all
 passed, 1 a case failed (named in the report), 3 no headless browser — **fail closed**: never
 call an editor conformant without the run. **Manual alternative:** none; report the editor as
 not verified.
+
+**In a governed run the engine runs it on the host** (the editor-plugin workflow's `conformance` step,
+`--engine`): jailed to the script's own loopback port, the host page from crew's studio dist, the
+interpreter from crew's private Playwright venv. Its record (`[editor conformance record — unit N]`)
+is what the review cites. A seat has no headless browser, so an in-seat run exits 3: that is not a
+finding, and you never need to reproduce the engine's run.
 
 ## 4. Install (`install`)
 
@@ -135,8 +152,8 @@ wicked-garden run scripts/editor/install.py (--from-run | --dir <dir>) [--target
 wicked-garden run scripts/editor/install.py --uninstall <pack name> [--crew-url <origin>]
 ```
 
-Idempotent by the pack's `name`: stage into `~/.wicked/editors/<name>/current/` (a program-owned
-place; the copy it replaces is kept in `previous/`), then `POST /api/v1/editors` on the daemon,
+Idempotent by the pack's `name`: stage into `<root>/<name>/current/` (`$WICKED_EDITOR_INSTALL_ROOT`,
+else `$WICKED_HOME/editors`, else `~/.wicked/editors`: a program-owned place; the copy it replaces is kept in `previous/`), then `POST /api/v1/editors` on the daemon,
 which re-runs `pack check` **and the conformance run itself** before it records the editor in its
 registry. A refusal rolls the staged copy back and exits 1. `--target daemon` (the default)
 installs it on; `daemon-off` installs it turned off. `--dry-run` writes nothing and prints the
@@ -174,6 +191,16 @@ contract (methods, errors, events, conformance) is in `refs/mcp-server.md`; read
 A finished one ships with garden, made by this scaffold: `wicked-garden path packs/garden-mcp-inspector`
 (install it with `install.py --dir` on that path).
 
+## Kind `phase plugin` (run plugin, protocol 3)
+
+When the brief says `Kind: phase plugin.` (or you are building a third-party run plugin for a job's
+Details panel), read `refs/run-plugin.md` and follow it: scaffold with `--kind run-plugin`, declare
+`plugins[]` (`protocol: [3]`, `inline: "run-thread"`, `observe: [{topic, why}]` matching `wicked.run.*`
+per §C2, `panels: [{slot: "run.details", id, title, instances?, order, defaultOpen?, summary?}]`,
+`samples: "samples/events.ndjson"`, no `permissions`), handle `host.hello.observe` and `events.batch`
+rows `{id, topic, ...}` rendered as text only (never markup), optionally post `panel.summary`, and
+pass the run-plugin conformance cases `r0-manifest`..`r5-hash-pinned` (reported under `plugins[]`).
+
 ## In a governed run
 
 You are in one when a wicked-crew phase directive or the `wicked-garden-governed-worker`
@@ -182,18 +209,33 @@ skill was handed to you (`WICKED_RUN_ID` is set). Follow `wicked-garden-governed
 - **scope**: settle the editor's id and title, the kinds it opens, what it shows and lets the
   user do, the permissions that needs (each with its plain-words why), and the target directory
   (the root of a near-empty repo, or a subdirectory such as `editors-pack/` of an existing one).
-  Read `GET $WICKED_CREW_URL/api/v1/editors` and pick an id no installed editor holds.
+  If the brief says `Kind: phase plugin.`: settle the plugin's `id`, `title`, `observe[]` topic
+  patterns (`wicked.run.*`, each with its plain-words `why` shown in the install consent), and
+  `panels[]` section in `run.details` (no `kinds` or `permissions`; see `refs/run-plugin.md`).
+  Read `GET $WICKED_CREW_URL/api/v1/editors` and pick an id no installed editor or plugin holds.
 - **design**: the contract table — each host → plugin message it handles, each plugin → host
   request it makes with the permission it needs, its surfaces declaration (card actions, options
   tabs, full-screen modes), its sizes, keys, theme and focus behaviour —
-  checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`). Name every deviation.
-- **build**: scaffold (section 1), write the editor, re-pin, `pack check`, and run the
-  conformance (section 3); put its JSON in your output. A failed case is a finding to fix.
-- **test**: run the conformance against the delivered tree yourself; a failed case, or no
-  browser, is a FAIL with the case named.
+  checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`).
+  If the brief says `Kind: phase plugin.`: design the protocol-3 contract (`plugin.ready`,
+  `host.hello.observe`, `events.batch` row deduplication and text-only rendering, `panel.summary`,
+  `host.ping`, `host.theme`, `plugins[]`, `observe[]`, `panels[]`, and `samples/events.ndjson`)
+  against `refs/run-plugin.md`. Name every deviation.
+- **build**: scaffold (section 1; if the brief says `Kind: phase plugin.`, use
+  `scaffold.py --kind run-plugin` per `refs/run-plugin.md`), write the entry, re-pin and pass
+  `pack check`. The engine runs the conformance cases on the host right after this step (section 3;
+  `r0-manifest`..`r5-hash-pinned` for a phase plugin); a failed case comes back to you as a
+  send-back naming the case. Fix it, re-pin, and pass `pack check` again.
+- **test**: judge the engine's `[editor conformance record]` for the tree under review (every
+  required case passed for every editor, or `r0-manifest`..`r5-hash-pinned` under `plugins[]` if
+  the brief says `Kind: phase plugin.`; the tree is the one you review) and the entry's own
+  behaviour. Do not run the harness in your seat; its absence there is not a finding.
 - **security-review**: grants requested vs used (every permission the manifest asks for has a
-  request in the code that needs it; nothing unused), no network or outside reference, content
-  rendered as text, no message beyond the protocol, keys and typing per section 2.
-- **install-plan / install**: Tool phases run `install.py --from-run --dry-run --json`, the
-  operator's consent gate offers its choices with their files, then `install.py --from-run
-  --target <the approved choice>`. Do not install, register or serve the editor yourself.
+  request in the code that needs it; or, if the brief says `Kind: phase plugin.`, every `observe[]`
+  topic pattern is justified, no `permissions` key is present, and `events.batch` rows are rendered
+  as text only, never markup), no network or outside reference, no message beyond the protocol.
+- **install-plan / install**: Tool phases run `install.py --from-run --dry-run --json` (`--plan`;
+  if the brief says `Kind: phase plugin.`, the plan lists `plugins: [{id, version, observe: [{topic, why}]}]`
+  and the `EDITOR-GRANTS` topic tokens), the operator's consent gate offers its choices with their
+  files, then `install.py --from-run --target <the approved choice>`. Do not install, register or
+  serve the editor or plugin yourself.

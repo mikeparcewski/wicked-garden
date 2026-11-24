@@ -3,10 +3,9 @@
 The Domain-Brain contract runs four per-product build workflows in parallel,
 each mocking the other three. This module is garden's mock of the *other three*:
 
-- ``EstateClient`` — the frozen six-method estate read/write surface, backed by
+- ``EstateClient`` — the estate read/write surface, backed by
   canned fixtures. Records annotation/requirement writes so a test can assert the
-  write actually happened with a real SymbolId (never a bare name — the
-  anti-legacy silent-no-op scar).
+  write actually happened. Batches refuse symbols absent from its fixtures.
 - ``BrainClient`` — brain's domain-model engine surface, backed by the vendored
   schema validator.
 
@@ -19,7 +18,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # --- estate fixtures --------------------------------------------------------
 
 # A deterministic name -> SymbolId map. Real SymbolIds are estate's opaque
@@ -27,14 +25,14 @@ from typing import Any
 # Note the duplicated simple name ("Charge") mapping to distinct SymbolIds —
 # that is exactly why a write MUST key on the SymbolId, not the name.
 _FIXTURE_SYMBOLS: dict[str, list[str]] = {
-    "Invoice.assessLateFee": ["sym::billing::Invoice.assessLateFee::a1"],
-    "Invoice.close": ["sym::billing::Invoice.close::a2"],
-    "LateFee.calc": ["sym::billing::LateFee.calc::a3"],
-    "Payment.charge": ["sym::payments::Payment.charge::b1"],
-    "Payment.refund": ["sym::payments::Payment.refund::b2"],
+    "Invoice.assessLateFee": ["sym synthetic billing::Invoice.assessLateFee::a1:"],
+    "Invoice.close": ["sym synthetic billing::Invoice.close::a2:"],
+    "LateFee.calc": ["sym synthetic billing::LateFee.calc::a3:"],
+    "Payment.charge": ["sym synthetic payments::Payment.charge::b1:"],
+    "Payment.refund": ["sym synthetic payments::Payment.refund::b2:"],
     "Charge": [
-        "sym::payments::Charge.entity::b3",
-        "sym::billing::Charge.legacy::a9",
+        "sym synthetic payments::Charge.entity::b3:",
+        "sym synthetic billing::Charge.legacy::a9:",
     ],
 }
 
@@ -45,11 +43,11 @@ _FIXTURE_CLUSTERS: list[dict[str, Any]] = [
         "id": 0,
         "size": 3,
         "members": [
-            "sym::billing::Invoice.assessLateFee::a1",
-            "sym::billing::Invoice.close::a2",
-            "sym::billing::LateFee.calc::a3",
+            "sym synthetic billing::Invoice.assessLateFee::a1:",
+            "sym synthetic billing::Invoice.close::a2:",
+            "sym synthetic billing::LateFee.calc::a3:",
         ],
-        "label_candidates": ["sym::billing::Invoice.assessLateFee::a1"],
+        "label_candidates": ["sym synthetic billing::Invoice.assessLateFee::a1:"],
         "dominant_files": ["src/billing/invoice.py"],
         "modularity_contribution": 0.071,
     },
@@ -57,10 +55,10 @@ _FIXTURE_CLUSTERS: list[dict[str, Any]] = [
         "id": 1,
         "size": 2,
         "members": [
-            "sym::payments::Payment.charge::b1",
-            "sym::payments::Payment.refund::b2",
+            "sym synthetic payments::Payment.charge::b1:",
+            "sym synthetic payments::Payment.refund::b2:",
         ],
-        "label_candidates": ["sym::payments::Payment.charge::b1"],
+        "label_candidates": ["sym synthetic payments::Payment.charge::b1:"],
         "dominant_files": ["src/payments/payment.py"],
         "modularity_contribution": 0.058,
     },
@@ -90,11 +88,11 @@ class EstateClient:
     def annotate(self, symbol_id: str, type: str, key: str, value: str,
                  confidence: float | None = None, provenance: str | None = None,
                  replace: bool = True, author: str | None = None) -> None:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name "
-                "is a silent no-op in estate; resolve() first"
-            )
+        if replace:
+            self.annotation_writes[:] = [
+                a for a in self.annotation_writes
+                if (a["symbol_id"], a["type"], a["key"]) != (symbol_id, type, key)
+            ]
         self.annotation_writes.append({
             "symbol_id": symbol_id, "type": type, "key": key, "value": value,
             "confidence": confidence, "provenance": provenance, "replace": replace,
@@ -103,12 +101,31 @@ class EstateClient:
 
     def set_requirement(self, symbol_id: str, requirement: str,
                         validated: bool, validated_by: str = "extract-loop") -> None:
-        if not _looks_like_symbol_id(symbol_id):
-            raise ValueError(
-                f"refusing set_requirement on non-SymbolId {symbol_id!r} — a bare "
-                "name is a silent no-op in estate; resolve() first"
-            )
         self.requirement_writes.append((symbol_id, requirement, validated))
+
+    def write_batch(self, rows: list[dict]) -> dict:
+        """Apply a page after checking every symbol against the fixture nodes."""
+        known = {sid for hits in _FIXTURE_SYMBOLS.values() for sid in hits}
+        for index, row in enumerate(rows, start=1):
+            if row["symbol"] not in known:
+                raise RuntimeError(f"write-batch row {index}: unknown symbol {row['symbol']!r}")
+        annotations = replaced = semantics = 0
+        for row in rows:
+            fields = {k: v for k, v in row.items() if k not in {"op", "symbol"}}
+            sid = row["symbol"]
+            if row["op"] == "annotate":
+                if row["replace"]:
+                    replaced += sum(
+                        (a["symbol_id"], a["type"], a["key"]) ==
+                        (sid, row["type"], row["key"]) for a in self.annotation_writes)
+                self.annotate(sid, **fields)
+                annotations += 1
+            else:
+                self.requirement_writes[:] = [r for r in self.requirement_writes if r[0] != sid]
+                self.set_requirement(sid, **fields)
+                semantics += 1
+        return {"rows": len(rows), "annotations": annotations, "replaced": replaced,
+                "semantics": semantics}
 
     def read_annotations(self, symbol_id: str) -> list[dict[str, Any]]:
         return [a for a in self.annotation_writes if a["symbol_id"] == symbol_id]
@@ -151,8 +168,3 @@ class BrainClient:
         }
         self.build_calls.append({"summary": summary})
         return summary
-
-
-def _looks_like_symbol_id(value: str) -> bool:
-    """A SymbolId reference, never a bare name. Fixtures use the ``sym::`` form."""
-    return isinstance(value, str) and value.startswith("sym::") and "::" in value[5:]

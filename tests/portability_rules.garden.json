@@ -12,7 +12,9 @@
     "bare_script_span": "`((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s+[^`]+)`",
     "bare_script_line": "^(\\s*)(?:\\$ )?((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s.*)?$",
     "verdict_line": "^\\s*VERDICT[:=]",
-    "verdict_legacy_footer": "^\\s*VERDICT=(?:PASS|FAIL|\\{PASS\\|FAIL\\}) REVIEWER=wicked-garden-qe-[a-z0-9-]+ RUN_ID=\\{RUN_ID\\}\\s*$"
+    "verdict_legacy_footer": "^\\s*VERDICT=(?:PASS|FAIL|\\{PASS\\|FAIL\\}) REVIEWER=wicked-garden-qe-[a-z0-9-]+ RUN_ID=\\{RUN_ID\\}\\s*$",
+    "plugin_data_path": "`\\.claude-plugin/[^`\\s]+`",
+    "plugin_data_reader": "\\bwicked-garden run\\s"
   },
   "launcher": {
     "bin": "wicked-garden",
@@ -91,6 +93,11 @@
     {
       "token": "cwd-script",
       "garden_extension": "a bare `scripts/<x>.py <args>` code span, or a shell-fence line that starts with such a path and is not a `\\` continuation, with no interpreter at all — an instruction no host can execute — when the path exists at the plugin root and not inside the referencing skill",
+      "garden": "fail"
+    },
+    {
+      "token": "plugin-data-path",
+      "rule": "each backticked `.claude-plugin/<file>` named in body prose (.md under skills/, frontmatter excluded) must be resolved in its own paragraph: by `wicked-garden path .claude-plugin/<file>` naming that very file, or by a fenced `wicked-garden run …` reader attached to the paragraph whose script basename is that file's stem, with `-` read as `_` (`scripts/crew/stack_registry.py` reads `stack-registry.json`; an argument such as `--archetypes` or a longer name such as `archetypes_v11.py` does not count). The path may be quoted. A paragraph ends at a blank line outside a fence or where a new list item starts. OpenCode, Pi and Antigravity copy only the skill directories, so the bare plugin-root path does not exist there (#1413)",
       "garden": "fail"
     },
     {
@@ -228,6 +235,26 @@
       {
         "file": "skills/governed-worker/SKILL.md",
         "text": "```\nMODE: produced-test\nREVIEWER: wicked-garden-qe-test-code-quality-auditor\nRUN_ID: {RUN_ID}\nVERDICT: PASS|FAIL\n```"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "The work-shape archetypes are defined in\n`.claude-plugin/archetypes.json` (`wicked-garden path .claude-plugin/archetypes.json` prints\nwhere it is on this host). Read it once at the start of this skill."
+      },
+      {
+        "file": "skills/archetype/refs/modernize.md",
+        "text": "Read the dispatch truth in `.claude-plugin/stack-registry.json` via the reader:\n```bash\nwicked-garden run \\\n  scripts/crew/stack_registry.py\n```"
+      },
+      {
+        "file": "skills/archetype/refs/modernize.md",
+        "text": "Read the dispatch truth in `.claude-plugin/stack-registry.json` via the reader:\n```bash\n\nwicked-garden run scripts/crew/stack_registry.py resolve --stack <stack-id>\n```"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` (`wicked-garden path \".claude-plugin/archetypes.json\"` prints where it is)."
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` (`wicked-garden path '.claude-plugin/archetypes.json'` prints where it is)."
       }
     ],
     "trips": [
@@ -315,6 +342,61 @@
         "file": "skills/qe-a11y-test-engineer/SKILL.md",
         "text": "VERDICT=CONDITIONAL REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}",
         "token": "verdict-spelling"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "`.claude-plugin/archetypes.json` defines the work-shape archetypes. Read it\nonce at the start of this skill.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/qe/refs/accept.md",
+        "text": "The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` before routing.\nLocate runtime scripts with `wicked-garden path scripts`.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` and `.claude-plugin/specialist.json`\n(`wicked-garden path .claude-plugin/archetypes.json` prints where the first is).",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "- Read `.claude-plugin/archetypes.json` first.\n- Then run `wicked-garden path .claude-plugin/specialist.json`.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json`; `wicked-garden run scripts/x.py` does something else.",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/archetype/refs/modernize.md",
+        "text": "Read `.claude-plugin/stack-registry.json` and also `.claude-plugin/archetypes.json` via the reader:\n```bash\nwicked-garden run scripts/crew/stack_registry.py resolve --stack <stack-id>\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/phase_manager.py list\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/phase_manager.py list --archetypes\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "Read `.claude-plugin/archetypes.json` first:\n```bash\nwicked-garden run scripts/crew/archetypes_v11.py list\n```",
+        "token": "plugin-data-path"
+      },
+      {
+        "file": "skills/qe/refs/accept.md",
+        "text": "The pinned range lives in `.claude-plugin/plugin.json`:\n```bash\nwicked-garden run scripts/qe/ledger_pin.py --plugin .claude-plugin\n```",
+        "token": "plugin-data-path"
       }
     ]
   }

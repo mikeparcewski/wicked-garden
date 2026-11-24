@@ -54,6 +54,43 @@ def test_at_the_target_the_loop_is_done_and_the_line_says_how_long_it_took():
                                          "minimum 80% reached · 2 pages in 50 min"}
 
 
+@pytest.mark.parametrize("progress,max_pages,expected", [(True, 20, "continue"),
+                                                        (False, 20, "done"),
+                                                        (True, 1, "done")])
+def test_at_target_assignment_progress_uses_only_the_remaining_budget(progress, max_pages,
+                                                                    expected):
+    doc = _doc(_pt(0, 800, 0), _pt(1, 800, 5))
+    decision = generation.decide(doc, repo="crew", target=80, now=5 * MIN,
+                                 max_pages=max_pages, max_minutes=240, left_to_map=0,
+                                 assign_left=1234, assign_progress=progress)
+    assert decision["next"] == expected
+    ending = ("1,234 requirement(s) left to give a business domain" if expected == "continue"
+              else "1,234 requirement(s) left without a business domain")
+    assert decision["line"].endswith(ending)
+
+
+@pytest.mark.parametrize("bad", [True, -1, "3", 1.5, None])
+def test_generation_rejects_an_invalid_assignment_count(bad):
+    doc = _doc(_pt(0, 800, 0))
+    doc["assign_framed"] = bad
+    assert generation._valid(doc) is False
+
+
+def test_assignment_count_is_host_framed_and_cleared_on_close(tmp_path):
+    db = str(tmp_path / "estate.db")
+    generation.open_record(db, "run-1", {"resolved": 8, "behavior_bearing": 8}, "repo", at=0)
+    generation.frame_page(db, "run-1", [], assign_count=3)
+    doc = generation.load(db, "run-1")
+    assert generation.assign_framed(doc) == 3
+    generation.close_page(doc, {})
+    assert "assign_framed" not in doc and generation.assign_framed(doc) == 0
+    assert generation.assign_framed(None) == 0
+    generation.frame_page(db, "run-1", ["s::a"], assign_count=2)
+    doc = generation.load(db, "run-1")
+    generation.close_page(doc, {})
+    assert "assign_framed" not in doc
+
+
 @pytest.mark.parametrize("pages,minutes,spent", [(20, 100, "20 pages"), (5, 240, "240 minutes")])
 def test_a_spent_budget_asks_map_more_or_lower_the_target(pages, minutes, spent):
     pts = [_pt(0, 30, 0)] + [_pt(i, 30 + 10 * i, minutes * i // pages) for i in range(1, pages + 1)]
@@ -62,7 +99,9 @@ def test_a_spent_budget_asks_map_more_or_lower_the_target(pages, minutes, spent)
     assert [c["id"] for c in d["choices"]] == ["continue", "lower"]
     assert f"budget reached ({spent};" in d["line"]
     low = generation.real_pct(30 + 10 * pages, 1000)
-    assert d["choices"][1]["label"] == f"Lower the minimum to {low}% for crew and build the graph"
+    left = 1000 - (30 + 10 * pages)
+    assert d["choices"][1]["label"] == (f"Lower the minimum to {low}% for crew and build the graph "
+                                        f"with {left} behaviours left without a requirement")
 
 
 def test_a_fresh_grant_restarts_the_budget():
@@ -169,6 +208,33 @@ def _run(tmp_path, core, env, now_min, capsys):
     d = next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=now_min * MIN)
     out = capsys.readouterr().out.splitlines()
     return d, out, str(db)
+
+
+def test_next_page_records_unassigned_and_compares_the_previous_page(tmp_path, monkeypatch,
+                                                                  capsys):
+    from domain import business_domains
+    counts = iter([3, 3, 2])
+    monkeypatch.setattr(business_domains, "resolved_without_domain", lambda *a: ([], next(counts)))
+    first, _, db = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=1), 5, capsys)
+    assert first["next"] == "continue"
+    second, _, _ = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=2), 10, capsys)
+    assert second["next"] == "done"
+    third, _, _ = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=3), 15, capsys)
+    assert third["next"] == "continue"
+    assert [p["unassigned"] for p in generation.load(db, "run-1")["points"][1:]] == [3, 3, 2]
+
+
+def test_next_page_treats_sqlite_assignment_read_errors_as_zero(tmp_path, monkeypatch, capsys):
+    import sqlite3
+    from domain import business_domains
+
+    def unreadable(*args):
+        raise sqlite3.OperationalError("old store")
+
+    monkeypatch.setattr(business_domains, "resolved_without_domain", unreadable)
+    decision, _, db = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=1), 5, capsys)
+    assert decision["next"] == "done"
+    assert generation.load(db, "run-1")["points"][-1]["unassigned"] == 0
 
 
 def test_next_page_prints_the_line_then_the_engines_decision(tmp_path, capsys):
@@ -383,6 +449,7 @@ def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path,
     d, out, _ = _run(tmp_path, core, _env(WICKED_REPEAT_PASS=1), 15, capsys)
     rec = generation.load(str(db), "run-1")
     assert rec["visited"] == ["s::x"] and rec["pending"] == [] and "answered" not in rec
+    assert generation.page_in_flight(rec) is None  # closed: no page in flight (F42)
     # this _Core is shaped like an older wicked-core (no `not_product`): no yield, not a false one
     assert rec["points"][-1]["framed"] == 1 and "page_real" not in rec["points"][-1]
     # the only unit left was asked by this page: nothing left to ask
@@ -442,7 +509,9 @@ def test_the_line_says_minimum_and_formats_counts_with_thousands_separators():
     # nothing left to ask: the gate asks, and its choice says "minimum" too
     ask = _decide(doc, now_min=7 * 15, left=0)
     assert ask["next"] == "ask" and "target" not in ask["line"], ask
-    assert [c["label"] for c in ask["choices"]] == ["Lower the minimum to 61% for crew and build the graph"]
+    assert [c["label"] for c in ask["choices"]] == [
+        "Lower the minimum to 61% for crew and build the graph with 2,201 behaviours left without "
+        "a requirement"]
     assert generation.count(2174) == "2,174" and generation.count(7) == "7"
 
 
@@ -453,3 +522,176 @@ def test_a_large_budget_prints_its_counts_with_separators_too():
     assert d["next"] == "ask"
     assert "budget reached (2,000 minutes; the budget is 1,000 pages or 1,440 minutes)" in d["line"], d
     assert d["choices"][0]["label"] == "Map up to 1,000 more pages"
+
+
+class _LoweringCore(_Core):
+    """`_Core` plus the checked recompute `extract-apply` and the restatement use."""
+
+    def coverage_against_minimum(self, db, out):
+        doc = self.coverage(db, out)
+        pct = doc["resolved"] * 100 // doc["behavior_bearing"]
+        minimum = self.own or self.target
+        return doc, pct >= minimum, f"{pct}% real requirements, minimum {minimum}%"
+
+
+def test_lowering_the_minimum_restates_the_apply_report_in_the_worktree(tmp_path, capsys):
+    """wicked-core e2e F29: the page's apply report (written before the answer) said "minimum 80%,
+    not met"; after "lower" it states the lowered minimum, so the coverage judge reads no stale
+    number. Fails without the restatement: the report kept minimum_met false and "minimum 80%"."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    stale = {"applied": {"resolved": 5}, "minimum_met": False,
+             "coverage_line": "66% real requirements, minimum 80%"}
+    (wt / ".wicked" / "domain" / "apply-report.json").write_text(json.dumps(stale))
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    d = next_page.run(str(db), _repo(tmp_path), core=core,
+                      env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                      worktree=wt)
+    assert core.set_calls == [66] and d["next"] == "done"
+    report = json.loads((wt / ".wicked" / "domain" / "apply-report.json").read_text())
+    assert report["minimum_met"] is True
+    assert report["coverage_line"] == "66% real requirements, minimum 66%"
+    assert report["lowered_to"] == 66
+    assert report["applied"] == {"resolved": 5}, "the page's own counts are kept"
+    assert report["coverage"]["resolved"] == 660
+
+
+def test_a_choice_other_than_lower_leaves_the_apply_report_alone(tmp_path, capsys):
+    core = _LoweringCore(230)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    path.write_text('{"minimum_met": false}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="continue"), now=60 * MIN,
+                  worktree=wt)
+    assert path.read_text() == '{"minimum_met": false}'
+
+
+def test_lowering_with_no_apply_report_writes_none(tmp_path, capsys):
+    core = _LoweringCore(230)
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert not (wt / ".wicked").exists()
+
+
+@pytest.mark.parametrize("plant", ["symlink", "not-an-object", "read-recursion", "write-recursion"])
+def test_a_planted_apply_report_never_fails_the_lowering(tmp_path, capsys, monkeypatch, plant):
+    """codex/pi r1: the report sits in the seat-writable worktree. A link, a non-object, or JSON
+    nested past the stack (RecursionError on the read, or only on the write back; how deep that
+    is depends on the Python, so it is raised here directly) is left alone and said so; the
+    target is lowered and the step decides as usual."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"minimum_met": false}')
+    if plant == "symlink":
+        path.symlink_to(outside)
+    elif plant == "not-an-object":
+        path.write_text("[1, 2]")
+    else:
+        path.write_text('{"minimum_met": false}')
+        name = "read_json_file" if plant == "read-recursion" else "write_json_file"
+
+        def deep(*_a, **_k):
+            raise RecursionError("maximum recursion depth exceeded")
+        monkeypatch.setattr(next_page.rules_file, name, deep)
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    d = next_page.run(str(db), _repo(tmp_path), core=core,
+                      env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                      worktree=wt)
+    assert core.set_calls == [66] and d["next"] == "done"
+    assert outside.read_text() == '{"minimum_met": false}', "a link is never followed"
+    if plant == "symlink":
+        assert path.is_symlink()
+    else:
+        assert path.read_text() in ("[1, 2]", '{"minimum_met": false}')
+    assert "not restated" in capsys.readouterr().err
+
+
+def test_nothing_lowered_leaves_the_apply_report_alone(tmp_path, capsys):
+    """pi r1: at a 0% share there is nothing to lower to; the daemon's minimum stands and the
+    report is not restated as if it had been lowered."""
+    core = _LoweringCore(0)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    path.write_text('{"minimum_met": false}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert core.set_calls == []
+    assert path.read_text() == '{"minimum_met": false}'
+
+
+def test_a_huge_or_wide_planted_report_is_restated_small(tmp_path, capsys):
+    """codex r2: a seat-written report nested below the recursion limit but wide re-serialised
+    into tens of MiB. Only the page's short scalar fields are carried over, so the restated
+    report stays small whatever the seat planted; one over the read limit is left alone."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    wide = "[" * 400 + ",".join(["0"] * 5000) + "]" * 400
+    path.write_text('{"entries": 7, "author": "extract-loop", "refused": ' + wide +
+                    ', "applied": {"resolved": 5, "x": ' + wide + '}}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert path.stat().st_size < 4096
+    report = json.loads(path.read_text())
+    assert report["entries"] == 7 and report["author"] == "extract-loop"
+    assert report["applied"] == {"resolved": 5} and "refused" not in report
+    assert report["minimum_met"] is True and report["lowered_to"] == 66
+    # Over the read limit: left alone, said so, the target still lowered.
+    big = '{"pad": "' + "x" * (next_page.REPORT_READ_LIMIT + 10) + '"}'
+    path.write_text(big)
+    core2 = _LoweringCore(660, behaviours=1000)
+    next_page.run(str(db), _repo(tmp_path), core=core2,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=61 * MIN,
+                  worktree=wt)
+    assert path.read_text() == big
+    assert "not restated" in capsys.readouterr().err
+
+
+def test_a_retried_lower_answer_restates_again_and_a_failed_recompute_never_fails_the_step(
+        tmp_path, capsys):
+    """pi r2: the step re-run with the same answer (the target already lowered) restates the
+    report again; a recompute that fails leaves it alone, says so, and the step still decides."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    env = _env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower")
+    next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=60 * MIN, worktree=wt)
+    path.write_text('{"minimum_met": false, "coverage_line": "66% real requirements, minimum 80%"}')
+    next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=61 * MIN, worktree=wt)
+    assert core.set_calls == [66], "the retry does not set the target again"
+    assert json.loads(path.read_text())["minimum_met"] is True
+
+    def broken(db, out):
+        raise ZeroDivisionError("no behaviours")
+    core.coverage_against_minimum = broken
+    path.write_text('{"minimum_met": false}')
+    d = next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=62 * MIN, worktree=wt)
+    assert d["next"] == "done"
+    assert path.read_text() == '{"minimum_met": false}'
+    assert "not restated" in capsys.readouterr().err

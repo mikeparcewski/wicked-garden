@@ -70,6 +70,11 @@ def ci_yaml_requirement_error(yaml_available: bool, env) -> str | None:
     return None
 
 
+#: The description limit every host applies (docs/cross-cli-skill-format.md, the agentskills spec), measured on
+#: the value ``yaml.safe_load`` reads: blank lines and the final newline of a ``|`` block count (#1413).
+DESCRIPTION_MAX_CHARS = 1024
+
+
 def frontmatter_yaml_error(text: str) -> str | None:
     """Strict frontmatter guard — the EXACT mirror of the skills publish's parser. Runs ``yaml.safe_load``
     on the ``---`` block (PyYAML is installed on the ``validate`` / ``test`` / release pre-publish CI legs,
@@ -109,6 +114,11 @@ def frontmatter_yaml_error(text: str) -> str | None:
             if re.match(r"^\s*-\s+[\w-]+\s*$", ln):
                 return (f"frontmatter description absorbed an orphaned list value ({ln.strip()!r}) — a "
                         "dropped key must take its value lines with it (frontmatter-drop class)")
+        # The length every host reads, from the publish's own parse (a line-scan reader drops blank lines and
+        # the final newline of a `|` block, and read skills/demo as 1024 when it shipped 1026).
+        if len(desc) > DESCRIPTION_MAX_CHARS:
+            return (f"description is {len(desc)} characters as yaml.safe_load reads it (max {DESCRIPTION_MAX_CHARS}; "
+                    "blank lines and a | block's final newline count)")
     return None
 
 

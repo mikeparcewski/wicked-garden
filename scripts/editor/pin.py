@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _pack import PackError, editors_of, entry_path, read_manifest, sha256_file, write_manifest  # noqa: E402
+from _pack import PackError, entry_path, pack_entries_of, read_manifest, sha256_file, write_manifest  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -27,17 +27,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         manifest = read_manifest(args.pack)
-        out = []
-        for editor in editors_of(manifest):
-            sha = sha256_file(entry_path(args.pack, editor))
-            out.append({"id": editor.get("id"), "sha256": sha, "changed": editor.get("sha256") != sha})
+        editors, plugins = pack_entries_of(manifest)
+        out_ed = []
+        for editor in editors:
+            sha = sha256_file(entry_path(args.pack, editor, kind="editor"))
+            out_ed.append({"id": editor.get("id"), "sha256": sha, "changed": editor.get("sha256") != sha})
             editor["sha256"] = sha
+        out_pl = []
+        for plugin in plugins:
+            sha = sha256_file(entry_path(args.pack, plugin, kind="plugin"))
+            out_pl.append({"id": plugin.get("id"), "sha256": sha, "changed": plugin.get("sha256") != sha})
+            plugin["sha256"] = sha
     except PackError as exc:
         sys.stderr.write(f"editor pin: {exc}\n")
         return 2
-    if any(e["changed"] for e in out):
+    if any(e["changed"] for e in out_ed + out_pl):
         write_manifest(args.pack, manifest)
-    print(json.dumps({"ok": True, "pack": str(args.pack), "editors": out}, indent=2))
+    res: dict = {"ok": True, "pack": str(args.pack), "editors": out_ed}
+    if out_pl:
+        res["plugins"] = out_pl
+    print(json.dumps(res, indent=2))
     return 0
 
 

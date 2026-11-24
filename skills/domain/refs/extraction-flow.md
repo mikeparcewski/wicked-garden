@@ -25,22 +25,24 @@ CLI/engine contract) and the mock seam.
 
 estate is the sole authority for graph structure. In production the workers shell
 its CLI (`CliEstateClient`); hermetically they call `_mocks.EstateClient`, which
-returns canned fixtures and records writes. Same six method names either way:
+returns canned fixtures and records writes. Both expose the following methods:
 
 | Method | Production CLI | Purpose |
 |---|---|---|
 | `read_clusters(params) -> [Community]` | `clusters --json --summary` | Full community membership (the `members:[symbol_id]` feed). The MCP `Communities` tool omits members, so the CLI (with `--summary`, for the object shape) is the contract. |
-| `resolve(name, file?, kind?) -> [symbol_id]` | `resolve <name> --json [--file EXACT] [--kind]` | name → SymbolId. Returns an **object array**; the client extracts each `.symbol_id`. `--file` is **exact `location.file` equality**, not a basename. **A write keyed on a bare name is a silent no-op / silent fan-out** — always resolve first. |
-| `annotate(symbol_id, type, key, value, confidence, provenance, replace)` | `annotate --symbol <id> --type … --key … --value … [--confidence] [--provenance] --replace` | Typed k/v annotation (multi-valued). The client **always** passes `--symbol` (a bare name fans out to every search hit) and **always** `--replace` (the CLI defaults to APPEND, which stacks duplicate rows across re-index runs). |
+| `resolve(name, file?, kind?) -> [symbol_id]` | `resolve <name> --json [--file EXACT] [--kind]` | name → SymbolId. Returns an **object array**; the client extracts each `.symbol_id`. `--file` is **exact `location.file` equality**, not a basename. Resolve names before writing; estate refuses a symbol that is not a node. |
+| `annotate(symbol_id, type, key, value, confidence, provenance, replace)` | `annotate --symbol <id> --type … --key … --value … [--confidence] [--provenance] --replace` | Typed k/v annotation (multi-valued). The client passes the id through `--symbol`; estate refuses an id that is not a node. Replacement avoids stacking duplicate rows across re-index runs. |
 | `set_requirement(symbol_id, requirement, validated)` | `semantics <id> --requirement … --validated true\|false` | The single canonical requirement↔symbol link (node_semantics — a **separate** subcommand from `annotate`). |
 | `read_annotations(symbol_id) -> [Annotation]` | `annotations --symbol <id> --json` | Read back. **Must** use `--symbol` — the positional `annotations <name>` form name-*searches* and returns an array, so a SymbolId there matches nothing and yields `[]` silently. `--symbol` returns the single-symbol object `{symbol, annotations[]}`. |
 | `find_by_annotation(key, value?) -> [symbol_id]` | *(no CLI verb)* | Reverse lookup. **Not available on the CLI-backed path** — there is no reverse-annotation verb, and the real extractor resolves forward (name → SymbolId → annotate), so `CliEstateClient.find_by_annotation` raises. Mock-lane only. |
+| `write_batch(rows) -> dict` | `write-batch <file> --json --db <db>` | Apply a page's annotation and semantics rows in one transaction. Garden verifies the returned row count and reads every annotation back before reporting success. |
 
 ### The two coordinated writes per bound rule
 
 Ported from anti-legacy's `annotate()`, both keyed by SymbolId, **neither copying
-symbol structure**. On the real CLI each field is a **separate argument** — there
-is no pipe-packed string:
+symbol structure**. Standalone extraction passes each field as a separate CLI
+argument. Host apply queues the rows as NDJSON and commits the page through
+`write-batch`, then reads the annotations back:
 
 1. **Native projection into estate** (so estate queries see it): a typed
    annotation `annotate(symbol_id, type=<t>, key=<rule_id>, value=<statement>,
@@ -84,7 +86,7 @@ The extractor must read the behavior/type/structural kind-sets from
 | `coverage.behavior_kinds` | domain actions/verbs | `["module","function","method"]` |
 | `coverage.type_kinds` | domain entities/nouns | `["class","interface","struct","trait","enum","record"]` |
 | `coverage.structural_kinds` | field-level nouns | `["field","variable"]` |
-| `coverage.estate_behavior_kinds` | mainframe/IaC only | `[]` for a pure modern repo; `["db2_table","cics_program","step"]` on a mainframe estate |
+| `coverage.estate_behavior_kinds` | mainframe/IaC only | `[]` for a pure modern repo; `["db2_table","step"]` on a mainframe estate (a CICS LINK is a `calls` edge, not a kind) |
 
 `emit_domain_model.py` accepts a `config` dict and defaults to these — the same
 document contract serves a COBOL estate and a Rust monorepo. (These mirror
@@ -101,8 +103,8 @@ its side against fixtures while estate and core build theirs. The real path
 - `EstateClient` — canned `read_clusters()` (a two-community fixture with member
   SymbolIds), `resolve()` (name → deterministic fixture SymbolId), and
   `annotate()`/`set_requirement()` that **record** calls so a test can assert the
-  write happened (the anti-legacy silent-no-op scar is caught by asserting the
-  recorded id is a real SymbolId, never a bare name).
+  write happened. Batches refuse a symbol absent from the fixture nodes, and the
+  host reads annotations back after the batch commits.
 - `BrainClient` — the **hermetic doc-assembly lane** only (`build_domain_graph(doc)`
   returns a `{domains, requirements, dropped}` summary and `validate()` runs the
   stdlib draft-07 schema check). This does **not** model the real core flow (which

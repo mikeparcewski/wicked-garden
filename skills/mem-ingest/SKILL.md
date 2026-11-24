@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-mem-ingest
-description: "Ingest source files into the wicked-estate knowledge store as cited chunks. Handles text files (md, txt, csv, html, json, code) with deterministic chunking and binary documents (pdf, docx, pptx, xlsx, png, jpg, gif, webp) via LLM vision — the agent extracts and chunks, estate persists and ranks. Use when: dispatched by the wicked-garden-mem skill's ingest action, or directly for 'ingest this file', 'add this document to the knowledge base', 'index this directory', 'learn from this pdf'."
+description: "Ingest source files into the wicked-estate knowledge store as cited chunks. Chunk text files deterministically, send binary documents (pdf, doc/docx, ppt/pptx, xls/xlsx, odt/odp/ods, rtf, epub) by path for estate conversion, and read images with vision. Report estate refusals with their reason. Use when: dispatched by the wicked-garden-mem skill's ingest action, or directly for 'ingest this file', 'add this document to the knowledge base', 'index this directory', 'learn from this pdf'."
 metadata:
   role: worker
 ---
@@ -12,9 +12,9 @@ This skill is designed to run as an isolated worker; when your harness cannot fo
 You ingest source files into the **wicked-estate knowledge store** so later
 `knowledge.recall` / cited-answer calls can return them with `source`
 citations. This ports the brain-era ingest pipeline (FOLD-2, Phase 5-S7)
-onto estate: **you** read, extract, and chunk (DEC-R: the agent is the
-reasoner); the **engine** writes and ranks (`knowledge.ingest` /
-`knowledge.write` — deterministic, never calls a model). Estate's embedded
+onto estate: **you** chunk text and read images; the **engine** converts
+binary documents, redacts, chunks at H1/H2 headings, writes, and ranks
+(`knowledge.ingest` / `knowledge.write` — deterministic, never calls a model). Estate's embedded
 method card `skill://knowledge-ingest/SKILL.md` is the chunking doctrine
 this pipeline follows.
 
@@ -38,7 +38,8 @@ wicked-garden run \
   scripts/mem/estate_memory.py ingest -
 ```
 
-with a JSON body on stdin (chunks are long — never inline them in argv):
+with a JSON body on stdin (chunks are long — never inline them in argv).
+Send exactly one of `chunks` or `path`, together with a `title`:
 
 ```json
 {"title": "<doc title>", "chunks": ["<chunk 1>", "<chunk 2>"],
@@ -51,7 +52,8 @@ Rules that make chunks worth storing:
   table row group). Recall returns chunks verbatim; a fragment that needs
   its neighbours is a bad chunk.
 - **Source provenance always** — `source` is what a cited answer cites. An
-  uncited chunk cannot back `wicked-garden-search answer`. Never omit it.
+  uncited chunk cannot back `wicked-garden-search answer`. Supply it for
+  chunks; path ingest defaults `source` to the document's path when omitted.
 - For a single standalone fact, use the `write` action instead
   (`{"content": ..., "class": "concept", "source": ...}`).
 
@@ -64,8 +66,9 @@ Rules that make chunks worth storing:
   store unreachable). Do not fake success.
 
 Text extensions: `.md .txt .csv .html .htm .json .py .js .jsx .ts .tsx .sh
-.rs .go .java .yaml .yml .toml`. Binary (vision) extensions: `.pdf .docx
-.pptx .xlsx .png .jpg .jpeg .gif .webp`.
+.rs .go .java .yaml .yml .toml`. Binary document extensions: `.pdf .doc
+.docx .ppt .pptx .xls .xlsx .odt .odp .ods .rtf .epub`.
+Image extensions (vision): `.png .jpg .jpeg .gif .webp`.
 
 ## Step 2 — TEXT files (deterministic chunking)
 
@@ -81,37 +84,42 @@ Text extensions: `.md .txt .csv .html .htm .json .py .js .jsx .ts .tsx .sh
 3. Send title + chunks + scope + source through the write seam (one `ingest`
    call per file).
 
-## Step 3 — BINARY files (LLM vision)
+## Step 3 — binary documents and images
 
-You receive the document natively via `Read` — examine it visually and
-extract content as markdown. This is the one genuinely agent-only stage of
-the pipeline; everything around it stays deterministic.
+For a binary document, send one path ingest through the same write seam:
 
-- **PDF**: one chunk per logical section (or every 3–5 pages). `Read` PDFs
-  with the `pages` parameter for long documents.
-- **PPTX**: one chunk per slide or tight slide group; capture speaker-note
-  intent, not just visible text.
-- **DOCX**: one chunk per section heading.
-- **XLSX**: one chunk per sheet; render data as markdown tables (downsample
-  huge sheets: header + representative rows + totals).
-- **Images**: one chunk describing the visual content, plus any legible
-  text verbatim.
+```json
+{"title": "<doc title>", "path": "<document path>",
+ "scope": "<scope>", "source": "<citation path>"}
+```
 
-Preserve numbers, names, and tables exactly — a cited answer will quote
-them. Then write through the same seam as Step 2, `source` = the original
-binary's path.
+The path must be inside the directory the backend runs in: run the backend
+from the document's directory or a parent, and resolve relative paths from
+that cwd. Estate converts the document in-process. If estate refuses it
+(for example, a scanned PDF `needs OCR`, a missing file, or a secret-file
+rule), report it as **not ingested** with estate's reason. Do not
+automatically convert it elsewhere or retry through vision.
+
+For images only, examine the image with vision and write one chunk
+describing its visual content plus any legible text verbatim. Preserve
+numbers, names, and tables exactly. Send chunks through the Step-2 seam,
+with `source` set to the original image's path.
 
 ## Step 4 — directories (batch)
 
 Do NOT ingest files one-by-one in conversation. Write a small Python batch
 script to the session scratch dir that walks the tree (skip dotdirs,
 `node_modules`, `__pycache__`, lockfiles), applies the Step-2 chunking to
-each text file, and pipes one `ingest` JSON per file into
-`wicked-garden run scripts/mem/estate_memory.py ingest -`. Run it, then:
+each text file, and sends each convertible binary document as one `{path}`
+ingest from Step 3. Pipe one JSON body per file into
+`wicked-garden run scripts/mem/estate_memory.py ingest -`, with the backend's
+cwd set to the directory being walked (or a parent). Run the batch script
+with `python3 <script> || python <script>`, then:
 
-- Report `files → chunks` counts from its output.
-- List the binary files it found and vision-ingest the important ones
-  yourself (Step 3), or hand the list back for the caller to choose.
+- Report successful files, returned doc_ids, and chunk counts where returned.
+- Report each refused file as not ingested, with estate's reason.
+- List only images for vision ingest (Step 3), or hand that list back for
+  the caller to choose.
 
 ## Step 5 — verify (seeded recall)
 
@@ -128,7 +136,7 @@ say so — never report an unverified ingest as done.
 
 ## Step 6 — report
 
-- `{N} files ingested, {M} chunks written, scope {scope}`
+- `{N} files ingested, scope {scope}`; chunk counts where returned
 - doc_ids returned by the backend
-- binary files pending vision ingest (if any were deferred)
+- refused files and estate's reasons; images pending vision ingest (if deferred)
 - verification: which seeded phrases came back, with their `source`

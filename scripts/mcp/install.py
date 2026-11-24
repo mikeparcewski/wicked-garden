@@ -14,7 +14,11 @@ seats' CLI configs under the worker home (``$WICKED_WORKER_HOME``, else ``~/.wic
 operator`` does all of that AND registers the server in the operator's own CLI configs.
 ``--dry-run`` writes nothing and prints ONE JSON line, the plan the consent gate shows:
 ``{"dry_run": true, "key", "choices": [{"id", "label", "default"?, "writes": [{"path", "what",
-"cli"?, "operator_owned"}]}], "skipped": [{"cli", "why"}]}``.
+"cli"?, "operator_owned"}]}], "skipped": [{"cli", "why"}]}``. When the plan could not ask
+wicked-installer (not on PATH, too old, did not run) every requested CLI is a skipped row with the
+remedy, and the choice ids carry ``_no-cli`` (``worker_no-cli``): the gated step passes the id back
+as ``--target``, and the install then writes no CLI config even if an installer has appeared since,
+so it never writes more than the approved card listed (garden#1540).
 
 **Daemon origin** (garden#1258): ``--crew-url``, else ``$WICKED_CREW_URL`` (crew sets it to its own
 bound URL for every governed unit). There is no port default: a guessed ``:7701`` reached another
@@ -24,7 +28,7 @@ daemon's registry. Neither set exits 2 naming the remedy.
    the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/dist; ``--dir`` names it. The key and
    version come from that config.
 2. **Stage** into ``<root>/<key>/next/`` (root: ``--install-root``, ``$WICKED_MCP_INSTALL_ROOT``,
-   else ``~/.wicked/mcp-servers``): ``npm ci --ignore-scripts && npm run build`` in the server
+   else ``$WICKED_HOME/mcp-servers``, else ``~/.wicked/mcp-servers``; an empty variable counts as unset): ``npm ci --ignore-scripts && npm run build`` in the server
    dir, copy dist/ + package.json + package-lock.json + tools.json + mcp-server.config.json,
    ``npm ci --omit=dev --ignore-scripts`` there. ``--from-npm`` installs the package instead.
    A server delivered WITHOUT a package-lock.json (a seat with no npm registry cannot write one) is
@@ -45,8 +49,10 @@ daemon's registry. Neither set exits 2 naming the remedy.
    different server (another ``kind``, command or args — e.g. a REST server named the same)
    refuses the install (exit 1) naming it, and nothing is written; the check runs again right
    before the save, so a key claimed while staging is never overwritten either.
-6. **CLI configs** through ``wicked-installer mcp upsert`` (never written here); an installer
-   without the verb is reported, not failed.
+6. **CLI configs** through ``wicked-installer mcp upsert`` (never written here), run only from
+   PATH: it is never downloaded, so the install writes exactly what the plan listed (garden#1540).
+   No installer on PATH, or one without the verb, is reported with the remedy, not failed; the
+   plan lists the same CLIs as skipped, with the same remedy, so the consent card still opens.
 7. **Record** ``<root>/<key>/installed.json`` and print one JSON record.
 
 Exit 0 staged (a pending credential or an absent daemon are disclosed in the record), 1 a
@@ -77,7 +83,13 @@ NPM_SPEC_RE = re.compile(r"^(?P<pkg>(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._
 SKIP_DIRS = {"node_modules", "dist", ".git"}
 STAGE_FILES = ("package.json", "package-lock.json", "tools.json", CONFIG_NAME)
 CLIS = ("claude", "codex", "opencode", "antigravity", "pi")
-NO_VERB = "skipped: wicked-installer lacks the mcp verb (needs >= the release that adds it)"
+# What an installer result that writes nothing says (the plan's skipped rows and the install's ``clis``). The
+# installer is never downloaded here: the plan could not list what a downloaded one would write (garden#1540).
+SKIPPED = "skipped: "
+NO_INSTALLER = (f"{SKIPPED}wicked-installer is not installed on this host, so the server is not added to any CLI's "
+                "MCP config. To add it: run npm install -g wicked-installer, then run this step again")
+NO_VERB = (f"{SKIPPED}the installed wicked-installer is too old to add MCP servers to CLI configs. To add it: run "
+           "npm install -g wicked-installer@latest, then run this step again")
 NPM_TIMEOUT_S = 600
 PROBE_TIMEOUT_S = 30
 HTTP_TIMEOUT_S = 60
@@ -122,6 +134,8 @@ def crew_origin(flag: str | None) -> str:
 
 
 TARGETS = ("worker", "operator")
+# A choice approved from a plan that listed no CLI config: the install keeps that decision (garden#1540).
+NO_CLI = "_no-cli"
 CHOICE_LABELS = {"worker": "Install for workers", "operator": "Also install into my CLIs"}
 
 
@@ -148,7 +162,7 @@ def operator_owned(path: str, root: Path) -> bool:
     if "://" in path:
         return False
     p = Path(os.path.abspath(os.path.expanduser(path)))
-    owned = [worker_home(), root, Path.home() / ".wicked"]
+    owned = [worker_home(), root, wicked_home(), Path.home() / ".wicked"]
     if any(p == o or o in p.parents for o in (Path(os.path.abspath(x)) for x in owned)):
         return False
     try:
@@ -158,11 +172,18 @@ def operator_owned(path: str, root: Path) -> bool:
     return not (rel.parts and rel.parts[0].startswith(".wicked"))
 
 
+def wicked_home() -> Path:
+    """The program's state home: ``$WICKED_HOME`` (empty counts as unset), else ``~/.wicked`` (garden#1532)."""
+    env = os.environ.get("WICKED_HOME")
+    return Path(env) if env else Path.home() / ".wicked"
+
+
 def install_root(flag: Path | None) -> Path:
-    if flag is not None:
-        return flag
+    """Absolute: the staged ``server.js`` path is the command the registry and the CLI configs launch from any
+    directory, so a relative root (a relative ``$WICKED_HOME``) is resolved against the cwd here, once."""
     env = os.environ.get("WICKED_MCP_INSTALL_ROOT")
-    return Path(env) if env else Path.home() / ".wicked" / "mcp-servers"
+    root = flag if flag is not None else Path(env) if env else wicked_home() / "mcp-servers"
+    return Path(os.path.abspath(root))
 
 
 def _now() -> str:
@@ -397,17 +418,17 @@ def register(origin: str, key: str, server_js: Path, var: str | None) -> dict:
 
 # ── 6. CLI configs ─────────────────────────────────────────────────────────────────────────
 
-def installer(argv: list[str], download: bool = True):
-    """Run ``wicked-installer <argv> --json``: its envelope, or the reportable condition.
-    ``download=False`` (the dry run) never falls back to ``npx -y``, which would install it."""
+def installer(argv: list[str]):
+    """Run ``wicked-installer <argv> --json`` from PATH: its envelope, or the reportable condition (a string). Never
+    ``npx -y``: a downloaded installer would write CLI configs the dry run could not list (garden#1540)."""
     exe = shutil.which("wicked-installer")
-    if exe is None and not download:
-        return "skipped: wicked-installer is not on PATH (the dry run never downloads it)"
-    cmd = [exe, *argv] if exe else [shutil.which("npx") or "npx", "-y", "wicked-installer", *argv]
+    if exe is None:
+        return NO_INSTALLER
     try:
-        done = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        done = subprocess.run([exe, *argv], capture_output=True, text=True, timeout=300)
     except (OSError, subprocess.TimeoutExpired) as err:
-        return f"skipped: wicked-installer did not run ({err.__class__.__name__})"
+        return (f"{SKIPPED}wicked-installer did not run ({err.__class__.__name__}). To add the CLI configs: check "
+                "that wicked-installer --version runs on this host, then run this step again")
     text = f"{done.stdout}\n{done.stderr}".lower()
     if done.returncode == 2 or "unknown command" in text or "unknown verb" in text:
         try:
@@ -419,7 +440,9 @@ def installer(argv: list[str], download: bool = True):
     try:
         envelope = json.loads(done.stdout)
     except ValueError:
-        return f"failed: wicked-installer exited {done.returncode} without a JSON envelope"
+        return (f"failed: wicked-installer exited {done.returncode} without a JSON result. Check that "
+                "wicked-installer --version runs on this host (or reinstall it with npm install -g "
+                "wicked-installer@latest), then run this step again")
     if isinstance(envelope, dict) and "clis" in envelope:
         return envelope["clis"]
     return envelope
@@ -581,6 +604,11 @@ def do_install(args) -> tuple[int, dict]:
     out["target"] = args.target
     if clis == "none":
         out["clis"] = "skipped: --cli none"
+    elif args.no_cli:
+        out["clis"] = (f"{SKIPPED}the approved install plan listed no CLI config (wicked-installer could not be "
+                       "asked when it was planned). To add the CLI configs: plan the install again and approve it")
+        if args.target == "operator":
+            out["operatorClis"] = out["clis"]
     else:
         out["clis"] = installer([*upsert, *worker_home_args()])
         if args.target == "operator":
@@ -588,8 +616,16 @@ def do_install(args) -> tuple[int, dict]:
     return code, out
 
 
-def _cli_rows(envelope, root: Path, writes: list, skipped: list) -> None:
-    """Split one installer dry-run envelope into planned writes and skipped CLIs."""
+def _cli_rows(envelope, clis: str, root: Path, writes: list, skipped: list) -> None:
+    """Split one installer dry-run envelope into planned writes and skipped CLIs. An installer that cannot plan
+    (not on PATH, too old, did not run) skips every requested CLI with its remedy: the install skips them the
+    same way, so the consent card still opens and lists exactly what the install writes (garden#1540)."""
+    if isinstance(envelope, str) and envelope.startswith(SKIPPED):
+        why = envelope[len(SKIPPED):]
+        for cli in CLIS if clis == "all" else clis.split(","):
+            if not any(s["cli"] == cli and s["why"] == why for s in skipped):
+                skipped.append({"cli": cli, "why": why})
+        return
     if not isinstance(envelope, list):
         raise Failure(1, f"cannot plan the CLI configs: {envelope}")
     for row in envelope:
@@ -624,23 +660,34 @@ def do_plan(args) -> dict:
     origin = crew_origin(args.crew_url)
     current_js = root / key / "current" / installed_rel(args.from_npm)
     check_key(origin, key, current_js)
-    base = [{"path": str(Path(os.path.abspath(root / key / "current"))), "what": "install root",
-             "operator_owned": operator_owned(str(root / key), root)},
-            {"path": f"{origin}/api/v1/mcp/servers/{key}", "what": "wicked-crew MCP tools registry entry",
-             "operator_owned": False}]
+    key_root = root / key
+    base = [{"path": str(key_root / "current"), "what": "install root",
+             "operator_owned": operator_owned(str(key_root), root)}]
+    if (key_root / "current").exists():
+        base.append({"path": str(key_root / "previous"), "what": "the copy installed now, kept for a roll-back",
+                     "operator_owned": operator_owned(str(key_root), root)})
+    base += [{"path": str(key_root / "installed.json"), "what": "the install record",
+              "operator_owned": operator_owned(str(key_root), root)},
+             {"path": f"{origin}/api/v1/mcp/servers/{key}", "what": "wicked-crew MCP tools registry entry",
+              "operator_owned": False}]
     skipped: list = []
     worker_writes = list(base)
     operator_writes = list(base)
+    suffix = ""
     if clis != "none":
         upsert = ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis,
                   "--dry-run", "--json"]
-        _cli_rows(installer([*upsert, *worker_home_args()], download=False), root, worker_writes, skipped)
+        worker_plan = installer([*upsert, *worker_home_args()])
+        _cli_rows(worker_plan, clis, root, worker_writes, skipped)
         operator_writes = list(worker_writes)
-        _cli_rows(installer(upsert, download=False), root, operator_writes, skipped)
+        operator_plan = installer(upsert)
+        _cli_rows(operator_plan, clis, root, operator_writes, skipped)
+        if any(isinstance(e, str) and e.startswith(SKIPPED) for e in (worker_plan, operator_plan)):
+            suffix = NO_CLI
     lock = lockfile_state(server_dir, args.from_npm)
     return {"dry_run": True, "key": key, **({"lockfile": lock} if lock else {}), "choices": [
-        {"id": "worker", "label": CHOICE_LABELS["worker"], "default": True, "writes": worker_writes},
-        {"id": "operator", "label": CHOICE_LABELS["operator"], "writes": operator_writes}],
+        {"id": f"worker{suffix}", "label": CHOICE_LABELS["worker"], "default": True, "writes": worker_writes},
+        {"id": f"operator{suffix}", "label": CHOICE_LABELS["operator"], "writes": operator_writes}],
         "skipped": skipped}
 
 
@@ -689,13 +736,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--from-npm", metavar="PKG@VERSION", help="install a published package instead")
     parser.add_argument("--cli", default="all", help="all | none | " + ",".join(CLIS))
     parser.add_argument("--crew-url", help="the wicked-crew origin (default $WICKED_CREW_URL; no port is assumed)")
-    parser.add_argument("--target", choices=TARGETS, default="worker",
-                        help="worker (default): program-owned places only; operator: also your own CLI configs")
+    parser.add_argument("--target", choices=[*TARGETS, *(t + NO_CLI for t in TARGETS)], default="worker",
+                        help="worker (default): program-owned places only; operator: also your own CLI configs; "
+                             f"a {NO_CLI} choice (from a plan that listed no CLI config) writes none")
     parser.add_argument("--dry-run", action="store_true",
                         help="write nothing; print the plan (each target's exact write list) as one JSON line")
-    parser.add_argument("--install-root", type=Path, help="default $WICKED_MCP_INSTALL_ROOT, else ~/.wicked/mcp-servers")
+    parser.add_argument("--install-root", type=Path, help="default $WICKED_MCP_INSTALL_ROOT, else $WICKED_HOME/mcp-servers, else ~/.wicked/mcp-servers")
     parser.add_argument("--json", action="store_true", help="print the record as one compact JSON line")
     args = parser.parse_args(argv)
+    args.no_cli = args.target.endswith(NO_CLI)
+    args.target = args.target.removesuffix(NO_CLI)
     if args.dry_run:
         if args.uninstall:
             print(json.dumps({"ok": False, "error": "--dry-run plans an install, not --uninstall"}))

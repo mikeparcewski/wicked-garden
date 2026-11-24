@@ -25,6 +25,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+# `.exists()`, not `.is_dir()`: a git worktree's .git is a file
+needs_git_checkout = pytest.mark.skipif(
+    not (ROOT / ".git").exists(), reason="needs the checkout's .git metadata (git grep lists tracked files)")
 EVIDENCE = ROOT / "scripts" / "qe" / "runner" / "src" / "evidence.mjs"
 GATE = ROOT / "scripts" / "qe" / "lib" / "gate.mjs"
 
@@ -172,6 +175,7 @@ _CREATE = re.compile(r"store\.create\(\s*['\"](runs|verdicts)['\"]")
 _STAMPS = ("crewRunStamp(", "...CREW_RUN", "crew_run_id: process.env.WICKED_RUN_ID")
 
 
+@needs_git_checkout
 def test_every_run_and_verdict_garden_writes_carries_the_stamp():
     """Every ledger run/verdict write in garden's scripts and skills (the runner, the gate, the accept playbook,
     every specialist that records a verdict) carries the stamp, so none of them stays unattributed."""

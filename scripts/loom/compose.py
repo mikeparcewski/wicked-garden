@@ -114,13 +114,17 @@ def _stamp_capability(row: dict, peer: "Peer | None") -> dict:
     return row
 
 
-def check_peer(name: str, run: Runner = _default_run) -> dict:
+def check_peer(name: str, run: Runner | None = None) -> dict:
+    if run is None:
+        run = _default_run
     peer = manifest.get(name)
     return _stamp_capability(_check_peer_reachability(name, peer, run=run), peer)
 
 
 def _check_peer_reachability(name: str, peer: "Peer | None",
-                             run: Runner = _default_run) -> dict:
+                             run: Runner | None = None) -> dict:
+    if run is None:
+        run = _default_run
     if peer is None:
         return {"peer": name, "status": "error", "ok": False, "detail": "unknown peer"}
 
@@ -163,7 +167,9 @@ def _check_peer_reachability(name: str, peer: "Peer | None",
             "detail": detail, "pin": peer.version_pin}
 
 
-def install_peer(name: str, run: Runner = _default_run) -> dict:
+def install_peer(name: str, run: Runner | None = None) -> dict:
+    if run is None:
+        run = _default_run
     peer = manifest.get(name)
     if peer is None:
         return {"peer": name, "status": "error", "detail": "unknown peer"}
@@ -176,5 +182,7 @@ def install_peer(name: str, run: Runner = _default_run) -> dict:
     return {"peer": name, "status": "installed"}
 
 
-def check_all(run: Runner = _default_run) -> list:
+def check_all(run: Runner | None = None) -> list:
+    if run is None:
+        run = _default_run
     return [check_peer(name, run=run) for name in manifest.PEERS]

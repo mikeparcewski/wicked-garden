@@ -89,7 +89,9 @@ Your final output MUST start with a JSON summary block then the threat list:
 COVERAGE_SUMMARY: {"coverage": <float>, "unaccounted": <int>, "behavior_bearing": <int>}
 ```
 
-Then one threat per line: `[RISK|BLOCK|NOTE] <location> — <finding>`.
+Then one threat per line: `[RISK|BLOCK|NOTE] <location> — <finding>`. When the finding is about
+one unit, put its `symbol_id` (as the store and the coverage report spell it, `file#name`) in
+`<location>`, so a send-back can restate exactly that unit.
 
 A `BLOCK` means the domain model must not proceed to build until resolved.
 The gate is fail-closed below the configured minimum: a real-requirements share under

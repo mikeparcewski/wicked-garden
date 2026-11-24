@@ -10,7 +10,7 @@
 
 **Tech Stack:** Node ≥18 ESM (`.mjs`), `better-sqlite3` v12 (read codegraph DB), `node:child_process` (shell codegraph CLI), `node:test` + `node:assert/strict`. The codegraph CLI itself requires **Node ≥22.5** (`node:sqlite`); brain runs on Node 26.
 
-**Repo:** `/Users/michael.parcewski/Projects/wicked-brain` (server source under `server/`). This plan does NOT touch wicked-garden.
+**Repo:** `~/Projects/wicked-brain` (server source under `server/`). This plan does NOT touch wicked-garden.
 
 ---
 
@@ -95,7 +95,7 @@ Create `docs/codegraph-contract.md` with: the `nodes` columns, the `edges` colum
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/michael.parcewski/Projects/wicked-brain
+cd ~/Projects/wicked-brain
 git add docs/codegraph-contract.md
 git commit -m "docs(codegraph): pin schema + blast-radius edge direction from spike"
 ```
@@ -157,7 +157,7 @@ test("no npx and nothing resolves -> null", () => {
 
 - [ ] **Step 2: Run it, verify failure**
 
-Run: `cd /Users/michael.parcewski/Projects/wicked-brain/server && node --test test/codegraph-resolver.test.mjs`
+Run: `cd ~/Projects/wicked-brain/server && node --test test/codegraph-resolver.test.mjs`
 Expected: FAIL — `Cannot find module '../lib/codegraph-resolver.mjs'`.
 
 - [ ] **Step 3: Implement**
@@ -710,7 +710,7 @@ const WRITE_ACTIONS = new Set([
 - [ ] **Step 6: Smoke the live server action**
 
 ```bash
-cd /Users/michael.parcewski/Projects/wicked-brain/server
+cd ~/Projects/wicked-brain/server
 # in repo /tmp/cg-spike from Task 1, with .codegraph already built:
 node bin/wicked-brain-server.mjs --brain /tmp/cg-spike-brain --port 4399 --source /tmp/cg-spike &
 SRV=$!; sleep 1
@@ -786,7 +786,7 @@ In `skills/wicked-brain-lsp/SKILL.md` frontmatter, remove the `"blast radius"` a
 - [ ] **Step 3: Verify install picks up the new skill**
 
 ```bash
-cd /Users/michael.parcewski/Projects/wicked-brain
+cd ~/Projects/wicked-brain
 node install.mjs 2>&1 | grep -i "skills installed"
 ls ~/.claude/skills/wicked-brain-graph/SKILL.md
 ```
@@ -807,14 +807,14 @@ git commit -m "feat(codegraph): wicked-brain:graph skill; move blast-radius off 
 
 - [ ] **Step 1: Full suite green**
 
-Run: `cd /Users/michael.parcewski/Projects/wicked-brain/server && npm test`
+Run: `cd ~/Projects/wicked-brain/server && npm test`
 Expected: all tests pass, including the four new files.
 
 - [ ] **Step 2: Real-repo blast-radius**
 
 ```bash
 # Point at a real repo (e.g. wicked-brain itself), build, query.
-cd /Users/michael.parcewski/Projects/wicked-brain
+cd ~/Projects/wicked-brain
 npx -y @colbymchenry/codegraph index .
 node server/bin/wicked-brain-server.mjs --brain ~/.wicked-brain/projects/cg-e2e --port 4398 --source "$PWD" &
 SRV=$!; sleep 1

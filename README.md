@@ -39,6 +39,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | greps and reads — blind to string-wired links | sees the **injected edges** (event→consumer, command→agent, agent→capability) grep never will → `blast-radius`, `lineage` |
 | refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
 | forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → the mem domain over wicked-estate |
+| guesses about your data from the schema it can see | answers from a connected data source in a wicked-crew chat or job: one read-only query through crew's data gate, cited, and never stored → the mem domain's `answer` |
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
 | asks *itself* for a second opinion | convenes a **review panel** → the jam skill's `council` action: usable external CLIs (Antigravity / Codex / …) take the seats; with fewer than two it fills them with isolated same-family workers and **labels them as weaker diversity**, and below two isolated seats it reports *no quorum* instead of synthesizing |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
@@ -114,7 +115,9 @@ The rest of the kit is **opt-in layers** — add what you want, skip the rest an
 
 ```bash
 # wicked-estate — the memory/knowledge layer (cross-session recall + cited search, the "what"):
-#   install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or ~/.local/bin
+#   installs the `wicked-estate` + `wicked-estate-mcp` binaries (prebuilt and sha256-verified into ~/.local/bin on
+#   macOS, glibc Linux x64/arm64 and Windows x64; elsewhere built with cargo into $CARGO_HOME/bin or ~/.cargo/bin):
+npx wicked-installer install wicked-estate
 npm i -g wicked-bus && npx wicked-bus-install   # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 

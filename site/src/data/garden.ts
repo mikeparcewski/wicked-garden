@@ -178,7 +178,7 @@ export const DOMAINS: Domain[] = [
     id: "mem",
     name: "memory & knowledge",
     hue: "solo",
-    blurb: "Estate-backed memory: store / recall / cited answers, ingest and session capture. In a wicked-crew job an agent can only propose, and each memory waits for your approval; repo-learn derives memories, policies and your working style as proposals.",
+    blurb: "Estate-backed memory: store / recall / cited answers, ingest and session capture. In a wicked-crew chat or job, answer can also read a connected data source and cite the read. In a job an agent can only propose, and each memory waits for your approval; repo-learn derives memories, policies and your working style as proposals.",
     cmds: ["store", "recall", "answer", "ingest", "capture", "repo-learn"],
     try: "wicked-garden-mem",
   },
@@ -192,10 +192,10 @@ export const DOMAINS: Domain[] = [
   },
   {
     id: "data",
-    name: "data & ML",
+    name: "data, apps & ML",
     hue: "layer",
-    blurb: "ETL, data-quality, ontology, and ML workflows under the same evidence discipline.",
-    cmds: ["data", "data-engineer"],
+    blurb: "ETL, data-quality, ontology, and ML workflows under the same evidence discipline. shapes proposes what a connected source's tables join and which code describes them, for you to approve (structure only, never a row); wicked-garden-apps builds and reviews the apps you make by chat in studio.",
+    cmds: ["data", "data-engineer", "shapes", "apps"],
     try: "wicked-garden-data",
   },
   {
@@ -442,15 +442,16 @@ export const PACKS: { id: string; label: string; dir: string; rows: { dir: strin
   { id: "compliance", label: "compliance", dir: "acme-compliance-pack", rows: pack("compliance", "mapper", "auditor") },
 ];
 
-/* ── What's new in the release the words describe (COPY rev 5 §5, garden 12.62.0) ──
+/* ── What's new in the release the words describe (garden 12.66.0; DES-CATALOG-002 rev 8 CS3, CS5, CS7) ──
    Each: a bold lead, an optional command (code), then the rest; spaces live in the
-   strings, so no build step can fuse a word to the next inline tag. The domain
-   mapping item links to its domain in the catalog. */
-export const NEW_RELEASE = "12.62";
+   strings, so no build step can fuse a word to the next inline tag. The respond and
+   rework item links to its domain in the catalog (draft is a product command). An item
+   is cut, never softened, if it did not ship. */
+export const NEW_RELEASE = "12.66";
 export const NEW_IN: { b: string; code?: string; rest: string; href?: string }[] = [
-  { b: "In a wicked-crew job, every agent is asked to propose what it witnessed,", rest: " as a memory for you to approve, with its source recorded." },
-  { b: "Domain mapping keeps going page after page until real requirements reach the target,", rest: " and asks before it spends more.", href: "#dom-domain" },
-  { b: "Style learning:", code: "repo-learn", rest: " learns how you or your team works from a showcase repo or your writing (studio’s Learn shows the results as suggestions to accept or drop)." },
+  { b: "Reports with sources:", code: "wicked-garden-learn", rest: " has a report mode for wicked-crew’s six report jobs, from research to due diligence: every claim is numbered, cites its source and is re-checked there." },
+  { b: "Respond and rework:", code: "draft", rest: " answers an RFP, RFI or questionnaire from your materials, item by item, or reworks a document: condense, re-audience, generalize, convert or refresh.", href: "#dom-product" },
+  { b: "Phase plugins:", code: "editor-scaffold", rest: " also scaffolds a run plugin: a section in every studio job’s details, drawn from its events, reading only the topics you approve." },
 ];
 
 export const G = {

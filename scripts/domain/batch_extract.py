@@ -202,7 +202,8 @@ def ingest(db: str, workdir: Path) -> int:
                 ok += 1
             elif rule and (rule.get("statement") or "").strip():
                 extract_loop._write_node(estate, sid, name, rule, False,
-                                         reason if not valid else "below confidence threshold")
+                                         reason if not valid else
+                                         extract_loop.below_threshold_reason(rule))
                 floored += 1
             elif extract_loop._has_statement(store, sid):
                 kept += 1  # statement-less miss over existing content — keep it (monotonic)

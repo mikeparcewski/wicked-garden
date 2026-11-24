@@ -1,0 +1,32 @@
+# The wicked product self-test (wicked-ci `selftest/`, profile `pr`) on this pull request: wicked-garden packed from the PR's merge commit, the other products from their main, the engine crew's published wicked-core-ts pin.
+# One hermetic daemon with stub seats runs the API steps and the studio journeys U01-U04 (J1-J4); screenshots, video
+# and traces go to the artifact. See wicked-ci selftest/README.md.
+#
+# ADVISORY for now: the job stays green and its real verdict is the warning annotation and the job summary, so a flake
+# can't block a merge while the flake rate is measured. It is not a required check. Bump the pin (both places) with
+# wicked-ci.
+name: selftest
+
+on:
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**', 'site/**', '.product/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selftest:
+    # The called workflow's advisory verdict job publishes a check run (wicked-ci #76); GitHub checks a nested job's
+    # permissions against the caller's before the run starts.
+    permissions:
+      contents: read
+      checks: write
+    uses: mikeparcewski/wicked-ci/.github/workflows/selftest.yml@3bd45ae3a77b6b40eff09172261c8f08478c3232
+    with:
+      under_test: garden
+      wicked_ci_ref: 3bd45ae3a77b6b40eff09172261c8f08478c3232
