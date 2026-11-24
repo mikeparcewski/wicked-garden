@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+## [12.68.6] - 2026-11-24
+
+Patch release on the train-13 cut 6461c352, carrying 16 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534, #1538, #1539, #1541, #1542, #1550, #1552.
+
+Known limitation (domain mapping accuracy): `/analyze domain` keeps its current mapping loop. On the train-12 certification an independent codex judge read 30 of its statements against the CardDemo source: 21 accurate, 9 overreached (the statement claims more than the code shows, most often by dropping a guarding condition; #1544) and 0 wrong. Its coverage figure (80.6% on CardDemo) counts the behaviours that were given a statement, not whether each statement is accurate. A redesigned mapping, measured at 2 of 30 overreached on the same judge, replaces this loop in a later release.
+
+### Changed
+
+- Domain extract-apply writes a page's rules, findings and business-domain picks in one `wicked-estate write-batch` (one lock, one transaction, one event) instead of one process per write. It needs wicked-estate 0.35.9 or later (#1453). (#1509)
+- Removed: The syntactic SymbolId guard in the domain estate client: estate refuses an id that is not a node (#1470). (#1509)
+- Update dependency astro to v7.4.7 [security] (#1468)
+
+### Fixed
+
+- Skill descriptions are length-checked on the value the publish parses (#1522)
+- Plugin-root data paths name the launcher that resolves them (#1523)
+- Leak scan tokenizes CSS content; subject self-check is prose; keep_check --allow-file (#1524)
+- The report floor reads links with a CommonMark parser, not patterns (#1525)
+- Start the fixture on the port the engine's jail opens (core#1297) (#1527)
+- No graph on a container seat hands the relayed read; re-vendor schema bundle 1.3.2 (#1526, #1511) (#1528)
+- Domain extraction asks the run's unresolved placeholders again instead of saying "nothing left to map"; a request never takes a unit off the page (#1533) (#1534)
+- build-guide catches up with core's floor schema: parser.count, the complete probe, bound {q} (#1529)
+- A re-asked placeholder can resolve, and the card recommends asking again while that moves the share (#1538)
+- A later page may add a business area the stored catalog lacks, so a forced pick can be fixed within the rework cap (#1539)
+- The MCP install plan opens with no wicked-installer on PATH; install roots follow WICKED_HOME (#1541)
+- Process rules are reported, never a Critical; STACK-CHECK line has both halves (core#1316) (#1542)
+- Claims scan keeps data-source citations inside their --repo folder (#1550)
+- A coverage send-back can restate a unit an earlier page framed (#1552)
+
 ## [12.68.5] - 2026-11-22
 
 Patch release on the train-11 cut d093a838, carrying 13 PRs since 12.68.4: #1500, #1501, #1505, #1506, #1507, #1508, #1510, #1512, #1515, #1516, #1517, #1518, #1520.
