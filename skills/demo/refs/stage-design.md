@@ -32,8 +32,8 @@ dedicated, always-legible place for words.
 
 ## Captions
 
-- **Kicker** names the beat ("Search", "Governance"); **title** says what the viewer should take away in one line;
-  **body** gives the why or the mechanism in at most two lines.
+- **Kicker** names the beat ("Search", "Governance"); **title** is one short line a person would say about the
+  screen; **body** gives the why in at most two lines. Voice: `refs/storytelling.md` ("Captions and voice").
 - Change the caption **before** the navigation it describes (pass a short `readMs`, 600 to 1200 ms), so the new
   words land as the new picture arrives. A caption that lingers over the next screen reads as a mistake.
 - Default reading time is about 2.2 s plus 38 ms per character, capped at 9 s. Hold longer on dense screens.
