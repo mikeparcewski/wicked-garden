@@ -6,6 +6,10 @@
 
 - **codemod-first:** a new `wicked-garden-codemod-first` skill sends upgrade and modernization work through a mechanical transform before any hand edit. You count the sites, check for a recipe, try a codemod, name the gate, and hand-edit only the residue. The decision is recorded as one `mechanical-first:` block, or a one-line written rejection; `scripts/engineering/mechanical_first.py check` validates it. The `migrate`, `modernize` and upgrade-shaped `build` playbooks, and the governed-worker floor (C9), call it (#1334).
 
+### Fixed
+
+- **The setup gate blocks on a python3-only host (#1580).** The UserPromptSubmit setup gate exited 2, but hooks.json runs `python3 … || python … || py -3 …`, so the non-zero exit ran the missing `python` and `py` and the hook ended with 127, a non-blocking error: the prompt went through and every prompt printed `command not found` twice. The gate now prints `{"decision": "block", "reason": …}` and exits 0, the way the other hooks signal, so no fallback runs. `tests/hooks/test_setup_gate_python_chain_1580.py` runs the hooks.json command under `sh` with a PATH that holds only `python3`.
+
 ## [12.68.6] - 2026-11-24
 
 Patch release on the train-13 cut 6461c352, carrying 16 PRs since 12.68.5: #1522, #1523, #1524, #1525, #1509, #1527, #1528, #1468, #1529, #1534, #1538, #1539, #1541, #1542, #1550, #1552.

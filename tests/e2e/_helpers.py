@@ -17,7 +17,7 @@ from pathlib import Path
 
 def configured_home() -> tempfile.TemporaryDirectory:
     """A temp dir usable as $HOME with a minimal setup_complete config, so the
-    prompt_submit setup gate proceeds (exit 0) rather than hard-blocking. Caller
+    prompt_submit setup gate proceeds rather than blocking. Caller
     keeps the returned TemporaryDirectory alive for the subprocess lifetime and
     passes ``{"HOME": tmp.name}`` in the subprocess env."""
     tmp = tempfile.TemporaryDirectory()

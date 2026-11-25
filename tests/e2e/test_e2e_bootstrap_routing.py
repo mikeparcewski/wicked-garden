@@ -144,18 +144,25 @@ class HookSmokeEndToEndTests(unittest.TestCase):
 
     def test_unconfigured_project_setup_gate_blocks_and_cannot_be_bypassed(self):
         # The contract that broke the first version of this test: an
-        # unconfigured project HARD-BLOCKS (exit 2) — setup cannot be bypassed,
-        # even by a continuation token. That is correct, controlled behavior
-        # (not a crash), and it must hold deterministically.
+        # unconfigured project BLOCKS — setup cannot be bypassed, even by a
+        # continuation token. That is correct, controlled behavior (not a
+        # crash), and it must hold deterministically. The block is a JSON
+        # `decision: block` with exit 0, never exit 2: hooks.json's
+        # `python3 || python || py -3` chain turns a non-zero exit into 127
+        # on a python3-only host (garden#1580).
         home = unconfigured_home()
         try:
             for p in ["implement a feature", "yes"]:
                 proc = self._run(p, home.name)
                 self.assertFalse(has_python_traceback(proc.stderr),
                                  f"prompt={p!r} crashed: {proc.stderr}")
-                self.assertEqual(proc.returncode, 2,
-                                 f"setup gate must hard-block unconfigured; "
+                self.assertEqual(proc.returncode, 0,
+                                 f"setup gate signals through JSON; "
                                  f"prompt={p!r} rc={proc.returncode}")
+                out = json.loads(proc.stdout.strip().splitlines()[-1])
+                self.assertEqual(out.get("decision"), "block",
+                                 f"setup gate must block unconfigured; "
+                                 f"prompt={p!r} out={proc.stdout!r}")
         finally:
             home.cleanup()
 

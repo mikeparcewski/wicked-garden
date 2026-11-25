@@ -109,13 +109,13 @@ except Exception as e:
 ## Expected Outcome
 
 The onboarding directive is injected as `additionalContext` whenever the project needs
-onboarding, without blocking the prompt (exit 2 is reserved for the no-config case). When
+onboarding, without blocking the prompt (the `decision: block` output is reserved for the no-config case). When
 session state is unreadable the guard falls back gracefully and always allows the prompt through.
 
 ## Success Criteria
 
 - [ ] Onboarding directive present in `additionalContext` when `needs_onboarding=true` (AC-277-2)
-- [ ] `"continue": true` in response — not a hard exit 2 (AC-277-2)
+- [ ] `"continue": true` in response — not a `decision: block` (AC-277-2)
 - [ ] Directive references `wicked-garden:setup` or `Action Required` text
 - [ ] Corrupt session state file results in exit 0 and `"continue": true` (AC-277-6)
 - [ ] No Python traceback on stderr when session file is corrupt
