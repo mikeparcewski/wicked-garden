@@ -92,11 +92,10 @@ def _type_ok(instance: Any, type_name: str) -> bool:
     if type_name == "string":
         return isinstance(instance, str)
     if type_name == "integer":
-        # bool is a subclass of int in Python — exclude it. Draft-07 counts an integral
-        # number (``0.0``) as an integer, as core's jsonschema check does.
-        if isinstance(instance, bool):
-            return False
-        return isinstance(instance, int) or (isinstance(instance, float) and instance.is_integer())
+        # bool is a subclass of int in Python — exclude it. An integral float (``1.0``) is not an
+        # integer here: core reads these fields as Rust integers (e.g. the build guide's
+        # ``failedExit``, ``Vec<i32>`` in core ``src/floor_guide.rs``), and serde refuses a float.
+        return isinstance(instance, int) and not isinstance(instance, bool)
     if type_name == "number":
         return isinstance(instance, (int, float)) and not isinstance(instance, bool)
     if type_name == "boolean":
