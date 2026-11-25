@@ -5,22 +5,18 @@ description: |
   checked statements, each tied to the code lines it rests on, and build the domain
   model on the estate graph. A scoped run finds the code that decides the scope's
   behaviour, has one seat state each decision and another check it against the
-  lines, writes the result to the repository's estate store, and wicked-core builds
-  the domain model (schema 1.2.0) from it. Nothing is counted against a minimum:
-  the model says which statements are checked, which are open, and what a person
-  should look at.
+  lines, and wicked-core builds the domain model (schema 1.2.0) from the result.
+  No minimum: the model says which statements are checked, which are open, and what
+  a person should look at.
 
-  A shared substrate, not a modernization tool. The `modernize` archetype DERIVES
-  from it; build / migrate / review / specify / explore consume the SAME domain
-  model — none OWN it.
+  A shared substrate, not a modernization tool: `modernize` derives from it, and
+  build / migrate / review / specify / explore read the same model.
 
-  Use when: "extract the business rules / domain model from this codebase", "build
-  a requirements graph from the code", "what does this system actually require",
-  "reverse-engineer the domain before we build/port/migrate". Works on ANY codebase
-  (modern or legacy).
+  Use when: "extract the business rules / domain model from this codebase", "what
+  does this system actually require", "reverse-engineer the domain before we
+  build/port/migrate". Works on any codebase (modern or legacy).
 
-  NOT the code transform itself (that is the archetype consuming this model). This
-  skill produces the DOMAIN MODEL, not new code.
+  NOT the code transform itself (that is the archetype consuming this model).
 metadata:
   role: router
   phases: "discover,extract,blueprint,plan,specify"
@@ -44,10 +40,12 @@ mapped ("how refunds are approved"). Studio's Start shows the scope card first
 The run is two host steps and no agent seat of its own:
 
 1. `domain-run` runs `scripts/domain/run.py --db <repo store> --repo-root <checkout>
-   --scope <scope file>`. It finds the scope's targets, reuses everything whose code
-   has not changed (zero model calls), asks the run's own seats to state each
-   decision in the rest and to check it against the cited lines, writes the plain-words
-   rule groups over the checked statements, and stores it all on the estate nodes.
+   --scope <scope file>`. It finds the scope's targets and carries a target's settled
+   statements unchanged, with no model call, while its code has not changed. Everything
+   else (new or changed code, a statement that failed its checks or is still unsettled)
+   goes to the run's own seats, one to state each decision and one to check it against
+   the cited lines. It writes the plain-words rule groups over the checked statements
+   (again only when their inputs changed) and stores it all on the estate nodes.
 2. `domain-graph` runs `wicked-core domain-graph`, which builds the domain model
    (schema 1.2.0) from those rows into the same store, where crew and studio read it.
 
@@ -74,7 +72,6 @@ model view. A ruling binds to the statement and to its code: it stops applying w
 either changes.
 
 ## Runtime
-
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.

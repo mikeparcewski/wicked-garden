@@ -92,8 +92,11 @@ def _type_ok(instance: Any, type_name: str) -> bool:
     if type_name == "string":
         return isinstance(instance, str)
     if type_name == "integer":
-        # bool is a subclass of int in Python — exclude it.
-        return isinstance(instance, int) and not isinstance(instance, bool)
+        # bool is a subclass of int in Python — exclude it. Draft-07 counts an integral
+        # number (``0.0``) as an integer, as core's jsonschema check does.
+        if isinstance(instance, bool):
+            return False
+        return isinstance(instance, int) or (isinstance(instance, float) and instance.is_integer())
     if type_name == "number":
         return isinstance(instance, (int, float)) and not isinstance(instance, bool)
     if type_name == "boolean":
@@ -138,6 +141,8 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
     if isinstance(instance, str):
         if "minLength" in schema and len(instance) < schema["minLength"]:
             err(f"string shorter than minLength {schema['minLength']}")
+        if "maxLength" in schema and len(instance) > schema["maxLength"]:
+            err(f"string longer than maxLength {schema['maxLength']}")
         pat = schema.get("pattern")
         if pat is not None and not re.search(pat, instance):
             err(f"{instance!r} does not match pattern {pat!r}")
@@ -249,15 +254,17 @@ def _extra_invariants(doc: dict[str, Any]) -> list[str]:
                 if not isinstance(item, dict):
                     continue
                 iid = item.get("id")
+                if not isinstance(iid, str):
+                    continue  # the schema pass already reported a non-string id
                 if iid in seen:
                     errors.append(f"{where}: duplicate id {iid} within requirement")
                 elif iid is not None:
                     seen.add(iid)
 
             # validation.error_ref -> ErrorPath round-trip
-            err_ids = {e.get("id") for e in errs if isinstance(e, dict)}
+            err_ids = {e.get("id") for e in errs if isinstance(e, dict) and isinstance(e.get("id"), str)}
             for v in vals:
-                if isinstance(v, dict) and v.get("error_ref") is not None:
+                if isinstance(v, dict) and isinstance(v.get("error_ref"), str):
                     if v["error_ref"] not in err_ids:
                         errors.append(
                             f"{where}: validation {v.get('id')} error_ref "

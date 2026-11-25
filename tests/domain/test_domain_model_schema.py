@@ -270,3 +270,28 @@ def test_a_1_2_0_document_needs_its_accounting():
     legacy = copy.deepcopy(fixture_document())
     assert "accounting" not in legacy["metadata"] and validate_document(legacy) == []
 
+
+
+def test_a_string_over_its_max_length_is_refused():
+    doc = core_v3()
+    req = next(iter(next(iter(doc["domains"].values()))["requirements"].values()))
+    req["business_domain"] = {"id": "payroll", "name": "P" * 60, "confidence": 0.9}
+    assert validate_document(doc) == []
+    req["business_domain"]["name"] = "P" * 61
+    assert any("maxLength 60" in e for e in validate_document(doc))
+
+
+def test_an_integral_number_is_an_integer_as_draft_07_says():
+    doc = core_v3()
+    claim = _rules(doc)[0]["claims"][0]
+    claim["i"] = 0.0  # what core's jsonschema check accepts
+    assert validate_document(doc) == []
+    claim["i"] = 0.5
+    assert any("is not of type" in e for e in validate_document(doc))
+
+
+def test_a_non_string_id_is_reported_not_raised():
+    doc = core_v3()
+    _rules(doc)[0]["id"] = {}
+    errors = validate_document(doc)
+    assert errors and all(isinstance(e, str) for e in errors)
