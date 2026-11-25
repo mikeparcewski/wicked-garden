@@ -1,0 +1,14 @@
+{
+  "statement": {
+    "id": "<host: target id>#<n>",
+    "anchor": {"symbol_id": "<estate symbol id>", "file": "<repo-relative path>", "lines": ["<start 1-based>", "<end>"]},
+    "claims": [{"i": "<0..>", "type": "condition | effect | else | value | trigger", "text": "<clause>", "lines": ["path:N[-M]"],
+                "when": ["<condition claim indices that must HOLD>"], "unless": ["<condition claim indices that must FAIL>"], "of": "<value only: claim index>"}],
+    "context": [{"symbol": "<name>", "at": "path:N[-M]"}],
+    "kind": "<host, derived: rule iff >= 1 condition/else/value claim; else not_rule>",
+    "author": "<host>", "checker": "<host: C6 verdicts>", "status": "<host: Checked | open>"
+  },
+  "not_rule": {"lines": "path:N-M", "reason": "exit | io-wrapper | control-only | display-format", "note": "<short>"},
+  "claim_types": ["trigger", "condition", "effect", "else", "value"],
+  "not_rule_reasons": ["exit", "io-wrapper", "control-only", "display-format"]
+}

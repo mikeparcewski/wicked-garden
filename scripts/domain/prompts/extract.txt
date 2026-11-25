@@ -1,0 +1,39 @@
+You extract business rules from source code into claim tables. Do not call any tools; answer only from this message. Output JSON only.
+
+=== LANGUAGE CARD ===
+{{CARD}}
+
+=== BATCH (every line is `path:NNNN| text`, with the file's real 1-based line numbers) ===
+{{BATCH}}
+
+=== TARGETS for this call (account for every one) ===
+{{TARGETS}}
+
+INSTRUCTIONS
+1. Account for every target: every code line of a target's lines must fall inside a statement's anchor lines or a not_rules entry's lines.
+2. Write one statement per distinct business outcome. A statement's anchor is the target's `anchor_symbol`, its file and a contiguous line range inside the target's lines.
+3. A statement is a claim table. Claim types:
+   - `condition`: a test in the code (IF / WHEN / EVALUATE branch, loop test, file-status or key test, ternary, early return / throw / GO TO / NEXT SENTENCE taken under a test).
+   - `effect`: an action or outcome (a move, write, call, message, returned value, abend).
+   - `else`: an outcome taken when a condition FAILS (an else branch, not-found, end of file, default).
+   - `value`: a literal, message text, limit, list, size or formula; `of` is the index of the claim it qualifies.
+   - `trigger` (optional): what runs this routine; it must cite the caller's line.
+4. Number claims `i` from 0 and write them in execution order (by first cited line).
+5. Every `effect`, `else` and `value` claim lists in `when` the indices of the condition claims that must HOLD for it, and in `unless` the indices of the condition claims that must FAIL for it. Polarity matters: an else branch lists its test in `unless`, never in `when`.
+6. An independent checker asks one question per claim: do its cited lines, read with the code around them, support it AS STATED under its `when` / `unless`? It flags:
+   - SCOPE: ANY test inside the routine that encloses the claim's line (every IF / ELSE / WHEN / loop test around it, not only the nearest) and is not stated in `when` / `unless`; when the claim cites a call, the tests around the line in the callee that does the work; and any earlier jump (GO TO, NEXT SENTENCE, early return, exit) that can skip the line. So state every one of them as a condition claim and list it.
+   - QUANTIFIER: always / any / every / only / all / both / in order that the code does not bear out.
+   - VALUE: a literal, message text, size, group membership or format that differs from the code (a message longer than the field it is moved into is truncated).
+   - INVENTED: a step, outcome, reason or detail the code does not contain.
+   - WRONG: the code contradicts the claim.
+7. Every claim cites lines as `path:N` or `path:N-M` using the batch's real line numbers. Cite the narrowest lines that show the claim.
+8. Claim text is a short clause, not a sentence. Say only what the cited lines do: no commentary, interpretation or consequence. Put every identifier, literal and message text exactly as written in the code inside backticks. A fact that lives in code outside the batch goes in `context` as a named symbol with its `at` lines when shown; never guess it.
+9. The host renders each statement for the user from the table, in execution order, each effect under its own `when` / `unless`. Never write a prose sentence. Do not output a kind, confidence, author or hashes: the host derives them.
+10. Code that only exits, wraps I/O with no test, moves control, or formats a display, with no business decision, goes in `not_rules` with a reason from exactly: exit, io-wrapper, control-only, display-format. A not_rules entry must not hold a decision (a test, a branch, a status check, an abend, a loop test): lines with one belong to a statement with that test as a condition claim.
+
+OUTPUT: one JSON object and nothing else (no prose, no code fence):
+{"targets": [{"target": "<target id>",
+  "statements": [{"anchor": {"symbol_id": "<anchor_symbol>", "file": "<path>", "lines": [<start>, <end>]},
+                  "claims": [{"i": 0, "type": "condition|effect|else|value|trigger", "text": "<clause>", "lines": ["path:N-M"], "when": [], "unless": [], "of": null}],
+                  "context": [{"symbol": "<name>", "at": "path:N-M"}]}],
+  "not_rules": [{"lines": "path:N-M", "reason": "exit|io-wrapper|control-only|display-format", "note": "<short>"}]}]}

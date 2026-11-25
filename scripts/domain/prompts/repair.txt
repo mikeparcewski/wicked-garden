@@ -1,0 +1,17 @@
+An independent checker read the statements below against the code and flagged claims. For each flagged statement, return a corrected claim table that fixes every finding: add the missing test as a condition claim and list it in `when` / `unless` (the finding cites the test line and a witness: a situation where the stated conditions hold and the code does something else), narrow a quantifier, correct a value, or drop an invented detail. You may split one statement into several statements on the same target, but together their anchor lines must still cover the original anchor's lines. Keep the same claim contract and rules as the extraction (below). Do not call any tools. Output JSON only.
+
+=== LANGUAGE CARD ===
+{{CARD}}
+
+=== BATCH (every line is `path:NNNN| text`, with the file's real 1-based line numbers) ===
+{{BATCH}}
+
+=== FLAGGED STATEMENTS AND FINDINGS ===
+{{ITEMS}}
+
+CLAIM CONTRACT (unchanged): claim types condition / effect / else / value / trigger; `i` from 0 in execution order; `when` = indices of condition claims that must HOLD, `unless` = indices that must FAIL; `of` (value only) = the claim it qualifies; every claim cites `path:N` or `path:N-M`; identifiers, literals and message text exactly as written, in backticks; no prose sentence, no kind.
+
+OUTPUT: one JSON object and nothing else (no prose, no code fence):
+{"repairs": [{"id": "<statement id>", "statements": [{"anchor": {"symbol_id": "<anchor_symbol>", "file": "<path>", "lines": [<start>, <end>]},
+  "claims": [{"i": 0, "type": "condition|effect|else|value|trigger", "text": "<clause>", "lines": ["path:N-M"], "when": [], "unless": [], "of": null}],
+  "context": [{"symbol": "<name>", "at": "path:N-M"}]}]}]}
