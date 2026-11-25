@@ -29,10 +29,10 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    copy itself, refuses on any failure (fail closed: no headless browser is a refusal), pins each
    entry's sha256 and records it in its editor registry. A refusal swaps ``previous/`` back (or
    removes ``current/`` on a first install) and exits 1. A daemon that took the request and never answered
-   (a timeout, a dropped connection, a cut body) may still finish: ``current/`` and ``previous/`` stay, a
-   ``pending.json`` marker is written, and the result says ``"outcome": "unknown"``. The next install first
-   asks ``GET /api/v1/editors`` which copy crew registered: the copy sent stays, or (after a grace for a
-   slow conformance run) the earlier copy is put back; anything else refuses and changes nothing.
+   (a timeout, a dropped connection, a cut body) may still finish: ``current/`` and ``previous/`` stay and
+   the result says ``"outcome": "unknown"``. A ``pending.json`` marker, written before the call and removed
+   once crew answers, tells the next install that ``current/`` was never confirmed: it replaces that copy and
+   keeps ``previous/``, the last one crew confirmed, as the roll-back.
 5. **Record** ``<root>/<name>/installed.json`` and print it.
 
 **Targets** (the consent gate's choices): ``daemon`` (the default) installs it turned on — it opens
@@ -75,7 +75,6 @@ import re
 import shutil
 import stat
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -95,10 +94,9 @@ TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGES
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
-# An install whose register call got no answer leaves ``pending.json``; the next install asks the daemon which copy it
-# registered, and trusts "it kept the old one" only after this long (crew may still be running the conformance cases).
+# Written before the register call and removed once crew answers: while it exists, ``current/`` is a copy crew never
+# confirmed, and ``previous/`` (if any) is the last one it did.
 PENDING = "pending.json"
-PENDING_GRACE_S = 600
 PLAN_ASKS_CAP = 64
 PLAN_ID_CHARS = 200
 PLAN_WHY_CHARS = 300
@@ -442,68 +440,6 @@ def unswap(key_root: Path, had_previous_install: bool) -> None:
         previous.rename(current)
 
 
-def _builds(pack: Path) -> set[tuple[str, str, str]]:
-    """The (id, version, sha256) of every editor and run plugin a staged copy declares: what crew's registry lists
-    once it installed that copy (``GET /api/v1/editors``, crew ``EditorRegistry.view``)."""
-    editors, plugins = pack_entries_of(read_manifest(pack))
-    return {(str(e.get("id")), str(e.get("version")), str(e.get("sha256"))) for e in editors + plugins}
-
-
-def settle_pending(key_root: Path, origin: str) -> str | None:
-    """An earlier install whose register call got no answer (``pending.json``) is settled before anything rotates:
-    ``current/`` holds the copy it sent and ``previous/`` the one before. The daemon's registry decides which stays.
-    It lists the sent copy: keep it. It still lists the earlier copy (or, on a first install, none of the pack's ids)
-    once the grace has passed: crew refused it, so put the earlier copy back. Anything else refuses and changes
-    nothing, so a retry never deletes the last copy crew registered."""
-    marker = key_root / PENDING
-    if not marker.exists():
-        return None
-    try:
-        pending = json.loads(marker.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        pending = {}
-    pending = pending if isinstance(pending, dict) else {}
-    unsettled = (f"an earlier install of {key_root.name} got no answer from the daemon and is not settled yet; "
-                 "nothing was changed")
-    try:
-        sent = _builds(key_root / "current")
-    except (OSError, PackError):
-        sent = set()
-    earlier = None
-    if pending.get("had_previous") is True:
-        try:
-            earlier = _builds(key_root / "previous")
-        except (OSError, PackError) as err:
-            raise Failure(1, f"{unsettled}: the earlier copy cannot be read ({err})", outcome="unknown") from err
-    try:
-        status, body = http_json("GET", f"{origin}/api/v1/editors")
-    except (urllib.error.URLError, OSError, http.client.HTTPException) as err:
-        raise Failure(1, f"{unsettled}: the daemon at {origin} cannot be asked ({err})", outcome="unknown") from err
-    rows = body.get("editors") if status < 400 else None
-    if not isinstance(rows, list):
-        raise Failure(1, f"{unsettled}: the daemon did not list its editors (HTTP {status}: {_message(body)})",
-                      outcome="unknown")
-    listed = {(str(r.get("id")), str(r.get("version")), str(r.get("sha256"))) for r in rows if isinstance(r, dict)}
-    if sent and sent <= listed:
-        marker.unlink()
-        return "registered"
-    since = pending.get("since")
-    waited = time.time() - since if isinstance(since, (int, float)) else PENDING_GRACE_S
-    if waited < PENDING_GRACE_S:
-        raise Failure(1, f"{unsettled}: the daemon may still be installing it; try again in "
-                         f"{int(PENDING_GRACE_S - waited) + 1} s", outcome="unknown")
-    if earlier is not None and earlier <= listed:
-        unswap(key_root, True)
-        marker.unlink()
-        return "restored"
-    if earlier is None and not ({b[0] for b in sent} & {b[0] for b in listed}):
-        unswap(key_root, False)
-        marker.unlink()
-        return "removed"
-    raise Failure(1, f"{unsettled}: the daemon's editors match neither the copy sent nor the one before it; remove "
-                     f"it (--uninstall {key_root.name}) and install it again", outcome="unknown")
-
-
 def _now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
@@ -649,8 +585,8 @@ def do_install(args) -> tuple[int, dict]:
     origin = crew_origin(args.crew_url)
     key_root = install_root(args.install_root) / key
     key_root.mkdir(parents=True, exist_ok=True)
-    settled = settle_pending(key_root, origin)
-    had_previous = (key_root / "current").exists()
+    marker = key_root / PENDING
+    unconfirmed = os.path.lexists(marker)  # an earlier register call got no answer (see the OSError branch below)
     try:
         inventory = pack_inventory(pack, manifest)  # one read: staged, digested and approved from these bytes
         copied = stage(pack, manifest, key_root / "next", inventory)
@@ -684,8 +620,20 @@ def do_install(args) -> tuple[int, dict]:
         raise Failure(1, f"{pack / MANIFEST_NAME} changed after the plan the operator approved (its permissions, "
                          "version, entry hash, skills or block presets may differ); nothing was installed: plan "
                          "and approve it again")
+    current, previous = key_root / "current", key_root / "previous"
+    if unconfirmed and current.exists():
+        # current/ is the copy an unanswered install sent, never confirmed by crew. The roll-back stays the last
+        # copy crew did confirm (previous/, none on a first install): drop the unconfirmed one instead of rotating.
+        shutil.rmtree(current)
+    had_previous = current.exists() or (unconfirmed and previous.exists())
     swap(key_root)
-    current = key_root / "current"
+    try:
+        # The intent goes down before the request: whatever happens to this process after it is sent, the next
+        # install knows current/ was never confirmed. A marker that cannot be written stops the install here.
+        marker.write_text(json.dumps({"since": _now()}) + "\n", encoding="utf-8")
+    except OSError as err:
+        unswap(key_root, had_previous)
+        raise Failure(1, f"cannot write {marker} ({err}); nothing was installed") from err
     try:
         request = {"packRoot": str(current.resolve()), "enabled": target == "daemon"}
         approve = inventory.approve
@@ -695,18 +643,18 @@ def do_install(args) -> tuple[int, dict]:
     except urllib.error.URLError as err:
         # urlopen wraps what fails while connecting and sending: the request never reached crew whole.
         unswap(key_root, had_previous)
+        marker.unlink(missing_ok=True)
         raise Failure(1, f"no daemon at {origin} ({err.reason}); nothing was installed") from err
     except (OSError, http.client.HTTPException) as err:
         # The request went out and no full answer came back (a timeout, a dropped connection, a cut body): crew may
-        # still finish the install, and it reads current/. Keep both copies in place and leave a marker; the next
-        # install asks crew which one it registered before it rotates anything (settle_pending).
-        (key_root / PENDING).write_text(json.dumps({"since": time.time(), "had_previous": had_previous}) + "\n",
-                                        encoding="utf-8")
+        # still finish the install, and it reads current/. Both copies stay, and so does the marker.
         raise Failure(1, f"the daemon at {origin} did not answer the install ({str(err) or type(err).__name__}); it "
-                         f"may still finish it. {current} holds the copy sent"
-                         + (f" and {key_root / 'previous'} the one before it" if had_previous else "")
-                         + ". Check Settings → Editors; the next install of this pack asks the daemon which copy it "
-                           "registered and settles that first.", outcome="unknown") from err
+                         f"may still finish it, so {current} stays in place. Check Settings → Editors. The next "
+                         "install of this pack replaces that copy and keeps "
+                         + (f"{previous}, the last copy the daemon confirmed, as its roll-back."
+                            if had_previous else "no roll-back (this was a first install)."),
+                      outcome="unknown") from err
+    marker.unlink(missing_ok=True)  # crew answered: the outcome is known
     if status >= 400:
         unswap(key_root, had_previous)
         detail = {k: body[k] for k in ("code", "check", "conformance") if k in body}
@@ -718,8 +666,6 @@ def do_install(args) -> tuple[int, dict]:
     (key_root / "installed.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     # crew >= the MCP inspector bridge reports the install-consent grants it wrote (or why it could not).
     grants = {k: body[k] for k in ("granted", "grantError") if k in body}
-    if settled:
-        grants["settled"] = settled  # how an earlier unanswered install was settled (settle_pending)
     return 0, {**record, **grants, "target": target, "path": str(current),
                "conformance": body.get("conformance")}
 
@@ -730,12 +676,15 @@ def do_uninstall(args) -> tuple[int, dict]:
         raise Failure(2, f"invalid pack name {key!r}")
     origin = crew_origin(args.crew_url)
     key_root = install_root(args.install_root) / key
+    # Both copies' ids: after an unanswered install, crew may hold either one, and an update may have dropped or
+    # renamed an id the earlier copy still has registered.
     editors: list[str] = []
-    try:
-        ed, pl = pack_entries_of(read_manifest(key_root / "current"))
-        editors = [str(e.get("id")) for e in ed + pl]
-    except PackError:
-        editors = []
+    for copy in ("current", "previous"):
+        try:
+            ed, pl = pack_entries_of(read_manifest(key_root / copy))
+        except PackError:
+            continue
+        editors += [eid for eid in (str(e.get("id")) for e in ed + pl) if eid not in editors]
     out: dict = {"key": key, "uninstalled": True, "registry": {}}
     for eid in editors:
         try:
