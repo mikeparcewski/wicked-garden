@@ -20,6 +20,7 @@ Examples:
 
 import json
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime
@@ -85,9 +86,10 @@ class ReleaseManager:
             tags = result.stdout.strip().split("\n")
             component_name = self.get_plugin_name()
 
-            # Filter tags for this component (format: component-name-v1.0.0)
+            # Release tags are v1.0.0 (the release workflow's `v*` trigger, and the ref the
+            # marketplace entry installs, #1413); older component-name-v1.0.0 tags still count.
             component_tags = [
-                tag for tag in tags if tag.startswith(f"{component_name}-v")
+                tag for tag in tags if re.match(r"^v\d", tag) or tag.startswith(f"{component_name}-v")
             ]
 
             if not component_tags:
@@ -95,7 +97,7 @@ class ReleaseManager:
 
             # Sort by semver and return latest
             def extract_version(tag):
-                version_str = tag.split("-v")[-1]
+                version_str = re.sub(r"^.*?v(?=\d)", "", tag)
                 try:
                     return SemVer(version_str)
                 except ValueError:
@@ -179,16 +181,17 @@ class ReleaseManager:
     def update_marketplace_version(self, new_version: str):
         """Update version in the root marketplace.json catalog."""
         # Find marketplace.json relative to git root
-        try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--show-toplevel"],
-                capture_output=True, text=True, check=True
-            )
-            git_root = Path(result.stdout.strip())
-        except subprocess.CalledProcessError:
-            git_root = self.component_path.parent.parent  # fallback: plugins/../
-
-        marketplace_path = git_root / ".claude-plugin" / "marketplace.json"
+        marketplace_path = self.component_path / ".claude-plugin" / "marketplace.json"
+        if not marketplace_path.exists():
+            try:
+                result = subprocess.run(
+                    ["git", "rev-parse", "--show-toplevel"],
+                    capture_output=True, text=True, check=True
+                )
+                git_root = Path(result.stdout.strip())
+            except subprocess.CalledProcessError:
+                git_root = self.component_path.parent.parent  # fallback: plugins/../
+            marketplace_path = git_root / ".claude-plugin" / "marketplace.json"
         if not marketplace_path.exists():
             print("  (no marketplace.json found, skipping)")
             return
@@ -209,6 +212,8 @@ class ReleaseManager:
                     plugin["version"] = new_version
                     updated = True
                     break
+            if updated and "version" in data:
+                data["version"] = new_version   # the catalog's own version moves with the entry
 
             if updated:
                 with open(marketplace_path, "w") as f:
@@ -222,13 +227,15 @@ class ReleaseManager:
             print(f"Warning: Failed to update marketplace.json: {e}")
 
     def update_other_version_anchors(self, new_version: str):
-        """Set the `"version"` key of package.json and .codex-plugin/plugin.json (format-preserving).
+        """Set the `"version"` key of package.json, .codex-plugin/plugin.json and the published
+        catalog .claude-plugin/release-marketplace.json, whose entry's `"ref"` also moves to the
+        release tag `v<version>` (#1413) (format-preserving).
 
         Same rule as .github/scripts/sync-plugin-version.mjs: only the exact `"version"` key moves,
         never peer keys such as `wicked_vault_version`."""
         import re
 
-        for rel in ("package.json", ".codex-plugin/plugin.json"):
+        for rel in ("package.json", ".codex-plugin/plugin.json", ".claude-plugin/release-marketplace.json"):
             path = self.component_path / rel
             if not path.exists():
                 continue
@@ -236,7 +243,11 @@ class ReleaseManager:
                 print(f"[DRY RUN] Would update {rel} to version {new_version}")
                 continue
             text = path.read_text()
-            path.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{new_version}"', text, count=1))
+            count = 0 if rel.endswith("marketplace.json") else 1  # a marketplace carries two version keys
+            text = re.sub(r'("version"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{new_version}"', text, count=count)
+            if rel.endswith("release-marketplace.json"):
+                text = re.sub(r'("ref"\s*:\s*)"v[^"]*"', lambda m: f'{m.group(1)}"v{new_version}"', text)
+            path.write_text(text)
             print(f"✓ Updated {rel} to version {new_version}")
 
     def generate_changelog_content(
@@ -304,7 +315,7 @@ class ReleaseManager:
     def create_git_tag(self, version: str):
         """Create git tag for this release."""
         component_name = self.get_plugin_name()
-        tag_name = f"{component_name}-v{version}"
+        tag_name = f"v{version}"  # the tag the marketplace entry's ref names (#1413)
 
         if self.dry_run:
             print(f"[DRY RUN] Would create git tag: {tag_name}")
@@ -525,7 +536,7 @@ class ReleaseManager:
 
         # Create git tag
         component_name = self.get_plugin_name()
-        tag_name = f"{component_name}-v{new_version}"
+        tag_name = f"v{new_version}"
         if create_tag:
             self.create_git_tag(new_version)
 

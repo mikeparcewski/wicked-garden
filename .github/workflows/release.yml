@@ -4,7 +4,14 @@
 # (`npm version <X.Y.Z> --no-git-tag-version --allow-same-version`), which runs
 # this repo's `version` hook (.github/scripts/sync-plugin-version.mjs) to sync
 # plugin.json + marketplace.json, then publishes to npm via OIDC trusted
-# publishing (+ provenance). No manual manifest pre-bump needed.
+# publishing (+ provenance).
+#
+# Order (#1413): the published catalog on main
+# (.claude-plugin/release-marketplace.json, added by URL) installs the tag its
+# `ref` names (`v<version>`), so the tagged commit must already carry the
+# version files (the release metadata commit on the cut), and the tag is
+# pushed BEFORE that metadata reaches main. Merged first, main would name a
+# tag that does not exist yet and Claude installs would fail until it does.
 #
 # Garden specifics:
 # - setup_python + test_cmd run garden's structural gates (validate.py,

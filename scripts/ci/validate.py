@@ -306,6 +306,65 @@ def json_files_to_check(root: Path) -> tuple[list[Path], str | None]:
     return files, None
 
 
+RELEASE_REPO = "mikeparcewski/wicked-garden"
+LOCAL_MARKETPLACE = Path(".claude-plugin") / "marketplace.json"
+RELEASE_MARKETPLACE = Path(".claude-plugin") / "release-marketplace.json"
+
+
+def marketplace_errors(root: Path, name: str | None, version: str) -> list[str]:
+    """The two marketplace catalogs against plugin.json's version (#1413).
+
+    `.claude-plugin/marketplace.json` is what `claude plugin marketplace add <dir>` (and Codex)
+    read from a local checkout or the npm copy: its entry must stay `"./"`, so a local add
+    installs THAT tree (wicked-installer `--source-root`, a candidate under certification).
+    `.claude-plugin/release-marketplace.json` is the published catalog users add by URL: its entry
+    must install the release TAG (github source, ref `v<version>`), or a Claude Code user gets
+    main's tree labelled as the release. Both carry the version and the same marketplace name.
+    """
+    errors: list[str] = []
+    names: dict[str, object] = {}
+    for rel, local in ((LOCAL_MARKETPLACE, True), (RELEASE_MARKETPLACE, False)):
+        path = root / rel
+        if not path.exists():
+            errors.append(f"Missing {rel.as_posix()}")
+            continue
+        try:
+            mkt = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            errors.append(f"{rel.as_posix()} is invalid JSON: {e}")
+            continue
+        names[rel.as_posix()] = mkt.get("name")
+        entry = next((p for p in mkt.get("plugins") or [] if isinstance(p, dict) and p.get("name") == name), None)
+        if entry is None:
+            errors.append(f"{rel.as_posix()} has no plugins[] entry named {name!r}")
+            continue
+        for where, value in ((f"plugins[name={name}].version", entry.get("version")), ("version", mkt.get("version"))):
+            if value != version:
+                errors.append(f"{rel.as_posix()} {where} = {value!r} does not match plugin.json version "
+                              f"= {version!r}. Bump them together (node .github/scripts/sync-plugin-version.mjs).")
+        source = entry.get("source")
+        if local:
+            if source != "./":
+                errors.append(f'{rel.as_posix()}: the entry\'s source must be "./" so a local add installs the '
+                              f"checkout it names, not {source!r} (the release tag lives in "
+                              f"{RELEASE_MARKETPLACE.as_posix()})")
+            continue
+        want_ref = f"v{version}"
+        if not isinstance(source, dict) or source.get("source") != "github" or "ref" not in source:
+            errors.append(f"{rel.as_posix()}: the entry must install the release tag — "
+                          f'{{"source": "github", "repo": "{RELEASE_REPO}", "ref": "{want_ref}"}}, not {source!r}')
+            continue
+        if source.get("repo") != RELEASE_REPO:
+            errors.append(f"{rel.as_posix()}: source repo = {source.get('repo')!r}, expected {RELEASE_REPO!r}")
+        if source.get("ref") != want_ref:
+            errors.append(f"{rel.as_posix()}: source ref = {source.get('ref')!r} is not the release tag "
+                          f"{want_ref!r} (node .github/scripts/sync-plugin-version.mjs stamps it)")
+    if len(names) == 2 and len(set(names.values())) != 1:
+        errors.append(f"the two catalogs declare different marketplace names {names!r}: both install "
+                      f"{name}@<one name>")
+    return errors
+
+
 def main(argv: list[str] | None = None):
     root = resolve_root(argv)
     os.chdir(root)
@@ -342,28 +401,14 @@ def main(argv: list[str] | None = None):
         except json.JSONDecodeError as e:
             errors.append(f"plugin.json is invalid JSON: {e}")
 
-    # --- 1b. marketplace.json must agree with plugin.json on plugin version ---
+    # --- 1b. both catalogs agree with plugin.json: the local one is ./, the published one the tag ---
     # Drift caught at v11.1.1: plugins[0].version was stuck at 8.8.1 across
     # 3 v11 releases because nobody bumped it. The marketplace registration
     # is the public-facing version; the plugin manifest is the runtime-
     # facing version; if they diverge, marketplace consumers see a stale
-    # number.
-    marketplace_json = root / ".claude-plugin" / "marketplace.json"
-    if marketplace_json.exists() and plugin_version:
-        try:
-            mkt = json.loads(marketplace_json.read_text())
-            for entry in mkt.get("plugins") or []:
-                if entry.get("name") == plugin.get("name"):
-                    mkt_version = entry.get("version")
-                    if mkt_version != plugin_version:
-                        errors.append(
-                            f"marketplace.json plugins[name={entry['name']}].version "
-                            f"= {mkt_version!r} does not match plugin.json version "
-                            f"= {plugin_version!r}. Bump both together."
-                        )
-                    break
-        except json.JSONDecodeError as e:
-            errors.append(f"marketplace.json is invalid JSON: {e}")
+    # number. #1413: the published catalog installs the release tag; the local one, the checkout.
+    if plugin_version:
+        errors.extend(marketplace_errors(root, plugin.get("name"), plugin_version))
 
     # --- 1c. Codex plugin manifest (.codex-plugin/plugin.json) ---
     # Codex loads garden as a plugin; a manifest it would ignore or a skill it would drop

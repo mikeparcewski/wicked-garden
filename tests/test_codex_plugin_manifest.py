@@ -349,7 +349,7 @@ def test_npm_package_ships_the_manifest_and_exactly_the_codex_skills():
 @needs_node
 def test_sync_plugin_version_bumps_the_codex_manifest(tmp_path):
     for rel in ("package.json", ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json",
-                ".codex-plugin/plugin.json"):
+                ".codex-plugin/plugin.json", ".claude-plugin/release-marketplace.json"):
         dest = tmp_path / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(REPO / rel, dest)

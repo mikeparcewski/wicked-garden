@@ -64,9 +64,11 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 ## Install
 
 ```bash
-claude plugins marketplace add mikeparcewski/wicked-garden
+claude plugins marketplace add https://raw.githubusercontent.com/mikeparcewski/wicked-garden/main/.claude-plugin/release-marketplace.json
 claude plugins install wicked-garden
 ```
+
+That catalog installs the release tag (`v<version>`), the same tree npm ships under that version, and `claude plugins update wicked-garden` moves to the next tag. To run a local checkout instead, add its directory: `claude plugins marketplace add <path to the checkout>`.
 
 Or use the family installer — [`npx wicked-installer`](https://www.npmjs.com/package/wicked-installer)
 installs/updates the whole wicked-\* family (garden, its peers, and the rest).
