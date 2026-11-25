@@ -39,6 +39,11 @@ def test_a_well_formed_scope_is_read_whole(tmp_path):
     ({"intent": "x", "phrases": None}, "phrases are not a list"),
     ({"intent": "x", "scope_hash": None}, "scope_hash is not a string"),
     ({"intent": "x", "description": None}, "description is not a string"),
+    (b'{"intent":"PAYCALC1","phrases":null,"phrases":[]}', "a key appears twice: phrases"),
+    (b'{"intent":NaN,"intent":"PAYCALC1"}', "not JSON"),
+    (b'{"intent":"x","scope_hash":Infinity}', "Infinity is not JSON"),
+    (b'{"intent":"PAYCALC1","description":"\\ud800"}', "UnicodeEncodeError"),
+    (b'{"intent":"\\udc00"}', "UnicodeEncodeError"),
     # deep nesting inside the size limit: a RecursionError on some interpreters, a list on others
     (b"[" * 30000 + b"]" * 30000, "not JSON|not a JSON object"),
 ])
@@ -73,15 +78,21 @@ def test_the_engines_binary_is_used_when_the_daemon_hands_it(monkeypatch, tmp_pa
     # an operator override still wins
     monkeypatch.setenv(model_calls.CORE_ENV, "/override/wicked-core")
     assert model_calls.core_bin() == "/override/wicked-core"
-    # neither, and none on PATH: refused by name
+    # a value with text is taken verbatim
+    monkeypatch.setenv(model_calls.CORE_ENV, "/override/wicked-core ")
+    assert model_calls.core_bin() == "/override/wicked-core "
     monkeypatch.delenv(model_calls.CORE_ENV)
+    monkeypatch.setenv(model_calls.ENGINE_CORE_ENV, " /engine/wicked core")
+    assert model_calls.core_bin() == " /engine/wicked core"
+    # neither, and none on PATH: refused by name
+    monkeypatch.setenv(model_calls.CORE_ENV, "")
     monkeypatch.setenv(model_calls.ENGINE_CORE_ENV, " ")
     with pytest.raises(RuntimeError, match="WICKED_CORE_EXE"):
         model_calls.core_bin()
 
 
 def test_a_scope_too_deep_to_decode_is_refused_not_raised(tmp_path, monkeypatch):
-    def deep(_):
+    def deep(*_a, **_k):
         raise RecursionError("maximum recursion depth exceeded")
     monkeypatch.setattr(run.json, "loads", deep)
     with pytest.raises(run.Refused, match="not JSON: RecursionError"):

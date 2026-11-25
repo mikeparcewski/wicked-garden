@@ -44,8 +44,9 @@ def configure(calls_dir):
 def core_bin():
     """The wicked-core this step's calls go through: ``WICKED_CORE_BIN`` (an operator override), else the engine's own
     binary, which the daemon hands an armed step as ``WICKED_CORE_EXE`` (core C1), else PATH."""
-    b = (os.environ.get(CORE_ENV) or "").strip() or (os.environ.get(ENGINE_CORE_ENV) or "").strip() \
-        or shutil.which("wicked-core")
+    # a blank value is unset; a value with text is taken verbatim (a path may end in a space)
+    given = [os.environ.get(k) or "" for k in (CORE_ENV, ENGINE_CORE_ENV)]
+    b = next((v for v in given if v.strip()), None) or shutil.which("wicked-core")
     if not b:
         raise RuntimeError("wicked-core is not resolvable (WICKED_CORE_BIN, WICKED_CORE_EXE or PATH): "
                            "no model call can run")

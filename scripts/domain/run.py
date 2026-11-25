@@ -57,9 +57,21 @@ def read_scope(path):
         raise Refused(f"the scope could not be read: {e}")
     if len(raw) > SCOPE_MAX_BYTES:
         raise Refused(f"the scope is over {SCOPE_MAX_BYTES} bytes")
+    def unique(pairs):
+        keys = [k for k, _ in pairs]
+        twice = sorted({k for k in keys if keys.count(k) > 1})
+        if twice:
+            raise ValueError(f"a key appears twice: {', '.join(twice)}")
+        return dict(pairs)
+
+    def no_constant(name):
+        raise ValueError(f"{name} is not JSON")
+
     try:
-        sc = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError, RecursionError) as e:
+        sc = json.loads(raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=no_constant)
+        # a lone surrogate (an escaped "\ud800") decodes, then fails the first time it is written out
+        json.dumps(sc, ensure_ascii=False).encode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError, ValueError, RecursionError) as e:
         raise Refused(f"the scope is not JSON: {type(e).__name__}: {e}")
     if not isinstance(sc, dict):
         raise Refused("the scope is not a JSON object")
