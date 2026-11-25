@@ -8,13 +8,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FastMCP, UserError } from "fastmcp";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { Session } from "../src/auth.js";
 import { loadConfig, SERVER_ROOT, type ServerConfig } from "../src/config.js";
 import { mountRestApi, openApiDocument, REST_BODY_MAX } from "../src/http-api.js";
 import { registerExampleTools } from "../src/tools/example.js";
 import { defineTool, RateLimited, toolCatalog } from "../src/tools/registry.js";
+import { instruments } from "../src/telemetry.js";
 
 const BEARER = "rest-api-test-bearer";
 const AUTH = { authorization: `Bearer ${BEARER}` };
@@ -345,6 +346,23 @@ describe("REST config", () => {
       expect(() => loadConfig({ PATH: process.env.PATH ?? "" }, dir)).toThrow(/rest\.basePath/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("telemetry (garden#1339)", () => {
+  it("every metric carries the surface, so REST and MCP calls are told apart", async () => {
+    const calls = vi.spyOn(instruments.calls, "add");
+    const duration = vi.spyOn(instruments.duration, "record");
+    try {
+      const { app, mcp } = boot(restConfig());
+      expect((await post(app, "/api/tools/echo", JSON.stringify({ text: "hi" }))).status).toBe(200);
+      await mcp.find((t) => t.name === "echo")!.execute({ text: "hi" }, mcpContext());
+      expect(calls.mock.calls.map(([, attrs]) => attrs?.["mcp.surface"])).toEqual(["rest", "mcp"]);
+      expect(duration.mock.calls.map(([, attrs]) => attrs?.["mcp.surface"])).toEqual(["rest", "mcp"]);
+    } finally {
+      calls.mockRestore();
+      duration.mockRestore();
     }
   });
 });

@@ -295,14 +295,15 @@ def test_rest_flag_turns_rest_on_and_keeps_the_stdio_transport(tmp_path):
     assert report["probe"] == json.loads(_scaffold_ts(tmp_path / "p2").stdout)["probe"].replace(
         str(tmp_path / "p2"), str(rest))
     block = report["rest"]
-    assert block["enabled"] is True and block["envNames"] == ["MCP_SERVER_BEARER"]
-    assert block["run"] == f'MCP_TRANSPORT=httpStream node "{rest / "dist" / "server.js"}"'
+    server = rest / "dist" / "server.js"
+    # no shell anywhere (coord round 2): argv + fixed env values + the NAMES the operator sets
+    assert block["enabled"] is True and block["argv"] == ["node", str(server)]
+    assert block["env"] == {"MCP_TRANSPORT": "httpStream"}
+    assert block["envNames"] == ["ACME_NOTES_TOKEN", "MCP_SERVER_BEARER"]
+    assert "run" not in block
     assert block["openapi"] == "http://127.0.0.1:8080/api/openapi.json"
-    assert len(block["smoke"]) == 2
-    for line in block["smoke"]:  # the bearer by NAME only
-        assert line.startswith('curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER"')
-    assert block["smoke"][0].endswith("/api/openapi.json")
-    assert block["smoke"][1].endswith("-d '{\"text\":\"hi\"}' http://127.0.0.1:8080/api/tools/echo")
+    assert block["smoke"] == f'wicked-garden run scripts/mcp/rest_smoke.py --env ACME_NOTES_TOKEN -- node "{server}"'
+    assert "curl" not in json.dumps(block) and "$" not in json.dumps(block)
 
 
 @pytest.mark.parametrize("lang", sorted(TEMPLATES))
@@ -319,6 +320,15 @@ def test_rest_flag_refuses_the_one_file_templates_before_writing(tmp_path, lang)
 def test_skill_and_template_readme_document_the_rest_option():
     skill = SKILL.read_text(encoding="utf-8")
     assert "[--rest]" in skill and "MCP-only stays the default" in skill
+    # the workflow passes --rest when the intent asks for REST, and a worker is sent to it, not to a hand-built layer
+    phases = skill.split("**The `mcp-server` workflow, phase by phase:**", 1)[1].split("## ", 1)[0]
+    scope = phases.split("- **scope**", 1)[1].split("- **source-discovery**", 1)[0]
+    build = phases.split("- **build**", 1)[1].split("- **install-plan / install**", 1)[0]
+    install = phases.split("- **install-plan / install**", 1)[1]
+    assert "REST" in scope and "--rest" in build and "restSmoke" in install
+    flat = " ".join(skill.split())
+    assert "A REST API with an OpenAPI document is `--rest` (step 1), not a layer to hand-build" in flat
+    assert "(an HTTP or REST surface" not in flat
     readme = (REPO / "skills" / "mcp-scaffold" / "assets" / "typescript" / "README.md").read_text(encoding="utf-8")
     assert "## REST API (optional)" in readme and "GET /api/openapi.json" in readme
 
@@ -334,7 +344,6 @@ def _rest_journey(npm: str, built: Path, out: Path) -> None:
     """The `--rest` journey (garden#1339): scaffold with --rest, build and run the project's own
     suite, then the report's run line on a free port and its two smoke calls (document, tool).
     It reuses `built`'s node_modules: the two projects differ only in mcp-server.config.json."""
-    import shlex
     import time
     import urllib.error
     import urllib.request
@@ -350,10 +359,8 @@ def _rest_journey(npm: str, built: Path, out: Path) -> None:
         done = subprocess.run([npm, *step], cwd=out, capture_output=True, text=True, timeout=600,
                               env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
         assert done.returncode == 0, (step, done.stdout[-4000:], done.stderr[-4000:])
-    # The report's run line itself: its leading VAR=value words are its environment.
-    words = shlex.split(report["run"])
-    run_env = dict(w.split("=", 1) for w in words if re.fullmatch(r"[A-Z_][A-Z0-9_]*=.*", w))
-    argv = [w for w in words if not re.fullmatch(r"[A-Z_][A-Z0-9_]*=.*", w)]
+    # The report's own argv and env (no shell).
+    run_env, argv = report["env"], report["argv"]
     assert run_env == {"MCP_TRANSPORT": "httpStream"} and argv == ["node", str(out / "dist" / "server.js")]
     port, bearer = _free_port(), "e2e-rest-bearer"  # ggignore: a made-up local test bearer
     env = {**os.environ, **run_env, "ACME_NOTES_TOKEN": "dummy", "MCP_PORT": str(port), "MCP_SERVER_BEARER": bearer}
@@ -370,22 +377,25 @@ def _rest_journey(npm: str, built: Path, out: Path) -> None:
             except (urllib.error.URLError, ConnectionError):
                 time.sleep(0.25)
         assert doc is not None and doc["openapi"] == "3.1.0" and "/tools/echo" in doc["paths"]
-        # The report's two smoke lines, run as printed (only the port differs), with the bearer
-        # in the environment by name.
-        answers = []
-        for line in report["smoke"]:
-            done = subprocess.run(["bash", "-c", line.replace(":8080/", f":{port}/")], capture_output=True,
-                                  text=True, timeout=30, env=env)
-            assert done.returncode == 0, (line, done.stderr[-2000:])
-            answers.append(json.loads(done.stdout))
-        assert answers[0] == doc
-        assert answers[1] == {"content": [{"type": "text", "text": "hi"}]}
+        # The example tool over REST with the bearer.
+        call = urllib.request.Request(openapi.replace("/openapi.json", "/tools/echo"), data=b'{"text":"hi"}',
+                                      headers={**auth, "content-type": "application/json"}, method="POST")
+        with urllib.request.urlopen(call, timeout=10) as r:
+            assert json.loads(r.read()) == {"content": [{"type": "text", "text": "hi"}]}
         with pytest.raises(urllib.error.HTTPError) as refused:
             urllib.request.urlopen(urllib.request.Request(openapi), timeout=5)
         assert refused.value.code == 401
     finally:
         child.kill()
         child.wait(timeout=10)
+    # The report's smoke, as install.py runs it: the launcher's `run scripts/mcp/rest_smoke.py ...` here is
+    # the script itself (its own server, free port and throwaway bearer).
+    assert report["smoke"].startswith("wicked-garden run scripts/mcp/rest_smoke.py --env ACME_NOTES_TOKEN -- node ")
+    done = subprocess.run([sys.executable, str(REPO / "scripts" / "mcp" / "rest_smoke.py"), "--env", "ACME_NOTES_TOKEN",
+                           "--", "node", str(out / "dist" / "server.js")], capture_output=True, text=True, timeout=120,
+                          env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
+    smoke = json.loads(done.stdout)
+    assert done.returncode == 0 and smoke["call"] == {"tool": "echo", "status": 400, "error": "invalid arguments"}, smoke
 
 
 def test_probe_passes_only_the_named_variable_and_reports_it_by_name(tmp_path, monkeypatch):
