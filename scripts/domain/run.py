@@ -59,8 +59,8 @@ def read_scope(path):
         raise Refused(f"the scope is over {SCOPE_MAX_BYTES} bytes")
     try:
         sc = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, ValueError) as e:
-        raise Refused(f"the scope is not JSON: {e}")
+    except (UnicodeDecodeError, ValueError, RecursionError) as e:
+        raise Refused(f"the scope is not JSON: {type(e).__name__}: {e}")
     if not isinstance(sc, dict):
         raise Refused("the scope is not a JSON object")
     extra = sorted(set(sc) - SCOPE_KEYS)
@@ -68,11 +68,12 @@ def read_scope(path):
         raise Refused(f"the scope has unknown keys: {', '.join(extra)}")
     if not isinstance(sc.get("intent"), str) or not sc["intent"].strip():
         raise Refused("the scope has no intent (a non-empty string)")
+    # a key that is present is checked whatever its value: `null` is not an absent key
     ph = sc.get("phrases")
-    if ph is not None and (not isinstance(ph, list) or not all(isinstance(p, str) and p.strip() for p in ph)):
+    if "phrases" in sc and (not isinstance(ph, list) or not all(isinstance(p, str) and p.strip() for p in ph)):
         raise Refused("the scope's phrases are not a list of non-empty strings")
     for k in ("scope_hash", "description"):
-        if sc.get(k) is not None and not isinstance(sc[k], str):
+        if k in sc and not isinstance(sc[k], str):
             raise Refused(f"the scope's {k} is not a string")
     return sc
 

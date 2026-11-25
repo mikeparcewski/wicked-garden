@@ -36,6 +36,11 @@ def test_a_well_formed_scope_is_read_whole(tmp_path):
     ({"intent": "x", "scope_hash": 5}, "scope_hash is not a string"),
     ({"intent": "x", "description": ["d"]}, "description is not a string"),
     ({"intent": "x", "repo": "/elsewhere"}, "unknown keys: repo"),
+    ({"intent": "x", "phrases": None}, "phrases are not a list"),
+    ({"intent": "x", "scope_hash": None}, "scope_hash is not a string"),
+    ({"intent": "x", "description": None}, "description is not a string"),
+    # deep nesting inside the size limit: a RecursionError on some interpreters, a list on others
+    (b"[" * 30000 + b"]" * 30000, "not JSON|not a JSON object"),
 ])
 def test_a_malformed_scope_is_refused_by_name(tmp_path, body, why):
     with pytest.raises(run.Refused, match=why):
@@ -73,3 +78,11 @@ def test_the_engines_binary_is_used_when_the_daemon_hands_it(monkeypatch, tmp_pa
     monkeypatch.setenv(model_calls.ENGINE_CORE_ENV, " ")
     with pytest.raises(RuntimeError, match="WICKED_CORE_EXE"):
         model_calls.core_bin()
+
+
+def test_a_scope_too_deep_to_decode_is_refused_not_raised(tmp_path, monkeypatch):
+    def deep(_):
+        raise RecursionError("maximum recursion depth exceeded")
+    monkeypatch.setattr(run.json, "loads", deep)
+    with pytest.raises(run.Refused, match="not JSON: RecursionError"):
+        run.read_scope(write(tmp_path, b"[]"))
