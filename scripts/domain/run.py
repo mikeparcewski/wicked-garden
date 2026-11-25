@@ -105,40 +105,59 @@ def _move_not_rule(n, moves):
     return dict(n, lines=r) if ok else None
 
 
-def rulings(prior, rec, sts, d):
-    """What a person ruled on this prior target that still applies (DES-C2 §8): only on unchanged code (``carry``), and
-    a statement ruling only on the statement it was made on (``store.live_ruling``). Returns the ids of the open
-    statements they confirmed (each carried as it stands, never checked again), the rejected ones with their text and
-    note (the target is extracted again), and whether they confirmed an unaccounted target's lines."""
-    if not rec or d != "carry":
+def _held(prior, rec):
+    """The rulings that applied to prior target ``rec`` as the last run left it: on its open statements, and on it."""
+    th = rec.get("target_hash")
+    out = [("statement", s.get("id"), store.live_ruling(prior, "statement", s.get("id"), th, s))
+           for s in rec.get("_statements") or [] if s.get("status") == "open"]
+    out.append(("target", rec.get("target"), store.live_ruling(prior, "target", rec.get("target"), th)))
+    return [(k, i, r) for k, i, r in out if r]
+
+
+def rulings(prior, rec, d, same_id):
+    """What a person ruled on this prior target that still applies (DES-C2 §8), the way core applies it: only on
+    unchanged code (``carry``) under the same target id (core finds a ruling by its subject's id), and a statement ruling
+    only on the open statement it was made on (``store.live_ruling``). Returns the open statements they confirmed (each
+    kept as it stands, never checked or stated again), the rejected ones with their text, key and note (the target is
+    extracted again), and whether they confirmed an unaccounted target's lines."""
+    if not rec or d != "carry" or not same_id:
         return set(), [], False
-    th, confirmed, rejected = rec.get("target_hash"), set(), []
-    for s in sts:
-        if s.get("status") != "open":
-            continue  # only an open statement takes a ruling
-        r = store.live_ruling(prior, "statement", s.get("id"), th, s)
-        if r and r["action"] == "confirm":
-            confirmed.add(s["id"])
-        elif r:
-            text = ((prior.get(store.RULE) or {}).get(s["id"]) or {}).get("statement")
-            rejected.append(dict(statement=text, note=r.get("note") or ""))
-    tr = store.live_ruling(prior, "target", rec.get("target"), th)
-    unaccounted = bool((rec.get("state") or {}).get("unaccounted"))
-    return confirmed, rejected, bool(tr and tr["action"] == "confirm" and unaccounted)
+    sts = {s.get("id"): s for s in rec.get("_statements") or []}
+    confirmed, rejected, target_confirmed = set(), [], False
+    for kind, i, r in _held(prior, rec):
+        if kind == "target":
+            target_confirmed = r["action"] == "confirm" and bool((rec.get("state") or {}).get("unaccounted"))
+        elif r["action"] == "confirm":
+            confirmed.add(i)
+        else:
+            text = ((prior.get(store.RULE) or {}).get(i) or {}).get("statement")
+            rejected.append(dict(statement=text, note=r.get("note") or "", key=store.statement_key(sts[i])))
+    return confirmed, rejected, target_confirmed
 
 
 def plan_reuse(repo, S, C, prior):
-    """Per target of ``S``: carry / revalidate / extract (``store.decide``), and what each brings."""
+    """Per target of ``S``: carry / revalidate / extract (``store.decide``), what each brings, and what the person's
+    rulings did (``ruled``: the confirmed statement ids, the confirmed targets, the rejected statements, and how many
+    rulings no longer apply)."""
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
+    ruled = dict(confirmed=set(), targets=set(), rejected=[], stale=0)
     ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
         rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
         d, moves = store.decide(repo, rec) if rec else ("extract", {})
         sts = rec["_statements"] if rec else []
         nrs = list(rec.get("not_rules") or []) if rec else []
-        confirmed, rejected, target_confirmed = rulings(prior, rec, sts, d)
+        confirmed, rejected, target_confirmed = rulings(prior, rec, d, bool(rec) and rec["target"] == t["id"])
+        ruled["confirmed"] |= confirmed
+        # the rulings that held on this target's last run (under its id, or the record it matched) and stop now: its
+        # code changed or it took a new id
+        mine = {r["target"]: r for r in (rec, by_prior["id"].get(t["id"])) if r}
+        live = len(_held(prior, rec)) if rec and d == "carry" and rec["target"] == t["id"] else 0
+        ruled["stale"] += sum(len(_held(prior, r)) for r in mine.values()) - live
+        if target_confirmed:
+            ruled["targets"].add(t["id"])
         if any((s.get("m_fail") or s.get("status1") is None and s.get("status") == "open") and s.get("id") not in confirmed
                for s in sts):
             d = "extract"  # a statement that failed the M checks is never sent to the checker as it stood
@@ -149,6 +168,7 @@ def plan_reuse(repo, S, C, prior):
         if rejected:
             d = "extract"  # a person said a statement is wrong: the writer states the lines again, with their note
             t["rejected"] = rejected
+            ruled["rejected"] += [dict(r, target=t["id"]) for r in rejected]
         if d == "carry" and not all(_settled(s) or s.get("id") in confirmed for s in sts):
             d, moves = "revalidate", None  # same code: no move; the unsettled ones are checked again
         if d == "revalidate":
@@ -166,11 +186,19 @@ def plan_reuse(repo, S, C, prior):
                 sts, nrs = moved, nmoved
         decision[t["id"]] = d
         if d == "extract":
+            # what a person confirmed stands, as it is and under its id, beside what the writer states again; the
+            # writer is told so (extract.person_section), and those lines count as stated (extract.check_target)
+            keep = [dict(s, target=t["id"], call=call_of[t["id"]]["id"]) for s in sts if s.get("id") in confirmed]
+            if keep:
+                t["confirmed"] = [dict(id=s["id"], anchor=s.get("anchor"), statement=(
+                    (prior.get(store.RULE) or {}).get(s["id"]) or {}).get("statement")) for s in keep]
+                carried.extend(keep)
+                used.add(rec["target"])
             continue
         used.add(rec["target"])
         if rec["target"] != t["id"]:
             # the same code under a new target id: its statements take ids of this target, so no id is shared with
-            # one a target of this run extracts
+            # one a target of this run extracts (no ruling applies here: core finds a ruling by the old id)
             sts = [dict(s, id=f"{t['id']}#{k}", was=s.get("id")) for k, s in enumerate(sts)]
             nrs = [dict(n, id=f"{t['id']}#nr{k}") for k, n in enumerate(nrs)]
         for s in sts:
@@ -179,7 +207,7 @@ def plan_reuse(repo, S, C, prior):
         pending.extend(s for s in sts if s.get("status") == "pending")
         not_rules.extend(dict(n, target=t["id"]) for n in nrs)
         states[t["id"]] = dict(rec.get("state") or {}, call=call_of[t["id"]]["id"])
-    return decision, carried, pending, not_rules, states
+    return decision, carried, pending, not_rules, states, ruled
 
 
 def extract_some(repo, S, C, tids):
@@ -248,10 +276,19 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     say(log, f"scope · {len(S['target_files'])} files · {len(S['targets'])} targets")
     C = batches.plan_batches(repo, S, os.path.join(out_dir, "batches"))
     prior = store.load_symbols(db, store.load(db))
-    decision, carried, pending, nrs, states = plan_reuse(repo, S, C, prior)
+    decision, carried, pending, nrs, states, ruled = plan_reuse(repo, S, C, prior)
     n = {d: sum(1 for v in decision.values() if v == d) for d in ("carry", "revalidate", "extract")}
     say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract")
+    if ruled["confirmed"] or ruled["targets"] or ruled["rejected"] or ruled["stale"]:
+        say(log, f"rulings · {len(ruled['confirmed'])} statements and {len(ruled['targets'])} targets confirmed · "
+                 f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
+                 f"(the code or the statement changed)")
     A = extract_some(repo, S, C, {t for t, d in decision.items() if d == "extract"})
+    # a rejected statement the writer stated again, word for word: said, so a re-run is not paid for blind
+    again = [r for r in ruled["rejected"] if any(s.get("target") == r["target"] and store.statement_key(s) == r["key"]
+                                                  for s in A["statements"])]
+    for r in again:
+        say(log, f"the writer stated a rejected statement again ({r['target']}): {r['note']}")
     for c in C["calls"]:
         if any(decision[t] == "extract" for t in c["targets"]):
             say(log, f"{c['id']} · read ✓")
@@ -287,10 +324,16 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
                                     lambda s: render(s, s.get("name")), uncited=uncited)
     run_id = os.environ.get("WICKED_RUN_ID") or os.path.basename(os.path.normpath(out_dir))
     own = store.run_row(repo, records, scope_in, S["scope_hash"], run_id, int(time.time()))
+    if own is None:
+        say(log, "the run's own record was not stored: no target of the scope has an estate node")
     report = write(db, rows + ([own] if own else []))
-    accounted = sum(1 for t in S["targets"] if not (R["targets"].get(t["id"]) or {}).get("unaccounted"))
+    # a person's confirm settles what it names (core's truth table): the counts say so
+    accounted = sum(1 for t in S["targets"]
+                    if not (R["targets"].get(t["id"]) or {}).get("unaccounted") or t["id"] in ruled["targets"])
     summary = dict(targets=len(S["targets"]), accounted=accounted, checked=sum(s["status"] == "Checked" for s in live),
-                   open=sum(s["status"] == "open" for s in live), groups=len(groups), withheld=withheld,
+                   open=sum(s["status"] == "open" and s.get("id") not in ruled["confirmed"] for s in live),
+                   confirmed=len(ruled["confirmed"]), rulings_stale=ruled["stale"],
+                   rejected_again=[r["target"] for r in again], groups=len(groups), withheld=withheld,
                    followups=len(fu), reuse=n, prose_reused=prose_reused, prose_counts=pcounts, uncited=uncited,
                    model_calls=made_calls(calls_dir), unplaced=unplaced, store=report, scope_hash=S["scope_hash"],
                    wall_s=round(time.time() - t0, 1))

@@ -338,16 +338,15 @@ def live_ruling(prior, subject, ident, target_hash, st=None):
 
 
 def run_row(repo, records, scope_in, scope_hash, run_id, at):
-    """The run's own record (DES-C2 F02): the scope it was asked, its hash and the run, on the scope's first target
-    node, one per scope (``domain_run:<scope hash>``), so a later model can say which scope it shows."""
-    if not records:
-        return None
-    sym = symbol_for(repo, records[0]["file"], records[0].get("anchor_symbol"))
+    """The run's own record (DES-C2 §8, F02): the scope it was asked, its hash, the run and when, as
+    ``domain_run:<run id>`` on the first target of the scope that has a node, so a later model can say which scope it
+    shows. ``None`` when no target has one."""
+    sym = next((x for x in (symbol_for(repo, r["file"], r.get("anchor_symbol")) for r in records) if x), None)
     if sym is None:
         return None
     scope = {k: scope_in[k] for k in ("intent", "phrases", "description") if k in scope_in}
     value = dict(scope=scope, scope_hash=scope_hash, run_id=run_id, at=at)
-    return dict(op="annotate", symbol=sym, key=f"{RUN}:{scope_hash}", value=json.dumps(value, sort_keys=True),
+    return dict(op="annotate", symbol=sym, key=f"{RUN}:{run_id}", value=json.dumps(value, sort_keys=True),
                 type=RUN, author=AUTHOR, replace=True)
 
 

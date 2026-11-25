@@ -7,11 +7,12 @@ whose ``statement_key`` it names. The keys core built for the mini-cobol run are
 """
 import json
 import os
+import sqlite3
 
-from domain import extract, model_calls, run, scope, store
+from domain import batches, extract, model_calls, run, scope, store
 from domain.followups import refusal_rows
 
-from .test_v3_store import PROG, FakeSeats, fake_write, make_repo
+from .test_v3_store import PROG, FakeSeats, edit, fake_write, make_repo
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures", "v3")
 EOF_TEXT = "the read reaches the end of `PAY-FILE`"
@@ -39,7 +40,7 @@ class RulingSeats(FakeSeats):
 
     def __init__(self, S):
         super().__init__(S)
-        self.prompts = []
+        self.prompts, self.checked = [], []
 
     def claude(self, step, cid, prompt, timeout=1500, role=None, **kw):
         self.prompts.append((step, prompt))
@@ -68,6 +69,7 @@ class RulingSeats(FakeSeats):
         out, rc = super().codex(step, cid, prompt, timeout, role)
         if not (step.startswith("check") or step.startswith("recheck")):
             return out, rc
+        self.checked.append(prompt)
         items = {json.loads(ln)["n"]: json.loads(ln) for ln in prompt.splitlines() if ln.startswith('{"n":')}
         j = json.loads(out)
         for r in j["results"]:
@@ -85,7 +87,7 @@ def first_run(tmp_path, monkeypatch):
     monkeypatch.setattr(model_calls, "codex", seats.codex)
     scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
     run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), log=lambda s: None, write=fake_write)
-    seats.n, seats.prompts = 0, []
+    seats.n, seats.prompts, seats.checked = 0, [], []
     return repo, S, seats, scope_in
 
 
@@ -123,6 +125,15 @@ def test_the_scenario_has_an_open_statement_an_m_failed_one_and_an_unaccounted_t
     assert second["reuse"]["extract"] == 2 and seats.n > 0
 
 
+def sent_to_writer(seats, target):
+    return [p for st, p in seats.prompts if st == "extract" and f'"target": "{target}"' in p]
+
+
+def section(prompt, banner):
+    tail = prompt.split(banner, 1)[1]
+    return json.JSONDecoder().raw_decode(tail[tail.index("\n["):].lstrip())[0]
+
+
 def test_a_confirmed_statement_is_carried_and_never_checked_again(tmp_path, monkeypatch):
     repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
     sid, bad = by_text(repo.db, "`PAY-AMOUNT` is set to zero")
@@ -131,30 +142,66 @@ def test_a_confirmed_statement_is_carried_and_never_checked_again(tmp_path, monk
          statement_key=store.statement_key(bad["contract"]), target_hash=read["target_hash"])
     second, _, _, _ = rerun(repo, scope_in, tmp_path)
     assert second["reuse"]["extract"] == 1, second["reuse"]  # MAIN-PARA only
-    assert all(f'"target": "{read["target"]}"' not in p for st, p in seats.prompts if st == "extract")
+    assert not sent_to_writer(seats, read["target"])
+    assert not any("is set to zero" in p for p in seats.checked), "a confirmed statement is never checked again"
     sid2, after = by_text(repo.db, "`PAY-AMOUNT` is set to zero")
-    assert sid2 == sid and store.statement_key(after["contract"]) == store.statement_key(bad["contract"])
+    assert sid2 == sid and after["contract"] == bad["contract"] and after["status"] == "open"
     assert after["target_hash"] == read["target_hash"], "core keeps applying the confirm"
+    assert second["confirmed"] == 1 and second["open"] == 1, second  # the EOF statement is still open
 
 
-def test_a_rejected_statement_sends_its_target_back_to_the_writer_with_the_note(tmp_path, monkeypatch):
+def test_a_rejected_statement_goes_back_to_the_writer_and_a_confirmed_sibling_stands(tmp_path, monkeypatch):
     repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
-    sid, eof = by_text(repo.db, EOF_TEXT)
     read = target_row(repo.db, "READ-PARA")
-    rule(repo.db, "statement", sid, "reject", read["anchor_symbol"], note="AT END covers the FD, not the record",
+    bid, bad = by_text(repo.db, "`PAY-AMOUNT` is set to zero")
+    rule(repo.db, "statement", bid, "confirm", read["anchor_symbol"],
+         statement_key=store.statement_key(bad["contract"]), target_hash=read["target_hash"])
+    # with only the confirm, READ-PARA would be carried: the reject alone sends it back
+    S0 = scope.build_scope(repo, "PAYCALC1")
+    C0 = batches.plan_batches(repo, S0, str(tmp_path / "b0"))
+    plan = run.plan_reuse(repo, S0, C0, store.load_symbols(repo.db, store.load(repo.db)))
+    assert plan[0][read["target"]] == "carry"
+    eid, eof = by_text(repo.db, EOF_TEXT)
+    rule(repo.db, "statement", eid, "reject", read["anchor_symbol"], note="AT END covers the FD, not the record",
          statement_key=store.statement_key(eof["contract"]), target_hash=read["target_hash"])
-    rerun(repo, scope_in, tmp_path)
-    sent = [p for st, p in seats.prompts if st == "extract" and f'"target": "{read["target"]}"' in p]
+    lines = []
+    second, _, _, _ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
+    sent = sent_to_writer(seats, read["target"])
     assert len(sent) == 1
-    tail = sent[0].split("=== REJECTED BY A PERSON ===", 1)[1]
-    assert json.loads(tail[tail.index("["):]) == [dict(target=read["target"], statement=eof["statement"],
-                                                       note="AT END covers the FD, not the record")]
+    assert section(sent[0], "=== REJECTED BY A PERSON ===") == [
+        dict(target=read["target"], statement=eof["statement"], note="AT END covers the FD, not the record")]
+    assert section(sent[0], "=== CONFIRMED BY A PERSON ===") == [
+        dict(target=read["target"], statement=bad["statement"], lines=bad["contract"]["anchor"]["lines"])]
+    # the confirmed one stands under its id; the writer's new statements take other ids
+    rules = store.load(repo.db)[store.RULE]
+    assert rules[bid]["contract"]["claims"] == bad["contract"]["claims"]
+    assert store.statement_key(rules[bid]["contract"]) == store.statement_key(bad["contract"])
+    assert len([k for k in rules if k.startswith(read["target"])]) == 4, sorted(rules)  # 3 restated + the confirmed
+    # the fake writer states the rejected statement again, word for word: the run says so
+    assert second["rejected_again"] == [read["target"]]
+    assert any(x.startswith("the writer stated a rejected statement again") for x in lines)
+    assert any(x.startswith("rulings · 1 statements and 0 targets confirmed · 1 rejected") for x in lines)
 
 
-def test_a_batch_with_no_reject_sends_the_frozen_prompt_unchanged(tmp_path, monkeypatch):
-    repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
-    rerun(repo, scope_in, tmp_path)
-    assert seats.prompts and not any(extract.REJECTED.strip() in p for _, p in seats.prompts)
+def test_a_batch_no_person_ruled_on_sends_the_frozen_prompt_as_it_was(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    C = batches.plan_batches(repo, S, str(tmp_path / "b"))
+    call = next(c for c in C["calls"] if any(t.endswith("#READ-PARA().") for t in c["targets"]))
+    tby = {t["id"]: t for t in S["targets"]}
+    sent = []
+    monkeypatch.setattr(model_calls, "claude", lambda step, cid, p, **kw: (sent.append(p), ("{}", 0))[1])
+    extract.extract_call(repo, tby, call)
+    ts = [tby[x] for x in call["targets"]]
+    with open(call["text_file"]) as fh:
+        frozen = extract.XP.replace("{{CARD}}", extract.card_for(call, ts)).replace("{{BATCH}}", fh.read()).replace(
+            "{{TARGETS}}", json.dumps([extract.tgt_json(t) for t in ts], indent=0))
+    assert sent[0] == frozen
+    t = next(t for t in ts if t["id"].endswith("#READ-PARA()."))
+    t["rejected"] = [dict(statement="S", note="N", key="k")]
+    sent.clear()
+    extract.extract_call(repo, tby, call)
+    assert sent[0] == frozen + extract.REJECTED + json.dumps([dict(target=t["id"], statement="S", note="N")], indent=0)
 
 
 def test_a_confirmed_unaccounted_target_is_not_asked_again(tmp_path, monkeypatch):
@@ -176,20 +223,50 @@ def test_a_ruling_that_no_longer_matches_is_ignored(tmp_path, monkeypatch):
     rule(repo.db, "target", main["target"], "confirm", main["anchor_symbol"], target_hash="0" * 64)
     second, _, _, _ = rerun(repo, scope_in, tmp_path)
     assert second["reuse"]["extract"] == 2, "a ruling on another statement or other code changes nothing"
+    assert second["rulings_stale"] == 0, "it never applied, so it did not stop applying"
+
+
+def test_a_ruling_on_code_that_changed_stops_applying_and_the_run_says_so(tmp_path, monkeypatch):
+    repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
+    sid, bad = by_text(repo.db, "`PAY-AMOUNT` is set to zero")
+    read = target_row(repo.db, "READ-PARA")
+    rule(repo.db, "statement", sid, "confirm", read["anchor_symbol"],
+         statement_key=store.statement_key(bad["contract"]), target_hash=read["target_hash"])
+    edit(repo, PROG, lambda L: L[:23] + [L[23].replace(b"> 40", b"> 45")] + L[24:])
+    lines = []
+    unpinned = {k: v for k, v in scope_in.items() if k != "scope_hash"}  # the edit moved the scope's hash
+    second, _, _, _ = run.run(repo.root, repo.db, unpinned, str(tmp_path / "run2"), log=lines.append, write=fake_write)
+    assert second["rulings_stale"] == 1 and second["confirmed"] == 0
+    assert any("1 no longer apply" in x for x in lines)
+
+
+def test_the_counts_follow_what_a_person_confirmed(tmp_path, monkeypatch):
+    repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
+    read, main = target_row(repo.db, "READ-PARA"), target_row(repo.db, "MAIN-PARA")
+    for text in (EOF_TEXT, "`PAY-AMOUNT` is set to zero"):
+        sid, v = by_text(repo.db, text)
+        rule(repo.db, "statement", sid, "confirm", read["anchor_symbol"],
+             statement_key=store.statement_key(v["contract"]), target_hash=read["target_hash"])
+    rule(repo.db, "target", main["target"], "confirm", main["anchor_symbol"], target_hash=main["target_hash"])
+    second, _, _, _ = rerun(repo, scope_in, tmp_path)
+    assert seats.n == 0 and second["reuse"]["extract"] == 0
+    assert (second["open"], second["confirmed"], second["accounted"]) == (0, 2, second["targets"]), second
 
 
 def test_each_run_records_its_scope(tmp_path, monkeypatch):
     repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
     monkeypatch.setenv("WICKED_RUN_ID", "run-42")
     rerun(repo, scope_in, tmp_path)
-    import sqlite3
+    monkeypatch.delenv("WICKED_RUN_ID")
+    rerun(repo, scope_in, tmp_path, name="run3")
     con = sqlite3.connect(repo.db)
-    rows = con.execute("select key, value from annotations where type = ?", (store.RUN,)).fetchall()
+    rows = dict(con.execute("select key, value from annotations where type = ?", (store.RUN,)).fetchall())
     con.close()
-    assert [k for k, _ in rows] == [f"{store.RUN}:{S['scope_hash']}"], "one row per scope, replaced by each run"
-    v = json.loads(rows[0][1])
+    assert set(rows) == {f"{store.RUN}:run1", f"{store.RUN}:run-42", f"{store.RUN}:run3"}, "one record per run"
+    v = json.loads(rows[f"{store.RUN}:run-42"])
     assert v["scope"] == dict(intent="PAYCALC1", description="payroll") and v["scope_hash"] == S["scope_hash"]
     assert v["run_id"] == "run-42" and isinstance(v["at"], int)
+    assert store.run_row(repo, [dict(file="no/such.file")], {}, "h", "r", 0) is None
 
 
 def test_the_refused_row_says_what_a_confirm_means():

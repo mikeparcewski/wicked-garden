@@ -10,6 +10,7 @@ call runs the signed-in seat as the daemon launches it (the proof's largest extr
 """
 import collections
 import concurrent.futures as cf
+import itertools
 import json
 import os
 import re
@@ -42,6 +43,22 @@ WHEN OTHER EVALUATE SET DISPLAY CALL USING READ WRITE REWRITE OPEN CLOSE INPUT O
 GO COMPUTE ADD SUBTRACT MULTIPLY DIVIDE ROUNDED ZERO ZEROS ZEROES SPACE SPACES HIGH-VALUES LOW-VALUES EQUAL GREATER LESS THAN
 EXIT GOBACK STOP RUN CONTINUE INITIALIZE STRING DELIMITED SIZE ON ERROR EXEC END-EXEC PGM DD DSN DISP SORT FIELDS INCLUDE COND
 RECORD FILE STATUS CEE3ABD WITH TEST BEFORE AFTER ALSO NUMERIC ALPHABETIC REPLACING ALL LEADING TRAILING INSPECT TALLYING FOR""".split())
+CONFIRMED = ("\n\n=== CONFIRMED BY A PERSON ===\nA person confirmed these statements of the targets above. They stand as "
+             "they are and account for their anchor lines: do not state them again.\n")
+
+
+def person_section(ts):
+    """What a person ruled on these targets (``run.rulings``), for the writer: the statements they rejected, with their
+    note, and the ones they confirmed. Empty when they ruled on none, so such a batch sends the frozen prompt as is."""
+    rej = [dict(target=t["id"], statement=r["statement"], note=r["note"]) for t in ts for r in t.get("rejected") or []]
+    con = [dict(target=t["id"], statement=c["statement"], lines=(c.get("anchor") or {}).get("lines"))
+           for t in ts for c in t.get("confirmed") or []]
+    out = ""
+    if rej:
+        out += REJECTED + json.dumps(rej, indent=0, ensure_ascii=False)
+    if con:
+        out += CONFIRMED + json.dumps(con, indent=0, ensure_ascii=False)
+    return out
 
 
 def is_cobol(f):
@@ -197,7 +214,7 @@ def check_target(repo, tout, t, call):
     # Every model-supplied range is cut to the file before it is expanded: only the file's code lines count, and a
     # range such as [1, 10**12] must not exhaust the host before it is refused.
     nlines = len(lib.flines(repo, t["file"]) or [])
-    for st in keep:
+    for st in keep + list(t.get("confirmed") or []):  # a statement a person confirmed accounts for its lines too
         an = st.get("anchor") or {}
         ln = an.get("lines")
         if an.get("file") == t["file"] and isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) for x in ln):
@@ -250,11 +267,7 @@ def extract_call(repo, tby, call):
     with open(call["text_file"]) as fh:
         batch = fh.read()
     p = XP.replace("{{CARD}}", card_for(call, ts)).replace("{{BATCH}}", batch).replace("{{TARGETS}}", json.dumps([tgt_json(t) for t in ts], indent=0))
-    rej = [dict(target=t["id"], statement=r["statement"], note=r["note"]) for t in ts for r in t.get("rejected") or []]
-    if rej:
-        # a person rejected a statement of this batch (run.rulings): the writer reads what and why. A batch with none
-        # sends the frozen prompt unchanged.
-        p += REJECTED + json.dumps(rej, indent=0, ensure_ascii=False)
+    p += person_section(ts)
     out, rc = calls.claude("extract", call["id"], p, timeout=2400, max_output_tokens=calls.WRITER_MAX_OUTPUT)
     if not calls.answered(out, rc):
         raise calls.CallFailed(f"the writer's extract call {call['id']} did not answer (exit {rc}); nothing was stored")
@@ -299,8 +312,11 @@ def extract_all(repo, S, C, workers=6):
         for tid in call["targets"]:
             t, r = tby[tid], tres[tid]
             tstate[tid] = dict(call=call["id"], unaccounted=bool(r["tfails"]), tfails=r["tfails"])
+            # a confirmed statement kept beside the new ones keeps its id (run.plan_reuse): new ids skip it
+            taken = {c.get("id") for c in t.get("confirmed") or []}
+            free = (f"{tid}#{k}" for k in itertools.count() if f"{tid}#{k}" not in taken)
             for k, st in enumerate(r["statements"]):
-                st.update(id=f"{tid}#{k}", target=tid, call=call["id"], m_fail=r["fails"].get(k) or [], kind="rule", name=t.get("anchor_name"))
+                st.update(id=next(free), target=tid, call=call["id"], m_fail=r["fails"].get(k) or [], kind="rule", name=t.get("anchor_name"))
                 st["status"] = "open" if st["m_fail"] else "pending"
                 statements.append(st)
             for k, n in enumerate(r["not_rules"]):
