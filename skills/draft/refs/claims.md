@@ -33,12 +33,22 @@ it against that element's own text — its inline children included, a sibling's
 | the element with the text | that element's text |
 | an inline wrapper (`<b>`, `<span>`) around it | the wrapper's text |
 | the enclosing block (`<li>`, `<p>`) | the whole block's text |
-| an ancestor above the block (`<section>`) | nothing — inherited, path existence only |
+| an ancestor above the block (`<section>`) | inherited: the line must exist; when the block has no citation of its own, each of its figures must be on one of the inherited lines, or in a file an ancestor cites whole (word overlap is not checked) |
 | path-only, no `:N` | nothing — provenance, path existence only |
 
 Two `<span>`s in one `<li>`, each with its own `data-source`, are therefore two separate claims:
 the first one's text cannot satisfy the second one's citation. Put the citation on the element
 whose text it proves.
+
+**The figure is the claim.** Every number the cited text claims must be on the cited line(s),
+with its unit when it has one: `80%` on the line never verifies `99%`, and `80 ms` never verifies
+`80 s`, `-80%` never verifies `80%`, and `80 MB` (bytes) never verifies `80 Mb` (bits).
+Spellings that mean the same pass (`94 percent` = `94%`, `1,200` = `1200`, `80.0` = `80`,
+`80ms` = `80 ms` = `80 milliseconds`, `2 GB` = `2 gigabytes`). Units the scan knows: `%`, `x`,
+ns/µs/ms/s/min/h/d/week in their usual spellings, `k`, million, billion, and kB…PB / KiB…PiB /
+kb…Pb; a number with any other word after it is checked as a bare value. Dates, step numbers,
+hidden text and footnote markers (`[3]`, `<sup>1</sup>`) are not figures; a bare year is. Cite the
+line that states the figure, or write the figure the way the source states it.
 
 A citation passes only when the cited text shares a **content** word with the claim — an overlap
 of common words alone ("the", "is", "under") verifies nothing and is reported. A range

@@ -329,8 +329,8 @@ def test_a_manifest_swapped_between_locate_and_staging_never_lands(tmp_path, mon
     root = tmp_path / "editors"
     real_stage = install.stage
 
-    def racing_stage(src, manifest, next_dir):
-        copied = real_stage(src, manifest, next_dir)
+    def racing_stage(src, manifest, next_dir, *inventory):
+        copied = real_stage(src, manifest, next_dir, *inventory)
         other = dict(manifest, name="acme-other")
         (next_dir / "wicked-pack.json").write_text(json.dumps(other))
         return copied

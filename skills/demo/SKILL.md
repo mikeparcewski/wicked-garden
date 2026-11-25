@@ -120,7 +120,10 @@ Use the templates in `refs/templates.md`:
 - The **segment block template** covers each chapter (case, click, say, audience sees, under the hood,
   speed-up, rough-edge note).
 
-Style: skimmable. Tables and short bullets, exact UI labels in **bold**, quotes in *italics*, one idea per line.
+Style: the document is skimmable (tables and short bullets, exact UI labels in **bold**, quotes in *italics*). The
+**Say** lines are written to be spoken: talk to the audience as you would to a colleague at your desk ("you", "we",
+contractions, the why before the what), never in slogans or with the product as the subject of every sentence. Voice
+rules, the patterns to avoid and the read-aloud check: `refs/storytelling.md` ("Captions and voice").
 
 ### 8. Keep it in sync, then hand off to record
 
@@ -157,6 +160,7 @@ Use `"in": "content"` only when the probe's `result.json` says `"recorded_view":
 - [ ] Per-case reset and fresh/used listing work; pre-flight written
 - [ ] Every chapter rehearsed live; timings and audience-visible results logged; rough edges triaged
 - [ ] Script written from the template; measured vs estimate labelled everywhere
+- [ ] Every Say line, caption and narration line read aloud and rewritten until it sounds like a person talking
 - [ ] Cases reset and confirmed fresh after rehearsal
 - [ ] Chapter list ready for recording (keys, titles, blurbs, tags, resets)
 

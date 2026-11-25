@@ -142,7 +142,9 @@ A `Kind:` line with no row here: follow the floors alone and say so in `notes.js
   lists: `{"left_out": [{"claim": "…", "why": "…"}], "sources": [{"token": "run:…", "used": true}],
   "assumptions": ["…"]}`. Nothing else goes in it. A claim nothing supports is left out of the
   document and listed there.
-- **Speaker notes are a talk track**, the words a presenter says — never process notes.
+- **Speaker notes are a talk track**: what the presenter says out loud over that slide, in a person's voice ("you",
+  "we", contractions, the why before the what), never process notes, a stage direction or the slide read back. Voice
+  rules, before/after pairs and the read-aloud check: `refs/spoken-voice.md`.
 - The document says what the subject is ("the domain-coverage skill pages through 500 units"),
   never how it was made ("I used SearchEntity", "the brief asks for…", "page count UNVERIFIED").
 

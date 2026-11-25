@@ -39,16 +39,41 @@ For every chapter write:
 
 ## Captions and voice
 
-Captions (and presenter lines) follow the same pattern:
+Write captions and presenter lines the way you'd talk to a colleague while showing them your screen.
 
-- **Kicker**: 1-3 words naming the beat ("Result", "Governance", "Upload").
-- **Title**: one plain sentence, the takeaway ("Nothing needs attention: the unit actions reconcile").
-- **Body**: optional, one or two lines of why or how; emphasise the key phrase.
+A caption has three parts:
 
-Rules:
+- **Kicker**: 1-3 words naming the beat ("Result", "Search", "Upload"). A label, not a sentence.
+- **Title**: one short line a person would actually say about this screen ("Here's what needs you first").
+- **Body**: optional, one or two lines on why it matters or what to look at; emphasise the key phrase.
 
-- Say what the audience should notice, in their words, not the UI's internals. No internal keys or code names.
-- Present tense, active voice, short sentences. One idea per caption.
+How a person talks:
+
+- Talk to the viewer ("you", "we", "I"), or about the person in the story by name. Use contractions
+  ("it's", "you'll", "we've").
+- Say why before what: the reason or the problem first, then the click.
+- Connect the beats: "so", "now", "here's where it gets useful", "and that's the point".
+- Vary sentence length. A short one lands. A longer one carries the explanation that goes with it.
+- Talk about what the viewer can do or notice, not what the system "reads", "processes" or "reconciles". When the
+  product has to be the subject, keep the verb plain ("it checks each row against the ledger").
+- Use the audience's words and the UI's labels. No internal keys or code names.
+
+Avoid these patterns:
+
+| Pattern | Before | After |
+|---|---|---|
+| "X, not Y" slogan | "The day starts ranked, not read" | "Here's what needs you first" |
+| Colon-takeaway headline | "Nothing needs attention: the unit actions reconcile" | "Nothing needs you here. The unit actions all match." |
+| Noun stack or fragment | "Month-end, one click" | "Now let's build the month-end report" |
+| System as subject | "The job reads the ledger, reconciles it and drafts the summary." | "It has to match the ledger, so the draft you get is already checked against it." |
+| Filler ("seamlessly", "leverage", "robust", "tailored", "effortlessly") | "Suggested questions are tailored to the record." | "You don't start from a blank box. These questions are about this exact request." |
+
+**Read-aloud check.** Say every caption title and body, Say line and narration line out loud at talking speed. If
+you'd stumble, run out of breath, or never say it to someone sitting next to you, rewrite it. Titles stay short;
+short isn't the same as a slogan.
+
+Timing:
+
 - The caption changes **with** the picture, not after it: introduce the next screen just before navigating to it.
 - Give readers time: roughly 40 ms per character, 2.5 s minimum.
 
