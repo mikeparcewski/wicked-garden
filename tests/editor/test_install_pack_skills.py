@@ -434,7 +434,7 @@ def test_a_register_timeout_reports_an_unknown_outcome_and_keeps_the_staged_copy
     assert out.get("outcome") == "unknown", out
     assert "nothing was installed" not in out["error"] and "did not answer" in out["error"], out["error"]
     assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file(), "the staged copy stays in place"
-    assert json.loads((root / "acme-terms" / "pending.json").read_text(encoding="utf-8"))["had_previous"] is False
+    assert (root / "acme-terms" / "pending.json").is_file(), "the next install knows current/ was never confirmed"
 
 
 def test_an_unreachable_daemon_still_reports_nothing_installed(tmp_path, sample, monkeypatch, capsys):
@@ -525,90 +525,139 @@ def test_a_cut_response_body_reports_an_unknown_outcome(tmp_path, sample, monkey
     assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file()
 
 
-# The registry row crew lists for an installed editor: crew EditorRegistry.view (packages/crew/src/editors/registry.ts,
-# the editor branch of ``static view``), served by ``GET /api/v1/editors`` as ``{editors, installs}`` (routes.ts).
-def _view_row(manifest: dict) -> dict:
-    e = manifest["editors"][0]
-    return {"id": e["id"], "title": e["title"], "version": e["version"], "protocol": e["protocol"], "kinds": e["kinds"],
-            "sizes": e["sizes"], "permissions": [{"id": p["id"], "why": p["why"]} for p in e["permissions"]],
-            "sha256": e["sha256"], "bytes": 1234, "first_party": False, "enabled": True, "source": "pack",
-            "entry_url": f"/api/v1/editors/{e['id']}/{e['version']}/entry"}
-
-
-def _bump(sample: Path, version: str) -> dict:
+def _bump(sample: Path, version: str, editor_id: str = "acme-terms") -> dict:
     manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
     manifest["version"] = version
     manifest["editors"][0]["version"] = version
+    manifest["editors"][0]["id"] = editor_id
     (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     return manifest
 
 
-def _unknown_update(mod, sample: Path, root: Path, monkeypatch, capsys) -> tuple[dict, dict]:
-    """Install A, then time out on B: current/ = B, previous/ = A, pending.json written."""
+def _main(mod, sample: Path, root: Path, d: FakeDaemon, capsys, *extra: str) -> tuple[int, dict]:
+    code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json", *extra])
+    return code, json.loads(capsys.readouterr().out)
+
+
+def _unanswered(mod, sample: Path, root: Path, monkeypatch, capsys, *, first: bool = False) -> None:
+    """Install A (unless ``first``), then B (0.2.0) whose register call times out: current/ = B, previous/ = A."""
     for var in ROOT_VARS:
         monkeypatch.delenv(var, raising=False)
-    a = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
-    with FakeDaemon() as d:
-        d.routes[("POST", "/api/v1/editors")] = OK
-        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 0
-    capsys.readouterr()
-    b = _bump(sample, "0.2.0")
+    if not first:
+        with FakeDaemon() as d:
+            d.routes[("POST", "/api/v1/editors")] = OK
+            assert _main(mod, sample, root, d, capsys)[0] == 0
+    _bump(sample, "0.2.0")
     monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
     release = __import__("threading").Event()
     with FakeDaemon() as d:
         d.routes[("POST", "/api/v1/editors")] = lambda _req: (release.wait(10), OK)[1]
         try:
-            assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 1
+            code, out = _main(mod, sample, root, d, capsys)
         finally:
             release.set()
-    out = json.loads(capsys.readouterr().out)
-    assert out["outcome"] == "unknown" and json.loads((root / "acme-terms" / "pending.json").read_text())["had_previous"]
+    assert code == 1 and out["outcome"] == "unknown", out
     monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 30)
-    return a, b
 
 
 def _version(path: Path) -> str:
     return json.loads((path / "wicked-pack.json").read_text(encoding="utf-8"))["version"]
 
 
-def test_after_an_unknown_update_crew_kept_the_old_copy_so_it_is_put_back_and_kept(tmp_path, sample, monkeypatch, capsys):
-    """codex r1: a retry after an unknown update must not rotate the last copy crew registered away."""
+REFUSED = (422, {"error": "conformance failed", "code": "conformance"})
+
+
+def test_a_refused_retry_after_an_unanswered_update_restores_the_last_confirmed_copy(tmp_path, sample, monkeypatch,
+                                                                                     capsys):
+    """codex r1: a retry used to rotate the unconfirmed copy into previous/, deleting A, the last copy crew
+    confirmed; a refusal then restored the unconfirmed one."""
     mod = _module()
     root = tmp_path / "root"
-    a, _b = _unknown_update(mod, sample, root, monkeypatch, capsys)
-    monkeypatch.setattr(mod, "PENDING_GRACE_S", 0)
+    _unanswered(mod, sample, root, monkeypatch, capsys)
+    _bump(sample, "0.3.0")
     with FakeDaemon() as d:
-        d.routes[("GET", "/api/v1/editors")] = (200, {"editors": [_view_row(a)], "installs": "conformance_required"})
+        d.routes[("POST", "/api/v1/editors")] = REFUSED
+        code, out = _main(mod, sample, root, d, capsys)
+    assert code == 1 and "refused" in out["error"]
+    assert _version(root / "acme-terms" / "current") == "0.1.0", "A, the last confirmed copy, is back"
+    assert not (root / "acme-terms" / "previous").exists() and not (root / "acme-terms" / "pending.json").exists()
+
+
+def test_an_installed_retry_after_an_unanswered_update_keeps_the_confirmed_copy_as_the_roll_back(tmp_path, sample,
+                                                                                                monkeypatch, capsys):
+    mod = _module()
+    root = tmp_path / "root"
+    _unanswered(mod, sample, root, monkeypatch, capsys)
+    with FakeDaemon() as d:
         d.routes[("POST", "/api/v1/editors")] = OK
-        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 0
-    out = json.loads(capsys.readouterr().out)
-    assert out["settled"] == "restored"
-    assert _version(root / "acme-terms" / "previous") == "0.1.0", "A, the copy crew still had, is the roll-back"
+        assert _main(mod, sample, root, d, capsys)[0] == 0
     assert _version(root / "acme-terms" / "current") == "0.2.0"
+    assert _version(root / "acme-terms" / "previous") == "0.1.0", "not the unconfirmed 0.2.0 copy"
     assert not (root / "acme-terms" / "pending.json").exists()
 
 
-def test_after_an_unknown_update_crew_registered_the_new_copy_so_it_stays(tmp_path, sample, monkeypatch, capsys):
+def test_a_refused_retry_after_an_unanswered_first_install_leaves_nothing(tmp_path, sample, monkeypatch, capsys):
     mod = _module()
     root = tmp_path / "root"
-    _a, b = _unknown_update(mod, sample, root, monkeypatch, capsys)
+    _unanswered(mod, sample, root, monkeypatch, capsys, first=True)
     with FakeDaemon() as d:
-        d.routes[("GET", "/api/v1/editors")] = (200, {"editors": [_view_row(b)], "installs": "conformance_required"})
+        d.routes[("POST", "/api/v1/editors")] = REFUSED
+        assert _main(mod, sample, root, d, capsys)[0] == 1
+    assert not (root / "acme-terms" / "current").exists() and not (root / "acme-terms" / "previous").exists()
+    assert not (root / "acme-terms" / "pending.json").exists()
+
+
+def test_a_marker_that_cannot_be_written_stops_the_install_before_crew_is_asked(tmp_path, sample, monkeypatch,
+                                                                               capsys):
+    """codex r2: the intent is written before the register call; if it cannot be, nothing is sent."""
+    mod = _module()
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    root = tmp_path / "root"
+    with FakeDaemon() as d:
         d.routes[("POST", "/api/v1/editors")] = OK
-        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["settled"] == "registered"
-    assert _version(root / "acme-terms" / "previous") == "0.2.0"
+        assert _main(mod, sample, root, d, capsys)[0] == 0
+        real_write = Path.write_text
+
+        def failing(self, *args, **kwargs):
+            if self.name == "pending.json":
+                raise OSError(28, "No space left on device")
+            return real_write(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", failing)
+        _bump(sample, "0.2.0")
+        d.requests.clear()
+        code, out = _main(mod, sample, root, d, capsys)
+        assert d.requests == [], "crew is never asked"
+    assert code == 1 and "nothing was installed" in out["error"]
+    assert _version(root / "acme-terms" / "current") == "0.1.0"
 
 
-def test_inside_the_grace_an_unsettled_install_refuses_and_changes_nothing(tmp_path, sample, monkeypatch, capsys):
+def test_uninstall_after_an_unanswered_update_removes_both_copies_ids(tmp_path, sample, monkeypatch, capsys):
+    """codex r2: B renamed an editor id A still has registered; uninstall withdraws both."""
     mod = _module()
     root = tmp_path / "root"
-    a, _b = _unknown_update(mod, sample, root, monkeypatch, capsys)
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
     with FakeDaemon() as d:
-        d.routes[("GET", "/api/v1/editors")] = (200, {"editors": [_view_row(a)], "installs": "conformance_required"})
-        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 1
-        assert [r["method"] for r in d.requests] == ["GET"], "nothing is sent to crew"
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert _main(mod, sample, root, d, capsys)[0] == 0
+    _bump(sample, "0.2.0", editor_id="acme-terms-two")
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
+    release = __import__("threading").Event()
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = lambda _req: (release.wait(10), OK)[1]
+        try:
+            assert _main(mod, sample, root, d, capsys)[0] == 1
+        finally:
+            release.set()
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 30)
+    with FakeDaemon() as d:
+        d.routes[("DELETE", "/api/v1/editors/acme-terms")] = (200, {"removed": True})
+        d.routes[("DELETE", "/api/v1/editors/acme-terms-two")] = (404, {"error": "no editor"})
+        code = mod.main(["--uninstall", "acme-terms", "--install-root", str(root), "--crew-url", d.origin, "--json"])
+        deleted = sorted(r["path"] for r in d.requests if r["method"] == "DELETE")
     out = json.loads(capsys.readouterr().out)
-    assert out["outcome"] == "unknown" and "may still be installing" in out["error"]
-    assert _version(root / "acme-terms" / "current") == "0.2.0" and _version(root / "acme-terms" / "previous") == "0.1.0"
-    assert (root / "acme-terms" / "pending.json").exists()
+    assert code == 0 and deleted == ["/api/v1/editors/acme-terms", "/api/v1/editors/acme-terms-two"], deleted
+    assert out["registry"] == {"acme-terms-two": "absent", "acme-terms": "removed"}
+    assert not (root / "acme-terms").exists()
