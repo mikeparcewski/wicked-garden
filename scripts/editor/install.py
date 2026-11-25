@@ -338,7 +338,7 @@ def pack_inventory(pack: Path, manifest: dict) -> Inventory:
             held[rel_top] = _read_plain(root, rel_top)
         if held:
             if not SKILL_DIR_RE.fullmatch(name):  # fullmatch: ``$`` alone would let a trailing newline through
-                raise PackError(f"{rel_top!r}: crew installs each entry under {skills_dir} (a skill directory or a "
+                raise PackError(f"{skills_dir} entry {name!r}: crew installs each entry (a skill directory or a "
                                 "loose file) as wicked-garden-<name>, so its name must be only [A-Za-z0-9_-]; rename "
                                 "it, or move it out of the skills tree")
             files.update(held)
