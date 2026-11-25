@@ -434,6 +434,7 @@ def test_a_register_timeout_reports_an_unknown_outcome_and_keeps_the_staged_copy
     assert out.get("outcome") == "unknown", out
     assert "nothing was installed" not in out["error"] and "did not answer" in out["error"], out["error"]
     assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file(), "the staged copy stays in place"
+    assert json.loads((root / "acme-terms" / "pending.json").read_text(encoding="utf-8"))["had_previous"] is False
 
 
 def test_an_unreachable_daemon_still_reports_nothing_installed(tmp_path, sample, monkeypatch, capsys):
@@ -447,3 +448,167 @@ def test_an_unreachable_daemon_still_reports_nothing_installed(tmp_path, sample,
     out = json.loads(capsys.readouterr().out)
     assert code == 1 and "nothing was installed" in out["error"] and "outcome" not in out
     assert not (root / "acme-terms" / "current").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a newline in a file name is POSIX-only")
+def test_a_skill_dir_with_a_trailing_newline_refuses_the_plan(tmp_path, sample):
+    """Python's ``$`` matches before a final newline; crew's JS charset test does not (codex r1)."""
+    (sample / "skills" / "acme-extra\n").mkdir()
+    (sample / "skills" / "acme-extra\n" / "SKILL.md").write_text("---\nname: x\n---\nbody\n", encoding="utf-8")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "[A-Za-z0-9_-]" in done.stderr, done.stdout + done.stderr
+
+
+def test_an_empty_dir_with_a_name_crew_cannot_take_is_ignored_like_any_empty_dir(tmp_path, sample):
+    """crew never sees an empty directory (it is not staged), so its name cannot refuse the install (codex r1)."""
+    (sample / "skills" / "old.notes").mkdir()
+    with FakeDaemon() as d:
+        plan = _plan(sample, tmp_path / "root", d.origin)
+    assert [s["dir"] for s in plan["skills"]] == ["acme-terms", "acme-terms-checker"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+@pytest.mark.parametrize("dangling", [False, True])
+def test_a_linked_parent_of_skills_dir_refuses_even_when_the_leaf_is_missing(tmp_path, sample, dangling):
+    """``skills_dir: linked/skills`` with ``linked`` a link whose target has no ``skills`` (or no target at all) is a
+    redirected tree, not a pack without skills (codex r1)."""
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["skills_dir"] = "linked/skills"
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    target = tmp_path / "elsewhere"
+    if not dangling:
+        target.mkdir()
+    (sample / "linked").symlink_to(target, target_is_directory=True)
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "link" in done.stderr, done.stdout + done.stderr
+
+
+def test_a_cut_response_body_reports_an_unknown_outcome(tmp_path, sample, monkeypatch, capsys):
+    """crew committed, sent its headers, then went away mid-body: http.client.IncompleteRead is not an OSError,
+    and it must not escape as a traceback (codex r1)."""
+    import socket
+    import threading
+    mod = _module()
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+
+    def answer_half():
+        conn, _ = server.accept()
+        with conn:
+            data = b""
+            while b"\r\n\r\n" not in data:
+                data += conn.recv(65536)
+            head, _, rest = data.partition(b"\r\n\r\n")
+            length = int(next(line.split(b":")[1] for line in head.split(b"\r\n") if line.lower().startswith(b"content-length")))
+            while len(rest) < length:
+                rest += conn.recv(65536)
+            conn.sendall(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 200\r\n\r\n{\"installed\": tr")
+
+    worker = threading.Thread(target=answer_half, daemon=True)
+    worker.start()
+    root = tmp_path / "root"
+    try:
+        code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url",
+                         f"http://127.0.0.1:{server.getsockname()[1]}", "--json"])
+    finally:
+        worker.join(5)
+        server.close()
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and out.get("outcome") == "unknown", out
+    assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file()
+
+
+# The registry row crew lists for an installed editor: crew EditorRegistry.view (packages/crew/src/editors/registry.ts,
+# the editor branch of ``static view``), served by ``GET /api/v1/editors`` as ``{editors, installs}`` (routes.ts).
+def _view_row(manifest: dict) -> dict:
+    e = manifest["editors"][0]
+    return {"id": e["id"], "title": e["title"], "version": e["version"], "protocol": e["protocol"], "kinds": e["kinds"],
+            "sizes": e["sizes"], "permissions": [{"id": p["id"], "why": p["why"]} for p in e["permissions"]],
+            "sha256": e["sha256"], "bytes": 1234, "first_party": False, "enabled": True, "source": "pack",
+            "entry_url": f"/api/v1/editors/{e['id']}/{e['version']}/entry"}
+
+
+def _bump(sample: Path, version: str) -> dict:
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["version"] = version
+    manifest["editors"][0]["version"] = version
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def _unknown_update(mod, sample: Path, root: Path, monkeypatch, capsys) -> tuple[dict, dict]:
+    """Install A, then time out on B: current/ = B, previous/ = A, pending.json written."""
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    a = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 0
+    capsys.readouterr()
+    b = _bump(sample, "0.2.0")
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
+    release = __import__("threading").Event()
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = lambda _req: (release.wait(10), OK)[1]
+        try:
+            assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 1
+        finally:
+            release.set()
+    out = json.loads(capsys.readouterr().out)
+    assert out["outcome"] == "unknown" and json.loads((root / "acme-terms" / "pending.json").read_text())["had_previous"]
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 30)
+    return a, b
+
+
+def _version(path: Path) -> str:
+    return json.loads((path / "wicked-pack.json").read_text(encoding="utf-8"))["version"]
+
+
+def test_after_an_unknown_update_crew_kept_the_old_copy_so_it_is_put_back_and_kept(tmp_path, sample, monkeypatch, capsys):
+    """codex r1: a retry after an unknown update must not rotate the last copy crew registered away."""
+    mod = _module()
+    root = tmp_path / "root"
+    a, _b = _unknown_update(mod, sample, root, monkeypatch, capsys)
+    monkeypatch.setattr(mod, "PENDING_GRACE_S", 0)
+    with FakeDaemon() as d:
+        d.routes[("GET", "/api/v1/editors")] = (200, {"editors": [_view_row(a)], "installs": "conformance_required"})
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["settled"] == "restored"
+    assert _version(root / "acme-terms" / "previous") == "0.1.0", "A, the copy crew still had, is the roll-back"
+    assert _version(root / "acme-terms" / "current") == "0.2.0"
+    assert not (root / "acme-terms" / "pending.json").exists()
+
+
+def test_after_an_unknown_update_crew_registered_the_new_copy_so_it_stays(tmp_path, sample, monkeypatch, capsys):
+    mod = _module()
+    root = tmp_path / "root"
+    _a, b = _unknown_update(mod, sample, root, monkeypatch, capsys)
+    with FakeDaemon() as d:
+        d.routes[("GET", "/api/v1/editors")] = (200, {"editors": [_view_row(b)], "installs": "conformance_required"})
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["settled"] == "registered"
+    assert _version(root / "acme-terms" / "previous") == "0.2.0"
+
+
+def test_inside_the_grace_an_unsettled_install_refuses_and_changes_nothing(tmp_path, sample, monkeypatch, capsys):
+    mod = _module()
+    root = tmp_path / "root"
+    a, _b = _unknown_update(mod, sample, root, monkeypatch, capsys)
+    with FakeDaemon() as d:
+        d.routes[("GET", "/api/v1/editors")] = (200, {"editors": [_view_row(a)], "installs": "conformance_required"})
+        assert mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"]) == 1
+        assert [r["method"] for r in d.requests] == ["GET"], "nothing is sent to crew"
+    out = json.loads(capsys.readouterr().out)
+    assert out["outcome"] == "unknown" and "may still be installing" in out["error"]
+    assert _version(root / "acme-terms" / "current") == "0.2.0" and _version(root / "acme-terms" / "previous") == "0.1.0"
+    assert (root / "acme-terms" / "pending.json").exists()
