@@ -64,7 +64,9 @@ refuses and writes nothing, so the operator is asked again. Inside a governed ru
 installs; a bare ``daemon``/``daemon-off`` is for installs by hand.
 
 **Daemon origin**: ``--crew-url``, else ``$WICKED_CREW_URL`` (crew sets it for every governed unit).
-There is no port default. Exit 0 installed, 1 a staging or registry failure, 2 bad arguments.
+There is no port default. Exit 0 installed in full; 1 not installed (a staging failure or a refusal), or
+installed only in part (``"outcome": "partial"``: the editors are in), or an unknown outcome (``"outcome":
+"unknown"``); 2 bad arguments. Read ``outcome`` before treating an exit 1 as "nothing installed".
 Standard library only.
 """
 

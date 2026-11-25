@@ -670,8 +670,9 @@ def test_uninstall_after_an_unanswered_update_removes_both_copies_ids(tmp_path, 
 # (packages/crew/src/editors/pack-extras.ts, writeSkills).
 CREW_CHECK = {"ok": True, "findings": []}
 CREW_EDITORS = [{"id": "acme-terms", "version": "0.1.0"}]
-SKILLS_HELD = [{"name": "wicked-garden-acme-terms", "key": "wicked-garden-acme-terms"},
-               {"name": "wicked-garden-acme-terms-checker", "key": "wicked-garden-acme-terms-checker"}]
+# A skill row is the bare directory name and the installed key (pack-extras.ts planExtras: `{ name: dir, key }`).
+SKILLS_HELD = [{"name": "acme-terms", "key": "wicked-garden-acme-terms"},
+               {"name": "acme-terms-checker", "key": "wicked-garden-acme-terms-checker"}]
 PUBLISH_FAILED = ("installed, but the skills root could not be published (a broken skill elsewhere), so workers do "
                   "not get the pack’s skills; fix that and install the pack again")
 
@@ -689,14 +690,34 @@ def _install_answered(sample: Path, root: Path, answer: tuple[int, dict]) -> tup
 
 
 def test_a_skills_error_from_crew_is_a_partial_install_not_ok(tmp_path, sample):
-    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skillsError=PUBLISH_FAILED))
+    # A blocked publish: crew wrote the skills (switched off) and still lists them (pack-extras.ts writeSkills).
+    root = tmp_path / "root"
+    done, out = _install_answered(sample, root, _crew_answer(skills=SKILLS_HELD, skillsError=PUBLISH_FAILED))
     assert done.returncode == 1, done.stdout + done.stderr
     assert out["ok"] is False and out["outcome"] == "partial"
-    assert out["skillsError"] == PUBLISH_FAILED
-    assert PUBLISH_FAILED in out["error"]
-    assert out["presets"] == ["acme-terms-review"] and "skills" not in out
-    # The editors ARE installed: the record stays, so an uninstall or the next install finds it.
-    assert (tmp_path / "root" / "acme-terms" / "installed.json").exists()
+    assert out["skillsError"] == PUBLISH_FAILED and out["error"] == PUBLISH_FAILED
+    assert out["skills"] == SKILLS_HELD and out["presets"] == ["acme-terms-review"]
+    # The editors ARE installed: the record, the current copy, no pending marker (the outcome is known).
+    record = json.loads((root / "acme-terms" / "installed.json").read_text(encoding="utf-8"))
+    assert record["key"] == "acme-terms" and record["editors"] == CREW_EDITORS
+    assert (root / "acme-terms" / "current" / "wicked-pack.json").exists()
+    assert not (root / "acme-terms" / "pending.json").exists()
+
+
+@pytest.mark.parametrize("extra, partial_error", [
+    ({"skillsError": PUBLISH_FAILED, "withdrawn": {"skills": [], "presets": [], "error": "disk full"}},
+     PUBLISH_FAILED + "; disk full"),
+    ({"withdrawn": {"skills": ["wicked-garden-acme-old"], "presets": []}}, None),  # a withdrawal that worked
+    ({"skillsError": ""}, None),
+    ({"skillsError": "  "}, None),
+    ({"withdrawn": ["not", "an", "object"]}, None),
+])
+def test_what_crew_says_decides_partial_exactly(tmp_path, sample, extra, partial_error):
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, **extra))
+    assert done.returncode == (1 if partial_error else 0), done.stdout + done.stderr
+    assert out.get("error") == partial_error and out["ok"] is (partial_error is None)
+    for k, v in extra.items():
+        assert out[k] == v
 
 
 def test_a_clean_install_prints_the_skills_and_presets_crew_installed(tmp_path, sample):
@@ -707,7 +728,8 @@ def test_a_clean_install_prints_the_skills_and_presets_crew_installed(tmp_path, 
 
 
 def test_a_failed_withdrawal_is_partial_too(tmp_path, sample):
-    withdrawn = {"skills": ["wicked-garden-acme-old"], "presets": [],
+    # A key is listed as withdrawn only when switching it off worked (pack-extras.ts withdrawPackExtras).
+    withdrawn = {"skills": [], "presets": [],
                  "error": "the skill wicked-garden-acme-old could not be switched off (disk full)"}
     done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, withdrawn=withdrawn))
     assert done.returncode == 1, done.stdout + done.stderr
