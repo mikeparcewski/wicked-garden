@@ -2,13 +2,40 @@
 
 ## [Unreleased]
 
+## [12.68.7] - 2026-11-25
+
+Patch release on the train-14 cut 66cc453f, carrying 20 PRs since 12.68.6: #1555, #1401, #1402, #1403, #1404, #1418, #1410, #1367, #1556, #1561, #1570, #1572, #1557, #1562, #1565, #1566, #1573, #1574, #1575, #1582.
+
+Known limitation (domain mapping accuracy): unchanged from 12.68.6. `/analyze domain` keeps its current mapping loop; the J6 v3 modules in this release (#1557, #1575) are additive and not called yet.
+
 ### Added
 
 - **codemod-first:** a new `wicked-garden-codemod-first` skill sends upgrade and modernization work through a mechanical transform before any hand edit. You count the sites, check for a recipe, try a codemod, name the gate, and hand-edit only the residue. The decision is recorded as one `mechanical-first:` block, or a one-line written rejection; `scripts/engineering/mechanical_first.py check` validates it. The `migrate`, `modernize` and upgrade-shaped `build` playbooks, and the governed-worker floor (C9), call it (#1334).
+- The TypeScript template moves to OpenTelemetry JS 3.0 (#1404)
+- **Editor install:** an editor pack that also ships skills or a block installs through one consent. The plan lists each skill (installed as `wicked-garden-<dir>`) and each block with its preset's phases, and binds their files to the approved choice. The install stages them and hands crew the approved lists. This needs a crew with wicked-crew#1703. The `acme-terms` sample's block now names a catalog phase. (#1570)
+- J6 v3 modules — scope, check, prose, store and domain-run (train 14, G1-G4) (#1557)
+- **mcp-scaffold:** `scaffold.py --rest` adds an optional REST API to the TypeScript MCP server. Every tool is also `POST /api/tools/<name>`, and an OpenAPI 3.1 document is served at `GET /api/openapi.json`. Both come from the same tool definitions and sit behind the same bearer, with the same results, logs, metrics and rate limit as the MCP call. MCP-only over stdio stays the default, and a REST-enabled server still installs for MCP clients (#1339). (#1566)
+
+### Changed
+
+- Measure stage-held boxes after the arrival entrance settles (CopyChip, QeWall flakes) (#1555)
+- Python 3.15 in requires-python (<3.16), with cp315 wheels in the lock (#1401)
+- Run the test suite and the site e2e on Node 26 (#1402)
+- @types/node 26 in site/ (dev) (#1403)
+- Update dependency motion to v14.14.0 (#1418)
+- Update astro monorepo to v7.1.9 (#1410)
+- Update dependency wicked-ledger to v0.6.1 (#1367)
+- Scripts and speaker notes in a person's voice, not a machine's (#1571) (#1572)
+- Index test folder names and event ids instead of salted hash() (#1573)
 
 ### Fixed
 
 - **The setup gate blocks on a python3-only host (#1580).** The UserPromptSubmit setup gate exited 2, but hooks.json runs `python3 … || python … || py -3 …`, so the non-zero exit ran the missing `python` and `py` and the hook ended with 127, a non-blocking error: the prompt went through and every prompt printed `command not found` twice. The gate now prints `{"decision": "block", "reason": …}` and exits 0, the way the other hooks signal, so no fallback runs. `tests/hooks/test_setup_gate_python_chain_1580.py` runs the hooks.json command under `sh` with a PATH that holds only `python3`.
+- One plain reason per skipped CLI, with a remedy the card allows (#1543) (#1556)
+- **draft:** the claims scan refuses a citation whose line does not state the figure it cites (with its unit). A line citation on an ancestor is range-checked, and it must state the figures it alone covers (#1551). (#1561)
+- **Install:** Claude Code users add garden's published catalog (`.claude-plugin/release-marketplace.json`, by URL), which installs the release tag (`v<version>`): the same skill text npm ships for that version. A local checkout added as a marketplace installs its own tree (#1413). (#1562)
+- Follow-ups to garden#1570: linked skills_dir, crew skill-name charset, unknown register outcome, sample names (#1574)
+- Domain-run reads core's scope and calls through the engine's own wicked-core (J6 G6) (#1575)
 
 ## [12.68.6] - 2026-11-24
 
