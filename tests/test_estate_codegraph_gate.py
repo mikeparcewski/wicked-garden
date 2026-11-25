@@ -4,8 +4,9 @@ store the codegraph import wrote.
 The store is estate's gate fixture (`tests/fixtures/codegraph/coverage`), indexed with
 `--codegraph` by the estate head under test (`scripts/codegraph-fixture-store.py store`).
 Estate's CI sets WICKED_CODEGRAPH_FIXTURE_STORE and WICKED_ESTATE_MCP_BIN, runs this file from
-garden's main, and fails when the `codegraph gate: garden` line is missing. Without the store
-there is nothing to read, and the test skips and says so.
+garden's main with pytest's capture off (`-s`), and fails when the `codegraph gate: garden`
+line is missing from that output. Without the store there is nothing to read, and the test
+skips and says so.
 
 The calls are the ones skills/search/SKILL.md gives a seat: the read-only shim with the
 `BlastRadius` and `SearchEntity` tools.
@@ -50,13 +51,16 @@ def test_garden_reads_the_codegraph_gate_store(tmp_path):
     home.mkdir()
 
     # search: the symbol a codegraph edge binds resolves by name.
+    # Estate's MCP rows name a node by `symbol` (the CLI's JSON says `id`).
     found = _call(store, home, "SearchEntity", {"name": "Square"})
-    ids = {m.get("id") or m.get("symbol") for m in found.get("matches", [])}
+    assert isinstance(found.get("matches"), list), f"SearchEntity has no matches list: {found}"
+    ids = {m["symbol"] for m in found["matches"]}
     assert SQUARE in ids, f"SearchEntity Square: {found}"
 
     # blast: Base's dependents include Square, through the codegraph-bound extends edge.
     blast = _call(store, home, "BlastRadius", {"symbol": BASE})
-    dependents = {d.get("id") for d in blast.get("dependents", [])}
+    assert isinstance(blast.get("dependents"), list), f"BlastRadius has no dependents list: {blast}"
+    dependents = {d["symbol"] for d in blast["dependents"]}
     assert SQUARE in dependents, f"BlastRadius Base: {blast}"
 
     print(f"codegraph gate: garden searched Square and found {len(dependents)} dependents of Base")
