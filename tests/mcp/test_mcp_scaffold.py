@@ -326,6 +326,12 @@ def test_skill_and_template_readme_document_the_rest_option():
     build = phases.split("- **build**", 1)[1].split("- **install-plan / install**", 1)[0]
     install = phases.split("- **install-plan / install**", 1)[1]
     assert "REST" in scope and "--rest" in build and "restSmoke" in install
+    # studio#1399: the wizard's "Also expose as a REST API" switch appends exactly this line to the
+    # intent; scope names it verbatim as the REST ask, and build turns that ask into --rest
+    studio_line = ("Also expose the tools as a REST API (mcp-scaffold --rest): HTTP routes and an OpenAPI "
+                   "description built from the same tools.")
+    assert f'appends exactly the line "{studio_line}"' in " ".join(scope.split())
+    assert "with `--rest` when scope recorded a REST API" in " ".join(build.split())
     flat = " ".join(skill.split())
     assert "A REST API with an OpenAPI document is `--rest` (step 1), not a layer to hand-build" in flat
     assert "(an HTTP or REST surface" not in flat

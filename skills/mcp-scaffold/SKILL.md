@@ -306,7 +306,7 @@ run. Follow `wicked-garden-governed-worker`, and:
 
 - **scope** — settle what to expose, the auth scheme, the transport (stdio unless a remote
   client needs httpStream), whether the intent asks for a REST API or OpenAPI document
-  (then build passes `--rest`) and the **target directory**: the root of a near-empty repo, or a
+  (then build passes `--rest`; studio's REST switch appends exactly the line "Also expose the tools as a REST API (mcp-scaffold --rest): HTTP routes and an OpenAPI description built from the same tools.") and the **target directory**: the root of a near-empty repo, or a
   subdirectory of an existing one. A repository that is not registered must be created and
   registered by the operator first — say so, do not create it. **List the registry's keys**
   (`GET $WICKED_CREW_URL/api/v1/mcp/servers` — the daemon this run belongs to, never a typed
