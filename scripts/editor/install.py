@@ -29,8 +29,10 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    copy itself, refuses on any failure (fail closed: no headless browser is a refusal), pins each
    entry's sha256 and records it in its editor registry. A refusal swaps ``previous/`` back (or
    removes ``current/`` on a first install) and exits 1. A daemon that took the request and never answered
-   (a timeout, a dropped connection) may still finish: ``current/`` stays, and the result says
-   ``"outcome": "unknown"``; running the install again settles it.
+   (a timeout, a dropped connection, a cut body) may still finish: ``current/`` and ``previous/`` stay, a
+   ``pending.json`` marker is written, and the result says ``"outcome": "unknown"``. The next install first
+   asks ``GET /api/v1/editors`` which copy crew registered: the copy sent stays, or (after a grace for a
+   slow conformance run) the earlier copy is put back; anything else refuses and changes nothing.
 5. **Record** ``<root>/<name>/installed.json`` and print it.
 
 **Targets** (the consent gate's choices): ``daemon`` (the default) installs it turned on — it opens
@@ -66,12 +68,14 @@ import argparse
 import base64
 import datetime
 import hashlib
+import http.client
 import json
 import os
 import re
 import shutil
 import stat
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -91,6 +95,10 @@ TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGES
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
+# An install whose register call got no answer leaves ``pending.json``; the next install asks the daemon which copy it
+# registered, and trusts "it kept the old one" only after this long (crew may still be running the conformance cases).
+PENDING = "pending.json"
+PENDING_GRACE_S = 600
 PLAN_ASKS_CAP = 64
 PLAN_ID_CHARS = 200
 PLAN_WHY_CHARS = 300
@@ -308,15 +316,10 @@ def pack_inventory(pack: Path, manifest: dict) -> Inventory:
     skills: list[dict] = []
     skills_dir = _norm_rel(manifest.get("skills_dir", "skills"), "skills_dir")
     base = root / skills_dir
-    names: list[str] = []
-    if os.path.lexists(base):  # a skills_dir that is itself a link or junction refuses; it never reads as empty
-        plain = _plain_path(root, skills_dir)
-        if plain.is_dir():
-            names = sorted(n for n in os.listdir(plain) if not n.startswith("."))
-    for name in names:
-        if not SKILL_DIR_RE.match(name):
-            raise PackError(f"{skills_dir}/{name!r}: crew installs each entry as wicked-garden-<dir>, so its name "
-                            "must be only [A-Za-z0-9_-] (rename it, or move it out of the skills tree)")
+    # A link or junction on any component of skills_dir (itself, or a parent whose target lacks the leaf) refuses;
+    # it never reads as a pack with no skills. A plainly missing skills_dir is no skills.
+    plain = _plain_path(root, skills_dir)
+    names = sorted(n for n in os.listdir(plain) if not n.startswith(".")) if plain.is_dir() else []
 
     def refuse(err: OSError) -> None:
         raise PackError(f"{skills_dir}: a directory cannot be read ({err}); nothing is staged")
@@ -336,6 +339,10 @@ def pack_inventory(pack: Path, manifest: dict) -> Inventory:
         else:
             held[rel_top] = _read_plain(root, rel_top)
         if held:
+            if not SKILL_DIR_RE.fullmatch(name):  # fullmatch: ``$`` alone would let a trailing newline through
+                raise PackError(f"{rel_top!r}: crew installs each entry under {skills_dir} (a skill directory or a "
+                                "loose file) as wicked-garden-<name>, so its name must be only [A-Za-z0-9_-]; rename "
+                                "it, or move it out of the skills tree")
             files.update(held)
             skills.append({"dir": name, "name": _skill_name(held.get(f"{rel_top}/SKILL.md", b"")),
                            "installs_as": f"wicked-garden-{name}"})
@@ -433,6 +440,68 @@ def unswap(key_root: Path, had_previous_install: bool) -> None:
         shutil.rmtree(current)
     if had_previous_install and previous.exists():
         previous.rename(current)
+
+
+def _builds(pack: Path) -> set[tuple[str, str, str]]:
+    """The (id, version, sha256) of every editor and run plugin a staged copy declares: what crew's registry lists
+    once it installed that copy (``GET /api/v1/editors``, crew ``EditorRegistry.view``)."""
+    editors, plugins = pack_entries_of(read_manifest(pack))
+    return {(str(e.get("id")), str(e.get("version")), str(e.get("sha256"))) for e in editors + plugins}
+
+
+def settle_pending(key_root: Path, origin: str) -> str | None:
+    """An earlier install whose register call got no answer (``pending.json``) is settled before anything rotates:
+    ``current/`` holds the copy it sent and ``previous/`` the one before. The daemon's registry decides which stays.
+    It lists the sent copy: keep it. It still lists the earlier copy (or, on a first install, none of the pack's ids)
+    once the grace has passed: crew refused it, so put the earlier copy back. Anything else refuses and changes
+    nothing, so a retry never deletes the last copy crew registered."""
+    marker = key_root / PENDING
+    if not marker.exists():
+        return None
+    try:
+        pending = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pending = {}
+    pending = pending if isinstance(pending, dict) else {}
+    unsettled = (f"an earlier install of {key_root.name} got no answer from the daemon and is not settled yet; "
+                 "nothing was changed")
+    try:
+        sent = _builds(key_root / "current")
+    except (OSError, PackError):
+        sent = set()
+    earlier = None
+    if pending.get("had_previous") is True:
+        try:
+            earlier = _builds(key_root / "previous")
+        except (OSError, PackError) as err:
+            raise Failure(1, f"{unsettled}: the earlier copy cannot be read ({err})", outcome="unknown") from err
+    try:
+        status, body = http_json("GET", f"{origin}/api/v1/editors")
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as err:
+        raise Failure(1, f"{unsettled}: the daemon at {origin} cannot be asked ({err})", outcome="unknown") from err
+    rows = body.get("editors") if status < 400 else None
+    if not isinstance(rows, list):
+        raise Failure(1, f"{unsettled}: the daemon did not list its editors (HTTP {status}: {_message(body)})",
+                      outcome="unknown")
+    listed = {(str(r.get("id")), str(r.get("version")), str(r.get("sha256"))) for r in rows if isinstance(r, dict)}
+    if sent and sent <= listed:
+        marker.unlink()
+        return "registered"
+    since = pending.get("since")
+    waited = time.time() - since if isinstance(since, (int, float)) else PENDING_GRACE_S
+    if waited < PENDING_GRACE_S:
+        raise Failure(1, f"{unsettled}: the daemon may still be installing it; try again in "
+                         f"{int(PENDING_GRACE_S - waited) + 1} s", outcome="unknown")
+    if earlier is not None and earlier <= listed:
+        unswap(key_root, True)
+        marker.unlink()
+        return "restored"
+    if earlier is None and not ({b[0] for b in sent} & {b[0] for b in listed}):
+        unswap(key_root, False)
+        marker.unlink()
+        return "removed"
+    raise Failure(1, f"{unsettled}: the daemon's editors match neither the copy sent nor the one before it; remove "
+                     f"it (--uninstall {key_root.name}) and install it again", outcome="unknown")
 
 
 def _now() -> str:
@@ -580,6 +649,7 @@ def do_install(args) -> tuple[int, dict]:
     origin = crew_origin(args.crew_url)
     key_root = install_root(args.install_root) / key
     key_root.mkdir(parents=True, exist_ok=True)
+    settled = settle_pending(key_root, origin)
     had_previous = (key_root / "current").exists()
     try:
         inventory = pack_inventory(pack, manifest)  # one read: staged, digested and approved from these bytes
@@ -626,14 +696,17 @@ def do_install(args) -> tuple[int, dict]:
         # urlopen wraps what fails while connecting and sending: the request never reached crew whole.
         unswap(key_root, had_previous)
         raise Failure(1, f"no daemon at {origin} ({err.reason}); nothing was installed") from err
-    except OSError as err:
-        # The request went out and no answer came back (a timeout, a dropped connection): crew may still finish
-        # the install, and it reads current/. Keep it in place, so a pack crew registers keeps its files.
-        raise Failure(1, f"the daemon at {origin} did not answer the install ({err or type(err).__name__}); it may "
-                         f"still finish it. {current} holds the staged copy"
-                         + (f" and {key_root / 'previous'} the earlier one" if had_previous else "")
-                         + ". Check Settings → Editors (GET /api/v1/editors), or run the install again: it is "
-                           "idempotent and settles it.", outcome="unknown") from err
+    except (OSError, http.client.HTTPException) as err:
+        # The request went out and no full answer came back (a timeout, a dropped connection, a cut body): crew may
+        # still finish the install, and it reads current/. Keep both copies in place and leave a marker; the next
+        # install asks crew which one it registered before it rotates anything (settle_pending).
+        (key_root / PENDING).write_text(json.dumps({"since": time.time(), "had_previous": had_previous}) + "\n",
+                                        encoding="utf-8")
+        raise Failure(1, f"the daemon at {origin} did not answer the install ({str(err) or type(err).__name__}); it "
+                         f"may still finish it. {current} holds the copy sent"
+                         + (f" and {key_root / 'previous'} the one before it" if had_previous else "")
+                         + ". Check Settings → Editors; the next install of this pack asks the daemon which copy it "
+                           "registered and settles that first.", outcome="unknown") from err
     if status >= 400:
         unswap(key_root, had_previous)
         detail = {k: body[k] for k in ("code", "check", "conformance") if k in body}
@@ -645,6 +718,8 @@ def do_install(args) -> tuple[int, dict]:
     (key_root / "installed.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
     # crew >= the MCP inspector bridge reports the install-consent grants it wrote (or why it could not).
     grants = {k: body[k] for k in ("granted", "grantError") if k in body}
+    if settled:
+        grants["settled"] = settled  # how an earlier unanswered install was settled (settle_pending)
     return 0, {**record, **grants, "target": target, "path": str(current),
                "conformance": body.get("conformance")}
 
