@@ -16,8 +16,10 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    file and its accepted declared card images at their manifest paths, the README, and (a pack that
    also ships skills or blocks, wicked-crew#1703) every entry under its ``skills_dir`` and each
    block's ``preset`` file, at their manifest paths. Malformed cosmetic images are skipped, as in pack
-   check (PK089); they never refuse an install. A link anywhere in the skills tree, or a preset outside
-   the pack, refuses it. Nothing else of the tree is copied (an editor is ONE self-contained file).
+   check (PK089); they never refuse an install. A link anywhere in the skills tree (the ``skills_dir``
+   itself too), a preset outside the pack, or a skill entry whose name is not ``[A-Za-z0-9_-]``
+   (crew's skill-name charset) refuses it. Nothing else of the tree is copied (an editor is ONE
+   self-contained file).
 3. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``.
 4. **Register** with wicked-crew: ``POST /api/v1/editors {packRoot: <root>/<name>/current, enabled}``,
    plus ``approve: {skills: [<skill dir>…], blocks: [<block id>…]}`` for a pack with skills or blocks:
@@ -26,7 +28,11 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    The daemon re-runs garden's ``pack check`` and this skill's **conformance run** against the staged
    copy itself, refuses on any failure (fail closed: no headless browser is a refusal), pins each
    entry's sha256 and records it in its editor registry. A refusal swaps ``previous/`` back (or
-   removes ``current/`` on a first install) and exits 1.
+   removes ``current/`` on a first install) and exits 1. A daemon that took the request and never answered
+   (a timeout, a dropped connection, a cut body) may still finish: ``current/`` and ``previous/`` stay and
+   the result says ``"outcome": "unknown"``. A ``pending.json`` marker, written before the call and removed
+   once crew answers, tells the next install that ``current/`` was never confirmed: it replaces that copy and
+   keeps ``previous/``, the last one crew confirmed, as the roll-back.
 5. **Record** ``<root>/<name>/installed.json`` and print it.
 
 **Targets** (the consent gate's choices): ``daemon`` (the default) installs it turned on — it opens
@@ -62,6 +68,7 @@ import argparse
 import base64
 import datetime
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -87,15 +94,19 @@ TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGES
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
+# Written before the register call and removed once crew answers: while it exists, ``current/`` is a copy crew never
+# confirmed, and ``previous/`` (if any) is the last one it did.
+PENDING = "pending.json"
 PLAN_ASKS_CAP = 64
 PLAN_ID_CHARS = 200
 PLAN_WHY_CHARS = 300
 
 
 class Failure(Exception):
-    def __init__(self, code: int, message: str):
+    def __init__(self, code: int, message: str, **extra):
         super().__init__(message)
         self.code = code
+        self.extra = extra
 
 
 def crew_origin(flag: str | None) -> str:
@@ -182,6 +193,9 @@ def locate(args) -> tuple[Path, dict]:
 # ── the pack's skills and block presets (wicked-crew#1703) ────────────────────────────────
 
 SKILL_NAME_RE = re.compile(r"^name:\s*['\"]?([^'\"]+?)['\"]?\s*$")
+# crew's skill name charset (wicked-crew packages/crew/src/skills/guards.ts SKILL_NAME_RE): a skill dir becomes
+# ``wicked-garden-<dir>``, a manifest key, a directory segment and a URL segment at once.
+SKILL_DIR_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _redirects(path: Path) -> bool:
@@ -300,8 +314,10 @@ def pack_inventory(pack: Path, manifest: dict) -> Inventory:
     skills: list[dict] = []
     skills_dir = _norm_rel(manifest.get("skills_dir", "skills"), "skills_dir")
     base = root / skills_dir
-    names = sorted(n for n in os.listdir(_plain_path(root, skills_dir)) if not n.startswith(".")) \
-        if base.is_dir() and not _redirects(base) else []
+    # A link or junction on any component of skills_dir (itself, or a parent whose target lacks the leaf) refuses;
+    # it never reads as a pack with no skills. A plainly missing skills_dir is no skills.
+    plain = _plain_path(root, skills_dir)
+    names = sorted(n for n in os.listdir(plain) if not n.startswith(".")) if plain.is_dir() else []
 
     def refuse(err: OSError) -> None:
         raise PackError(f"{skills_dir}: a directory cannot be read ({err}); nothing is staged")
@@ -321,6 +337,10 @@ def pack_inventory(pack: Path, manifest: dict) -> Inventory:
         else:
             held[rel_top] = _read_plain(root, rel_top)
         if held:
+            if not SKILL_DIR_RE.fullmatch(name):  # fullmatch: ``$`` alone would let a trailing newline through
+                raise PackError(f"{skills_dir} entry {name!r}: crew installs each entry (a skill directory or a "
+                                "loose file) as wicked-garden-<name>, so its name must be only [A-Za-z0-9_-]; rename "
+                                "it, or move it out of the skills tree")
             files.update(held)
             skills.append({"dir": name, "name": _skill_name(held.get(f"{rel_top}/SKILL.md", b"")),
                            "installs_as": f"wicked-garden-{name}"})
@@ -565,7 +585,8 @@ def do_install(args) -> tuple[int, dict]:
     origin = crew_origin(args.crew_url)
     key_root = install_root(args.install_root) / key
     key_root.mkdir(parents=True, exist_ok=True)
-    had_previous = (key_root / "current").exists()
+    marker = key_root / PENDING
+    unconfirmed = os.path.lexists(marker)  # an earlier register call got no answer (see the OSError branch below)
     try:
         inventory = pack_inventory(pack, manifest)  # one read: staged, digested and approved from these bytes
         copied = stage(pack, manifest, key_root / "next", inventory)
@@ -599,17 +620,41 @@ def do_install(args) -> tuple[int, dict]:
         raise Failure(1, f"{pack / MANIFEST_NAME} changed after the plan the operator approved (its permissions, "
                          "version, entry hash, skills or block presets may differ); nothing was installed: plan "
                          "and approve it again")
+    current, previous = key_root / "current", key_root / "previous"
+    if unconfirmed and current.exists():
+        # current/ is the copy an unanswered install sent, never confirmed by crew. The roll-back stays the last
+        # copy crew did confirm (previous/, none on a first install): drop the unconfirmed one instead of rotating.
+        shutil.rmtree(current)
+    had_previous = current.exists() or (unconfirmed and previous.exists())
     swap(key_root)
-    current = key_root / "current"
+    try:
+        # The intent goes down before the request: whatever happens to this process after it is sent, the next
+        # install knows current/ was never confirmed. A marker that cannot be written stops the install here.
+        marker.write_text(json.dumps({"since": _now()}) + "\n", encoding="utf-8")
+    except OSError as err:
+        unswap(key_root, had_previous)
+        raise Failure(1, f"cannot write {marker} ({err}); nothing was installed") from err
     try:
         request = {"packRoot": str(current.resolve()), "enabled": target == "daemon"}
         approve = inventory.approve
         if approve is not None:
             request["approve"] = approve  # the skills and blocks the plan listed (wicked-crew#1703)
         status, body = http_json("POST", f"{origin}/api/v1/editors", request)
-    except (urllib.error.URLError, OSError) as err:
+    except urllib.error.URLError as err:
+        # urlopen wraps what fails while connecting and sending: the request never reached crew whole.
         unswap(key_root, had_previous)
-        raise Failure(1, f"no daemon at {origin} ({err}); nothing was installed") from err
+        marker.unlink(missing_ok=True)
+        raise Failure(1, f"no daemon at {origin} ({err.reason}); nothing was installed") from err
+    except (OSError, http.client.HTTPException) as err:
+        # The request went out and no full answer came back (a timeout, a dropped connection, a cut body): crew may
+        # still finish the install, and it reads current/. Both copies stay, and so does the marker.
+        raise Failure(1, f"the daemon at {origin} did not answer the install ({str(err) or type(err).__name__}); it "
+                         f"may still finish it, so {current} stays in place. Check Settings → Editors. The next "
+                         "install of this pack replaces that copy and keeps "
+                         + (f"{previous}, the last copy the daemon confirmed, as its roll-back."
+                            if had_previous else "no roll-back (this was a first install)."),
+                      outcome="unknown") from err
+    marker.unlink(missing_ok=True)  # crew answered: the outcome is known
     if status >= 400:
         unswap(key_root, had_previous)
         detail = {k: body[k] for k in ("code", "check", "conformance") if k in body}
@@ -631,12 +676,15 @@ def do_uninstall(args) -> tuple[int, dict]:
         raise Failure(2, f"invalid pack name {key!r}")
     origin = crew_origin(args.crew_url)
     key_root = install_root(args.install_root) / key
+    # Both copies' ids: after an unanswered install, crew may hold either one, and an update may have dropped or
+    # renamed an id the earlier copy still has registered.
     editors: list[str] = []
-    try:
-        ed, pl = pack_entries_of(read_manifest(key_root / "current"))
-        editors = [str(e.get("id")) for e in ed + pl]
-    except PackError:
-        editors = []
+    for copy in ("current", "previous"):
+        try:
+            ed, pl = pack_entries_of(read_manifest(key_root / copy))
+        except PackError:
+            continue
+        editors += [eid for eid in (str(e.get("id")) for e in ed + pl) if eid not in editors]
     out: dict = {"key": key, "uninstalled": True, "registry": {}}
     for eid in editors:
         try:
@@ -705,7 +753,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         code, out = do_uninstall(args) if args.uninstall else do_install(args)
     except Failure as err:
-        code, out = err.code, {"ok": False, "error": str(err)}
+        code, out = err.code, {"ok": False, "error": str(err), **err.extra}
     else:
         out = {"ok": code == 0, **out}
     print(json.dumps(out) if args.json else json.dumps(out, indent=2))

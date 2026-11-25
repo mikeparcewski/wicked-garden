@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -347,3 +348,316 @@ def test_a_readme_that_is_also_a_preset_cannot_swap_the_approved_bytes(tmp_path,
         mod.do_install(args)
     assert "differ from the files read for the plan" in str(refused.value)
     assert not (tmp_path / "root" / "acme-terms" / "current").exists()
+
+
+# ── garden#1570 follow-ups (wicked-crew#1703 garden half) ─────────────────────────────────────
+
+def test_the_sample_skills_name_each_other_by_their_installed_names():
+    """crew installs each skill as ``wicked-garden-<dir>``; a sibling named by its bare dir is a name no seat has."""
+    dirs = sorted(p.name for p in (SAMPLE / "skills").iterdir() if p.is_dir())
+    for d in dirs:
+        text = (SAMPLE / "skills" / d / "SKILL.md").read_text(encoding="utf-8")
+        body = "\n".join(line for line in text.splitlines() if not line.startswith("name:"))
+        bare = [t for t in re.findall(r"`([^`]+)`", body) if t in dirs]
+        assert bare == [], (d, bare)
+    router = (SAMPLE / "skills" / "acme-terms" / "SKILL.md").read_text(encoding="utf-8")
+    assert "`wicked-garden-acme-terms-checker`" in router
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_a_skills_dir_that_is_itself_a_link_refuses_the_plan_and_the_install(tmp_path, sample):
+    outside = tmp_path / "outside-skills"
+    shutil.move(str(sample / "skills"), str(outside))
+    (sample / "skills").symlink_to(outside, target_is_directory=True)
+    with FakeDaemon() as d:
+        planned = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                       env={"WICKED_CREW_URL": d.origin})
+        done = _install(sample, tmp_path / "root", d)
+        assert d.requests == [], "crew is never asked"
+    assert planned.returncode == 2 and "link" in planned.stderr, planned.stdout + planned.stderr
+    assert done.returncode in (1, 2) and "link" in json.loads(done.stdout)["error"]
+    assert not (tmp_path / "root" / "acme-terms" / "current").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a directory junction is Windows-only")
+def test_a_skills_dir_that_is_a_junction_refuses_the_plan(tmp_path, sample):
+    outside = tmp_path / "outside-skills"
+    shutil.move(str(sample / "skills"), str(outside))
+    made = subprocess.run(["cmd", "/c", "mklink", "/J", str(sample / "skills"), str(outside)],
+                          capture_output=True, text=True)
+    if made.returncode != 0:
+        pytest.skip("mklink /J unavailable")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "link" in done.stderr
+
+
+@pytest.mark.parametrize("bad", ["acme.terms", "acme terms", "README.md"])
+def test_a_skill_dir_crew_cannot_name_refuses_the_plan(tmp_path, sample, bad):
+    """crew's SKILL_NAME_RE (packages/crew/src/skills/guards.ts) is ``^[A-Za-z0-9_-]+$``: a dir outside it would
+    pass the plan and the operator's approval, then fail at crew."""
+    if bad.endswith(".md"):
+        (sample / "skills" / bad).write_text("a loose file is an entry crew lists too\n", encoding="utf-8")
+    else:
+        (sample / "skills" / bad).mkdir()
+        (sample / "skills" / bad / "SKILL.md").write_text("---\nname: x\n---\nbody\n", encoding="utf-8")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert repr(bad) in done.stderr and "[A-Za-z0-9_-]" in done.stderr
+
+
+def test_a_register_timeout_reports_an_unknown_outcome_and_keeps_the_staged_copy(tmp_path, sample, monkeypatch, capsys):
+    """crew may finish the install after the installer stops waiting: restoring ``previous/`` then would pull
+    the files out from under a registered pack, and "nothing was installed" would be a guess."""
+    mod = _module()
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    root = tmp_path / "root"
+    release = __import__("threading").Event()
+
+    def slow(_req):
+        release.wait(10)
+        return OK
+
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = slow
+        try:
+            code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"])
+        finally:
+            release.set()
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and out["ok"] is False
+    assert out.get("outcome") == "unknown", out
+    assert "nothing was installed" not in out["error"] and "did not answer" in out["error"], out["error"]
+    assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file(), "the staged copy stays in place"
+    assert (root / "acme-terms" / "pending.json").is_file(), "the next install knows current/ was never confirmed"
+
+
+def test_an_unreachable_daemon_still_reports_nothing_installed(tmp_path, sample, monkeypatch, capsys):
+    mod = _module()
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    sys.path.insert(0, str(REPO / "tests" / "mcp"))
+    from daemon_fixture import closed_origin
+    root = tmp_path / "root"
+    code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", closed_origin(), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and "nothing was installed" in out["error"] and "outcome" not in out
+    assert not (root / "acme-terms" / "current").exists()
+
+
+@pytest.mark.skipif(os.name == "nt", reason="a newline in a file name is POSIX-only")
+def test_a_skill_dir_with_a_trailing_newline_refuses_the_plan(tmp_path, sample):
+    """Python's ``$`` matches before a final newline; crew's JS charset test does not (codex r1)."""
+    (sample / "skills" / "acme-extra\n").mkdir()
+    (sample / "skills" / "acme-extra\n" / "SKILL.md").write_text("---\nname: x\n---\nbody\n", encoding="utf-8")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "[A-Za-z0-9_-]" in done.stderr, done.stdout + done.stderr
+
+
+def test_an_empty_dir_with_a_name_crew_cannot_take_is_ignored_like_any_empty_dir(tmp_path, sample):
+    """crew never sees an empty directory (it is not staged), so its name cannot refuse the install (codex r1)."""
+    (sample / "skills" / "old.notes").mkdir()
+    with FakeDaemon() as d:
+        plan = _plan(sample, tmp_path / "root", d.origin)
+    assert [s["dir"] for s in plan["skills"]] == ["acme-terms", "acme-terms-checker"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+@pytest.mark.parametrize("dangling", [False, True])
+def test_a_linked_parent_of_skills_dir_refuses_even_when_the_leaf_is_missing(tmp_path, sample, dangling):
+    """``skills_dir: linked/skills`` with ``linked`` a link whose target has no ``skills`` (or no target at all) is a
+    redirected tree, not a pack without skills (codex r1)."""
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["skills_dir"] = "linked/skills"
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    target = tmp_path / "elsewhere"
+    if not dangling:
+        target.mkdir()
+    (sample / "linked").symlink_to(target, target_is_directory=True)
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "link" in done.stderr, done.stdout + done.stderr
+
+
+def test_a_cut_response_body_reports_an_unknown_outcome(tmp_path, sample, monkeypatch, capsys):
+    """crew committed, sent its headers, then went away mid-body: http.client.IncompleteRead is not an OSError,
+    and it must not escape as a traceback (codex r1)."""
+    import socket
+    import threading
+    mod = _module()
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+
+    def answer_half():
+        conn, _ = server.accept()
+        with conn:
+            data = b""
+            while b"\r\n\r\n" not in data:
+                data += conn.recv(65536)
+            head, _, rest = data.partition(b"\r\n\r\n")
+            length = int(next(line.split(b":")[1] for line in head.split(b"\r\n") if line.lower().startswith(b"content-length")))
+            while len(rest) < length:
+                rest += conn.recv(65536)
+            conn.sendall(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 200\r\n\r\n{\"installed\": tr")
+
+    worker = threading.Thread(target=answer_half, daemon=True)
+    worker.start()
+    root = tmp_path / "root"
+    try:
+        code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url",
+                         f"http://127.0.0.1:{server.getsockname()[1]}", "--json"])
+    finally:
+        worker.join(5)
+        server.close()
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and out.get("outcome") == "unknown", out
+    assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file()
+
+
+def _bump(sample: Path, version: str, editor_id: str = "acme-terms") -> dict:
+    manifest = json.loads((sample / "wicked-pack.json").read_text(encoding="utf-8"))
+    manifest["version"] = version
+    manifest["editors"][0]["version"] = version
+    manifest["editors"][0]["id"] = editor_id
+    (sample / "wicked-pack.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return manifest
+
+
+def _main(mod, sample: Path, root: Path, d: FakeDaemon, capsys, *extra: str) -> tuple[int, dict]:
+    code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json", *extra])
+    return code, json.loads(capsys.readouterr().out)
+
+
+def _unanswered(mod, sample: Path, root: Path, monkeypatch, capsys, *, first: bool = False) -> None:
+    """Install A (unless ``first``), then B (0.2.0) whose register call times out: current/ = B, previous/ = A."""
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    if not first:
+        with FakeDaemon() as d:
+            d.routes[("POST", "/api/v1/editors")] = OK
+            assert _main(mod, sample, root, d, capsys)[0] == 0
+    _bump(sample, "0.2.0")
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
+    release = __import__("threading").Event()
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = lambda _req: (release.wait(10), OK)[1]
+        try:
+            code, out = _main(mod, sample, root, d, capsys)
+        finally:
+            release.set()
+    assert code == 1 and out["outcome"] == "unknown", out
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 30)
+
+
+def _version(path: Path) -> str:
+    return json.loads((path / "wicked-pack.json").read_text(encoding="utf-8"))["version"]
+
+
+REFUSED = (422, {"error": "conformance failed", "code": "conformance"})
+
+
+def test_a_refused_retry_after_an_unanswered_update_restores_the_last_confirmed_copy(tmp_path, sample, monkeypatch,
+                                                                                     capsys):
+    """codex r1: a retry used to rotate the unconfirmed copy into previous/, deleting A, the last copy crew
+    confirmed; a refusal then restored the unconfirmed one."""
+    mod = _module()
+    root = tmp_path / "root"
+    _unanswered(mod, sample, root, monkeypatch, capsys)
+    _bump(sample, "0.3.0")
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = REFUSED
+        code, out = _main(mod, sample, root, d, capsys)
+    assert code == 1 and "refused" in out["error"]
+    assert _version(root / "acme-terms" / "current") == "0.1.0", "A, the last confirmed copy, is back"
+    assert not (root / "acme-terms" / "previous").exists() and not (root / "acme-terms" / "pending.json").exists()
+
+
+def test_an_installed_retry_after_an_unanswered_update_keeps_the_confirmed_copy_as_the_roll_back(tmp_path, sample,
+                                                                                                monkeypatch, capsys):
+    mod = _module()
+    root = tmp_path / "root"
+    _unanswered(mod, sample, root, monkeypatch, capsys)
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert _main(mod, sample, root, d, capsys)[0] == 0
+    assert _version(root / "acme-terms" / "current") == "0.2.0"
+    assert _version(root / "acme-terms" / "previous") == "0.1.0", "not the unconfirmed 0.2.0 copy"
+    assert not (root / "acme-terms" / "pending.json").exists()
+
+
+def test_a_refused_retry_after_an_unanswered_first_install_leaves_nothing(tmp_path, sample, monkeypatch, capsys):
+    mod = _module()
+    root = tmp_path / "root"
+    _unanswered(mod, sample, root, monkeypatch, capsys, first=True)
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = REFUSED
+        assert _main(mod, sample, root, d, capsys)[0] == 1
+    assert not (root / "acme-terms" / "current").exists() and not (root / "acme-terms" / "previous").exists()
+    assert not (root / "acme-terms" / "pending.json").exists()
+
+
+def test_a_marker_that_cannot_be_written_stops_the_install_before_crew_is_asked(tmp_path, sample, monkeypatch,
+                                                                               capsys):
+    """codex r2: the intent is written before the register call; if it cannot be, nothing is sent."""
+    mod = _module()
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    root = tmp_path / "root"
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert _main(mod, sample, root, d, capsys)[0] == 0
+        real_write = Path.write_text
+
+        def failing(self, *args, **kwargs):
+            if self.name == "pending.json":
+                raise OSError(28, "No space left on device")
+            return real_write(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "write_text", failing)
+        _bump(sample, "0.2.0")
+        d.requests.clear()
+        code, out = _main(mod, sample, root, d, capsys)
+        assert d.requests == [], "crew is never asked"
+    assert code == 1 and "nothing was installed" in out["error"]
+    assert _version(root / "acme-terms" / "current") == "0.1.0"
+
+
+def test_uninstall_after_an_unanswered_update_removes_both_copies_ids(tmp_path, sample, monkeypatch, capsys):
+    """codex r2: B renamed an editor id A still has registered; uninstall withdraws both."""
+    mod = _module()
+    root = tmp_path / "root"
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = OK
+        assert _main(mod, sample, root, d, capsys)[0] == 0
+    _bump(sample, "0.2.0", editor_id="acme-terms-two")
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
+    release = __import__("threading").Event()
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = lambda _req: (release.wait(10), OK)[1]
+        try:
+            assert _main(mod, sample, root, d, capsys)[0] == 1
+        finally:
+            release.set()
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 30)
+    with FakeDaemon() as d:
+        d.routes[("DELETE", "/api/v1/editors/acme-terms")] = (200, {"removed": True})
+        d.routes[("DELETE", "/api/v1/editors/acme-terms-two")] = (404, {"error": "no editor"})
+        code = mod.main(["--uninstall", "acme-terms", "--install-root", str(root), "--crew-url", d.origin, "--json"])
+        deleted = sorted(r["path"] for r in d.requests if r["method"] == "DELETE")
+    out = json.loads(capsys.readouterr().out)
+    assert code == 0 and deleted == ["/api/v1/editors/acme-terms", "/api/v1/editors/acme-terms-two"], deleted
+    assert out["registry"] == {"acme-terms-two": "absent", "acme-terms": "removed"}
+    assert not (root / "acme-terms").exists()
