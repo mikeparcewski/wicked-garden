@@ -19,6 +19,9 @@ def test_a_well_formed_scope_is_read_whole(tmp_path):
     sc = {"intent": "map launch posture", "phrases": ["launch posture"], "scope_hash": "ab12", "description": "d"}
     assert run.read_scope(write(tmp_path, sc)) == sc
     assert run.read_scope(write(tmp_path, {"intent": "PAYCALC1"})) == {"intent": "PAYCALC1"}
+    # the boundary: an empty list and empty strings are well-formed
+    edge = {"intent": "x", "phrases": [], "scope_hash": "", "description": ""}
+    assert run.read_scope(write(tmp_path, edge)) == edge
 
 
 @pytest.mark.parametrize("body,why", [
@@ -27,6 +30,8 @@ def test_a_well_formed_scope_is_read_whole(tmp_path):
     ([1, 2], "not a JSON object"),
     ("map it", "not a JSON object"),
     (17, "not a JSON object"),
+    (b"null", "not a JSON object"),
+    (b"true", "not a JSON object"),
     ({}, "no intent"),
     ({"intent": 17}, "no intent"),
     ({"intent": "  "}, "no intent"),
@@ -84,6 +89,13 @@ def test_the_engines_binary_is_used_when_the_daemon_hands_it(monkeypatch, tmp_pa
     monkeypatch.delenv(model_calls.CORE_ENV)
     monkeypatch.setenv(model_calls.ENGINE_CORE_ENV, " /engine/wicked core")
     assert model_calls.core_bin() == " /engine/wicked core"
+    # neither: PATH
+    fake = tmp_path / "wicked-core"
+    fake.write_text("#!/bin/sh\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv(model_calls.ENGINE_CORE_ENV, "")
+    assert model_calls.core_bin() == str(fake)
+    fake.unlink()
     # neither, and none on PATH: refused by name
     monkeypatch.setenv(model_calls.CORE_ENV, "")
     monkeypatch.setenv(model_calls.ENGINE_CORE_ENV, " ")
