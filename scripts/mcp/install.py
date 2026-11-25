@@ -39,7 +39,9 @@ daemon's registry. Neither set exits 2 naming the remedy.
    in the run.
 3. **Smoke** with ``probe.py``. A failure naming ``<SERVER>_TOKEN`` is a pending credential
    (disclosed, not failed); any other failure exits 1 with ``next/`` removed and nothing else
-   touched.
+   touched. A server whose config has ``rest.enabled`` (scaffold ``--rest``) is also smoked with
+   ``rest_smoke.py`` (its REST surface, one tool route called with a bearer), the same way; the
+   record's ``restSmoke`` says how.
 4. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``. The registered command
    ``node <root>/<key>/current/dist/server.js`` is stable across updates.
 5. **Register** with wicked-crew (``POST /api/v1/mcp/servers/preview`` with
@@ -77,6 +79,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PROBE = HERE / "probe.py"
+REST_SMOKE = HERE / "rest_smoke.py"
 CONFIG_NAME = "mcp-server.config.json"
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 NPM_SPEC_RE = re.compile(r"^(?P<pkg>(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*)@(?P<version>[^@\s]+)$")
@@ -344,6 +347,34 @@ def smoke(server_js: Path, var: str | None) -> tuple[str, dict]:
     return "failed", report
 
 
+def rest_enabled(server_js: Path) -> bool:
+    """The staged server's own config (beside dist/) turns its REST surface on (scaffold --rest)."""
+    try:
+        config = json.loads((server_js.parent.parent / CONFIG_NAME).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    rest = config.get("rest") if isinstance(config, dict) else None
+    return isinstance(rest, dict) and rest.get("enabled") is True
+
+
+def rest_smoke(server_js: Path, var: str | None) -> tuple[str, dict]:
+    """garden#1339: a REST-enabled server is also started as its REST surface and one tool route
+    is called with the bearer (rest_smoke.py: mounted, authenticated, validated; the tool never runs)."""
+    env_args = ["--env", var] if var else []
+    argv = [sys.executable, str(REST_SMOKE), "--timeout", str(PROBE_TIMEOUT_S), *env_args, "--",
+            "node", str(server_js)]
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=PROBE_TIMEOUT_S + 30)
+        report = json.loads(done.stdout)
+    except (OSError, subprocess.TimeoutExpired, ValueError) as err:
+        return "failed", {"ok": False, "error": f"rest smoke did not run: {err}"}
+    if report.get("ok") is True:
+        return "ok", report
+    if var and var in (report.get("stderrNames") or []):
+        return "pending_credential", report
+    return "failed", report
+
+
 # ── 0. key collision ───────────────────────────────────────────────────────────────────────
 
 def installed_rel(npm_spec: str | None) -> Path:
@@ -585,6 +616,14 @@ def do_install(args) -> tuple[int, dict]:
         smoke_state, probe_report = smoke(staged_js, var)
         if smoke_state == "failed":
             raise Failure(1, f"the staged server failed its smoke: {probe_report.get('error')}")
+        rest_state, rest_report = None, None
+        if rest_enabled(staged_js):
+            if smoke_state == "pending_credential":  # it cannot start without the secret either way
+                rest_state, rest_report = "pending_credential", {"ok": False, "skipped": "the stdio smoke is pending its credential"}
+            else:
+                rest_state, rest_report = rest_smoke(staged_js, var)
+            if rest_state == "failed":
+                raise Failure(1, f"the staged server's REST surface failed its smoke: {rest_report.get('error')}")
     except Failure:
         shutil.rmtree(next_dir, ignore_errors=True)
         raise
@@ -608,9 +647,11 @@ def do_install(args) -> tuple[int, dict]:
         code = 1
     record["registered"] = reg.pop("registered")
     record["smoke"] = smoke_state
+    if rest_state is not None:
+        record["restSmoke"] = rest_state
     (key_root / "installed.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
 
-    out = {**record, **reg, "probe": probe_report}
+    out = {**record, **reg, "probe": probe_report, **({"restProbe": rest_report} if rest_report else {})}
     out.setdefault("registry", None)
     upsert = ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis, "--json"]
     out["target"] = args.target

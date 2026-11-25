@@ -38,7 +38,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 ## 1. Scaffold
 
 ```
-wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescript|node|python] --out <dir>
+wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescript|node|python] [--rest] --out <dir>
 ```
 
 - `--name` becomes the registry key and the `mcp:<server>/<tool>` subject segment:
@@ -55,6 +55,14 @@ wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescrip
   `<dir>/server.py`) — for a one-file server with no build step. Same no-overwrite rule.
 - It prints JSON with the written path, the run command, the probe command and (TypeScript)
   the secret variable's NAME.
+- **`--rest`** (TypeScript only; off by default, MCP-only stays the default): also serves every
+  tool as `POST /api/tools/<name>` plus an OpenAPI 3.1 document at `GET /api/openapi.json`,
+  from the same tool definitions, behind the same `MCP_SERVER_BEARER`. It sets `rest.enabled`
+  and keeps the stdio transport, so the server still installs for MCP clients; REST is served
+  under `MCP_TRANSPORT=httpStream`. The report's `rest` block holds that run command and a
+  fresh-scaffold smoke (the document, then `echo`). Once your own tools replace `echo`, smoke one
+  of them: POST its arguments to `/api/tools/<name>` and check the answer is the one an MCP
+  `tools/call` with the same arguments gives.
 - **Manual alternative:** copy `assets/typescript/` (renaming `gitignore` → `.gitignore` and
   `env.example` → `.env.example`), `assets/node/server.mjs` or `assets/python/server.py` into
   `<dir>`, replacing every `__SERVER_NAME__` with the server name, `__SERVER_ENV__` with its
@@ -281,8 +289,8 @@ run. Follow `wicked-garden-governed-worker`, and:
 
 - Write the server into the run's deliverable directory with step 1. Implement the tools
   the intent names, annotated per step 3.
-- Before you add a layer the template does not have (an HTTP or REST surface, an OpenAPI
-  description, auth, sessions), check what the chosen stack already provides at the
+- A REST API with an OpenAPI document is `--rest` (step 1), not a layer to hand-build.
+  Before you add a layer the template does not have (auth, sessions), check what the chosen stack already provides at the
   version the project pins: fastmcp for the TypeScript template, the Node or Python
   standard library for a one-file server. Use what it provides, and do not bring in
   another framework the run did not choose. Record the check in your output: the version,
@@ -297,7 +305,8 @@ run. Follow `wicked-garden-governed-worker`, and:
 **The `mcp-server` workflow, phase by phase:**
 
 - **scope** — settle what to expose, the auth scheme, the transport (stdio unless a remote
-  client needs httpStream) and the **target directory**: the root of a near-empty repo, or a
+  client needs httpStream), whether the intent asks for a REST API or OpenAPI document
+  (then build passes `--rest`; studio's REST switch appends exactly the line "Also expose the tools as a REST API (mcp-scaffold --rest): HTTP routes and an OpenAPI description built from the same tools.") and the **target directory**: the root of a near-empty repo, or a
   subdirectory of an existing one. A repository that is not registered must be created and
   registered by the operator first — say so, do not create it. **List the registry's keys**
   (`GET $WICKED_CREW_URL/api/v1/mcp/servers` — the daemon this run belongs to, never a typed
@@ -311,12 +320,12 @@ run. Follow `wicked-garden-governed-worker`, and:
 - **design** — the tool table (name, schema, annotations, class), the auth plan (scheme and
   the one `<SERVER>_TOKEN`, every non-secret parameter in `mcp-server.config.json`) and the
   observability plan, each checked against the MCPS rules below.
-- **build** — scaffold (step 1), then branch A (generated tools from `tools.json`) or branch
+- **build** — scaffold (step 1; with `--rest` when scope recorded a REST API), then branch A (generated tools from `tools.json`) or branch
   B (hand-written tools through `defineTool`), with a contract test per tool and
   `npm test` green; probe it (step 4).
 - **install-plan / install** — a Tool phase runs `install.py --from-run --dry-run --json`
   (the plan), then the operator's consent gate offers its choices with their files, then a
-  Tool phase runs `install.py --from-run --target <the approved choice>` (step 5). Read its record: `smoke` (`ok` or `pending_credential`), `registered`
+  Tool phase runs `install.py --from-run --target <the approved choice>` (step 5). Read its record: `smoke` (`ok` or `pending_credential`; `restSmoke` too for a `--rest` server), `registered`
   (`true`, `"updated"`, or `false` with `missing`/`remedy` or `reason`) and `clis` (per-CLI
   results, or why they were skipped). Exit 0 means staged; a disclosed pending credential is
   not a failure.

@@ -708,6 +708,86 @@ def test_a_relative_wicked_home_installs_to_an_absolute_launch_path(rig):
     assert out["args"] == [str(current_js)] and current_js.is_file()
 
 
+# --- garden#1339 (coord round 2): a --rest server is smoked as its REST surface too ---------------
+
+REST_STUB = textwrap.dedent('''\
+    import { createServer } from 'node:http';
+    if (process.env.MCP_TRANSPORT === 'httpStream') {
+      const BASE = '/api';
+      const MODE = 'STUB_REST_MODE';  // stamped by _rest_rig: the smoke passes the server no test knobs
+      createServer((req, res) => {
+        const send = (status, body) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(body === undefined ? '' : JSON.stringify(body)); };
+        if (req.headers.authorization !== `Bearer ${process.env.MCP_SERVER_BEARER}`) return send(401, { error: 'unauthorized' });
+        if (req.method === 'GET' && req.url === BASE + '/openapi.json') {
+          const op = { post: { requestBody: { content: { 'application/json': { schema: { type: 'object' } } } } } };
+          return send(200, { openapi: '3.1.0', paths: { '/tools/echo': op } });
+        }
+        if (req.method === 'POST' && req.url === BASE + '/tools/echo' && MODE !== 'no-route') {
+          let raw = '';
+          req.on('data', (c) => { raw += c; });
+          req.on('end', () => {
+            const value = JSON.parse(raw || '{}');
+            if (typeof value !== 'object' || value === null || Array.isArray(value)) return send(400, { error: 'invalid arguments', issues: [] });
+            send(200, { content: [{ type: 'text', text: String(value.text) }] });
+          });
+          return;
+        }
+        res.writeHead(404); res.end();
+      }).listen(Number(process.env.MCP_PORT), process.env.MCP_HOST);
+    }
+    ''')
+
+
+def _rest_rig(rig, mode: str | None = None, needs_token: bool = False) -> None:
+    config = json.loads((rig.srv / "mcp-server.config.json").read_text(encoding="utf-8"))
+    config["rest"] = {"enabled": True, "basePath": "/api"}
+    (rig.srv / "mcp-server.config.json").write_text(json.dumps(config), encoding="utf-8")
+    body = NODE_TEMPLATE.read_text(encoding="utf-8")
+    if body.startswith("#!"):
+        body = body.split("\n", 1)[1]
+    stub = REST_STUB.replace("STUB_REST_MODE", mode or "good")
+    rig.source.write_text((NEEDS_TOKEN if needs_token else "") + stub + body, encoding="utf-8")
+
+
+def test_a_rest_server_is_smoked_as_its_rest_surface(rig):
+    _rest_rig(rig)
+    code, out = rig.run("--from-run", "--crew-url", closed_origin())
+
+    assert code == 0, out
+    assert out["smoke"] == "ok" and out["restSmoke"] == "ok"
+    assert out["restProbe"]["call"] == {"tool": "echo", "status": 400, "error": "invalid arguments"}
+    assert out["restProbe"]["unauthenticated"] == 401
+    record = json.loads((rig.root / "installed.json").read_text(encoding="utf-8"))
+    assert record["restSmoke"] == "ok"
+
+
+def test_a_broken_rest_surface_exits_1_and_leaves_current_untouched(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        assert rig.run("--from-run", "--crew-url", daemon.origin)[0] == 0
+        before = (rig.root / "current" / "dist" / "server.js").read_text(encoding="utf-8")
+        _rest_rig(rig, mode="no-route")
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+
+    assert code == 1 and out["ok"] is False and "REST surface" in out["error"], out
+    assert (rig.root / "current" / "dist" / "server.js").read_text(encoding="utf-8") == before
+    assert not (rig.root / "next").exists()
+
+
+def test_a_rest_server_waiting_for_its_credential_is_pending_on_both_smokes(rig):
+    _rest_rig(rig, needs_token=True)
+    code, out = rig.run("--from-run", "--crew-url", closed_origin())
+
+    assert code == 0, out
+    assert out["smoke"] == "pending_credential" and out["restSmoke"] == "pending_credential"
+
+
+def test_an_mcp_only_server_gets_no_rest_smoke(rig):
+    code, out = rig.run("--from-run", "--crew-url", closed_origin())
+    assert code == 0, out
+    assert "restSmoke" not in out and "restProbe" not in out
+
+
 # ── garden#1543: each reason is one plain sentence, with a remedy the reader can act on where they read it ─────────
 
 NO_INSTALLER_CARD = ("wicked-installer is not installed on this host. To add the server to the CLIs: decline, "

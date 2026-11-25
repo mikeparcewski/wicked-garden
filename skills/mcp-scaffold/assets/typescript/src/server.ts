@@ -3,10 +3,12 @@
 import { FastMCP } from "fastmcp";
 import { authenticate, configureAuth, loadSecret, upstreamCredentials, type Session } from "./auth.js";
 import { loadConfig, secretVar } from "./config.js";
+import { mountRestApi } from "./http-api.js";
 import { fastmcpLogger, initLogging } from "./logging.js";
 import { startTelemetry, stopTelemetry } from "./telemetry.js";
 import { registerExampleTools } from "./tools/example.js";
 import { registerGeneratedTools } from "./tools/generated.js";
+import { toolCatalog } from "./tools/registry.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -30,7 +32,11 @@ async function main(): Promise<void> {
   // The example `echo` tool only stands in while tools.json is empty: a server with generated
   // tools exposes exactly those (plus whatever you register by hand).
   if (generated === 0) registerExampleTools(server, config);
-  root.withMetadata({ generated, transport: config.transport }).info("starting");
+  // The REST surface (rest.enabled): the same tools, on fastmcp's own HTTP app, behind the same
+  // bearer. Only httpStream has an HTTP server; a stdio launch says so in its start line.
+  const rest = !config.rest.enabled ? "off" : config.transport === "httpStream" ? config.rest.basePath : "off (stdio has no HTTP server)";
+  if (config.rest.enabled && config.transport === "httpStream") mountRestApi(server.getApp(), config, () => toolCatalog(server));
+  root.withMetadata({ generated, transport: config.transport, rest }).info("starting");
 
   const stop = async () => {
     await server.stop().catch(() => undefined);

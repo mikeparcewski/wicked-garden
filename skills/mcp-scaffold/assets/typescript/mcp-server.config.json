@@ -10,5 +10,9 @@
     "scopes": [],
     "clientId": null
   },
-  "rateLimitPerMin": 60
+  "rateLimitPerMin": 60,
+  "rest": {
+    "enabled": false,
+    "basePath": "/api"
+  }
 }

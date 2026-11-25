@@ -164,3 +164,61 @@ describe("httpStream", () => {
     }
   });
 });
+
+describe("REST surface (rest.enabled, garden#1339)", () => {
+  // A copy of the built server with rest.enabled on httpStream: the same call over MCP (stdio,
+  // the default build) and over REST gives the same content, and the MCP endpoint still
+  // refuses a request without the bearer.
+  it("answers a REST call with what MCP tools/call answers, beside the MCP endpoint", async () => {
+    const mcp = await converse(minimalEnv({ [SECRET]: "dummy" }), [
+      { id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "conformance", version: "0" } } },
+      { method: "notifications/initialized" },
+      { id: 2, method: "tools/call", params: { name: "echo", arguments: { text: "parity" } } },
+    ], [1, 2]);
+    const dir = mkdtempSync(join(ROOT, ".rest-"));
+    const port = await freePort();
+    const bearer = "conformance-rest-bearer";
+    cpSync(join(ROOT, "dist"), join(dir, "dist"), { recursive: true });
+    cpSync(join(ROOT, "tools.json"), join(dir, "tools.json"));
+    const config = JSON.parse(readFileSync(join(ROOT, "mcp-server.config.json"), "utf8"));
+    // As `scaffold.py --rest` stamps it: rest on, transport still stdio; the HTTP run says httpStream.
+    writeFileSync(join(dir, "mcp-server.config.json"), JSON.stringify({ ...config, port, rest: { enabled: true, basePath: "/api" } }));
+    const child = spawn(process.execPath, [join(dir, "dist", "server.js")], {
+      env: minimalEnv({ [SECRET]: "dummy", MCP_TRANSPORT: "httpStream", MCP_SERVER_BEARER: bearer }),
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    try {
+      const auth = { authorization: `Bearer ${bearer}` };
+      let spec: Response | undefined;
+      for (let i = 0; i < 240 && spec === undefined; i++) {
+        try {
+          spec = await fetch(`http://127.0.0.1:${port}/api/openapi.json`, { headers: auth });
+        } catch {
+          await new Promise((r) => setTimeout(r, 250));
+        }
+      }
+      expect(spec?.status).toBe(200);
+      const doc = (await spec!.json()) as { openapi: string; paths: Record<string, unknown> };
+      expect(doc.openapi).toBe("3.1.0");
+      expect(Object.keys(doc.paths)).toEqual(["/tools/echo"]);
+      const rest = await fetch(`http://127.0.0.1:${port}/api/tools/echo`, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: JSON.stringify({ text: "parity" }),
+      });
+      expect(rest.status).toBe(200);
+      expect(await rest.json()).toEqual(mcp.get(2).result); // the whole result, not only its content
+      const unauthenticated = await fetch(`http://127.0.0.1:${port}/api/tools/echo`, { method: "POST", body: "{}" });
+      expect(unauthenticated.status).toBe(401);
+      const mcpNoBearer = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "c", version: "0" } } }),
+      });
+      expect(mcpNoBearer.status).toBe(401);
+    } finally {
+      child.kill();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
