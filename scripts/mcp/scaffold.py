@@ -12,7 +12,7 @@ overwrites, and refuses naming the first collision before writing anything. Prin
 object on stdout: the written path, the command that runs the server, and the probe command
 that proves it answers ``initialize`` and ``tools/list``. ``--rest`` (TypeScript only, garden#1339)
 also exposes every tool as a REST API with an OpenAPI 3.1 document, from the same tool definitions:
-it sets ``rest.enabled`` in ``mcp-server.config.json`` and prints the HTTP run and REST smoke
+it sets ``rest.enabled`` in ``mcp-server.config.json`` and prints the HTTP run (argv + env) and REST smoke
 commands. The committed transport stays ``stdio`` (an MCP client spawns the server, so it stays
 installable); the REST routes ride fastmcp's HTTP server, served under ``MCP_TRANSPORT=httpStream``.
 Standard library only.
@@ -119,16 +119,16 @@ def _scaffold_directory(name: str, lang: str, out: Path, rest: bool = False) -> 
         base = f"http://127.0.0.1:{config.get('port', 8080)}{config['rest']['basePath']}"
         report["rest"] = {
             "enabled": True,
-            "envNames": ["MCP_SERVER_BEARER"],  # the bearer every HTTP request carries (REST and MCP)
-            "run": f'MCP_TRANSPORT=httpStream node "{server}"',  # with {env_name} and MCP_SERVER_BEARER set
+            # Run it as argv + env (no shell, so it reads the same on Windows): the env values are
+            # fixed; the NAMES are what you set yourself (the upstream secret and the bearer every
+            # HTTP request carries, REST and MCP).
+            "argv": ["node", str(server)],
+            "env": {"MCP_TRANSPORT": "httpStream"},
+            "envNames": [env_name, "MCP_SERVER_BEARER"],
             "openapi": f"{base}/openapi.json",
-            # A fresh-scaffold smoke of the REST surface: the document, then the example `echo`
-            # (generated tools replace it: then POST one of yours), both with the bearer.
-            "smoke": [
-                f'curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER" {base}/openapi.json',
-                f'curl -fsS -H "Authorization: Bearer $MCP_SERVER_BEARER" -H "content-type: application/json"'
-                f' -d \'{{"text":"hi"}}\' {base}/tools/echo',
-            ],
+            # Starts it on a free port with a throwaway bearer and checks the document, the 401 and
+            # one tool route (a refused body: the tool never runs). install.py runs the same smoke.
+            "smoke": f'wicked-garden run scripts/mcp/rest_smoke.py --env {env_name} -- node "{server}"',
         }
     print(json.dumps(report, indent=2))
     return 0

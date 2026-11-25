@@ -289,8 +289,8 @@ run. Follow `wicked-garden-governed-worker`, and:
 
 - Write the server into the run's deliverable directory with step 1. Implement the tools
   the intent names, annotated per step 3.
-- Before you add a layer the template does not have (an HTTP or REST surface, an OpenAPI
-  description, auth, sessions), check what the chosen stack already provides at the
+- A REST API with an OpenAPI document is `--rest` (step 1), not a layer to hand-build.
+  Before you add a layer the template does not have (auth, sessions), check what the chosen stack already provides at the
   version the project pins: fastmcp for the TypeScript template, the Node or Python
   standard library for a one-file server. Use what it provides, and do not bring in
   another framework the run did not choose. Record the check in your output: the version,
@@ -305,7 +305,8 @@ run. Follow `wicked-garden-governed-worker`, and:
 **The `mcp-server` workflow, phase by phase:**
 
 - **scope** — settle what to expose, the auth scheme, the transport (stdio unless a remote
-  client needs httpStream) and the **target directory**: the root of a near-empty repo, or a
+  client needs httpStream), whether the intent asks for a REST API or OpenAPI document
+  (then build passes `--rest`) and the **target directory**: the root of a near-empty repo, or a
   subdirectory of an existing one. A repository that is not registered must be created and
   registered by the operator first — say so, do not create it. **List the registry's keys**
   (`GET $WICKED_CREW_URL/api/v1/mcp/servers` — the daemon this run belongs to, never a typed
@@ -319,12 +320,12 @@ run. Follow `wicked-garden-governed-worker`, and:
 - **design** — the tool table (name, schema, annotations, class), the auth plan (scheme and
   the one `<SERVER>_TOKEN`, every non-secret parameter in `mcp-server.config.json`) and the
   observability plan, each checked against the MCPS rules below.
-- **build** — scaffold (step 1), then branch A (generated tools from `tools.json`) or branch
+- **build** — scaffold (step 1; with `--rest` when scope recorded a REST API), then branch A (generated tools from `tools.json`) or branch
   B (hand-written tools through `defineTool`), with a contract test per tool and
   `npm test` green; probe it (step 4).
 - **install-plan / install** — a Tool phase runs `install.py --from-run --dry-run --json`
   (the plan), then the operator's consent gate offers its choices with their files, then a
-  Tool phase runs `install.py --from-run --target <the approved choice>` (step 5). Read its record: `smoke` (`ok` or `pending_credential`), `registered`
+  Tool phase runs `install.py --from-run --target <the approved choice>` (step 5). Read its record: `smoke` (`ok` or `pending_credential`; `restSmoke` too for a `--rest` server), `registered`
   (`true`, `"updated"`, or `false` with `missing`/`remedy` or `reason`) and `clis` (per-CLI
   results, or why they were skipped). Exit 0 means staged; a disclosed pending credential is
   not a failure.

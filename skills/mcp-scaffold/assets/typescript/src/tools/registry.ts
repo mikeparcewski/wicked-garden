@@ -138,10 +138,11 @@ export function defineTool<P extends ToolParameters>(
   type Args = Parameters<typeof execute>[0];
   type Ctx = Parameters<typeof execute>[1];
   const call = async (args: Args, context: Ctx, surface: Surface) => {
-    const attrs = { "mcp.server.name": config.key, "mcp.tool.name": tool.name };
+    // the surface (mcp | rest) rides every metric too, so a dashboard can split the two callers
+    const attrs = { "mcp.server.name": config.key, "mcp.tool.name": tool.name, "mcp.surface": surface };
     const requestId = context.requestId === undefined ? "" : String(context.requestId);
     const sessionId = context.sessionId ?? "";
-    return tracer.startActiveSpan("mcp.tool.call", { attributes: { ...attrs, "mcp.request.id": requestId, "mcp.surface": surface } }, async (span) => {
+    return tracer.startActiveSpan("mcp.tool.call", { attributes: { ...attrs, "mcp.request.id": requestId } }, async (span) => {
       const started = performance.now();
       const child = rootLogger().child().withContext({ tool: tool.name, requestId, sessionId, surface });
       instruments.calls.add(1, attrs);
