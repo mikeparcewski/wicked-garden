@@ -1,9 +1,9 @@
-"""wicked-garden modernize — domain-model extraction core slice.
+"""wicked-garden domain extraction (J6 v3).
 
-The deterministic assembler + validator behind the modernize archetype's
-rule-extraction skills. Garden STEERS: it emits documents conforming to
-``@wicked/domain-model-schema@1.0.0`` (vendored at
-``skills/domain/vendor/domain-model.schema.json``) and references estate
-SymbolId strings — it imports NO other-product code. The other three products
-(estate, brain, crew) are mocked behind ``_mocks`` for the disjoint build.
+``run.py`` is the one entry point: a scoped run that finds the targets, states and checks each
+decision through the run's own seats (``wicked-core model-call``), writes the prose over the checked
+statements, and stores it all on the estate nodes (``store.py``), where ``wicked-core domain-graph``
+builds the domain model. ``validate_domain_model.py`` checks a document against the vendored schema
+(``skills/domain/vendor/domain-model.schema.json``). Garden imports no other-product code: it shells
+``wicked-estate`` and ``wicked-core``.
 """

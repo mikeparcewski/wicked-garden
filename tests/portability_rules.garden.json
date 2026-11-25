@@ -299,8 +299,8 @@
         "token": "cwd-script"
       },
       {
-        "file": "skills/domain-extractor/SKILL.md",
-        "text": "```bash\npython3 scripts/domain/extract_loop.py --db \"<store>\" --time-budget 780\n```",
+        "file": "skills/domain/SKILL.md",
+        "text": "```bash\npython3 scripts/domain/run.py --db \"<store>\" --repo-root .\n```",
         "token": "cwd-script"
       },
       {

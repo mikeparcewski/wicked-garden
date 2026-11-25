@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://wickedagile.com/schemas/domain-model/1.1.0",
-  "title": "wicked domain-model (v1.1.0)",
-  "description": "Canonical, GENERIC, config-driven domain model — the shared spine of the wicked domain-brain effort (estate GROUNDS, brain EQUIPS, garden STEERS, crew GOVERNS). Successor to anti-legacy's requirements-graph.enriched.schema.json with the COBOL/CICS-specific vocabulary genericized: miner kind-sets live in config.coverage.* (NOT hardcoded here), provenance is {source, ref, source_kinds} (not {source_app, program, ...}), and source_kinds uses the generic 'type-def' tier (not COBOL 'data-def'). HARD INVARIANTS preserved from the donor: every requirement carries the full field set; business_rules has minItems 1; every business rule carries a numeric confidence in [0,1] AND a provenance{source, ref, source_kinds}; disposition is keep|modify|drop|new; a 'drop' needs a disposition_reason to be honored by the coverage gate. Rule/Validation/ErrorPath items are OBJECT-ONLY (the transitional string form is not accepted). IDs are RULE-/VAL-/ERR- + 3-to-6-digit zero-padded, unique within a requirement; the canonical global key is legacy_component + '#' + id. A domain fact REFERENCES an estate SymbolId (in legacy_components / provenance.ref) and never embeds a copy of the symbol's code, name-uniqueness, file, or line. Every emitted document MUST carry a metadata.schema_version this schema accepts ('1.0.0' or '1.1.0'); a consumer rejects a schema_version it has no validator for. v1.1.0 adds two OPTIONAL fields, so every 1.0.0 document stays valid: metadata.coverage (the share of behaviours the model maps, against the configured minimum it was built at) and requirement.corroboration (validated by several independent sources, or unconfirmed and why).",
+  "$id": "https://wickedagile.com/schemas/domain-model/1.2.0",
+  "title": "wicked domain-model (v1.2.0)",
+  "description": "Canonical, GENERIC, config-driven domain model — the shared spine of the wicked domain-brain effort (estate GROUNDS, brain EQUIPS, garden STEERS, crew GOVERNS). Successor to anti-legacy's requirements-graph.enriched.schema.json with the COBOL/CICS-specific vocabulary genericized: miner kind-sets live in config.coverage.* (NOT hardcoded here), provenance is {source, ref, source_kinds} (not {source_app, program, ...}), and source_kinds uses the generic 'type-def' tier (not COBOL 'data-def'). HARD INVARIANTS preserved from the donor: every requirement carries the full field set; business_rules has minItems 1; every business rule carries a numeric confidence in [0,1] AND a provenance{source, ref, source_kinds}; disposition is keep|modify|drop|new; a 'drop' needs a disposition_reason to be honored by the coverage gate. Rule/Validation/ErrorPath items are OBJECT-ONLY (the transitional string form is not accepted). IDs are RULE-/VAL-/ERR- + 3-to-6-digit zero-padded, unique within a requirement; the canonical global key is legacy_component + '#' + id. A domain fact REFERENCES an estate SymbolId (in legacy_components / provenance.ref) and never embeds a copy of the symbol's code, name-uniqueness, file, or line. Every emitted document MUST carry a metadata.schema_version this schema accepts ('1.0.0', '1.1.0' or '1.2.0'); a consumer rejects a schema_version it has no validator for. v1.1.0 adds two OPTIONAL fields, so every 1.0.0 document stays valid: metadata.coverage (the share of behaviours the model maps, against the configured minimum it was built at) and requirement.corroboration (validated by several independent sources, or unconfirmed and why).",
   "type": "object",
   "required": ["domains", "metadata"],
   "additionalProperties": false,
@@ -26,10 +26,7 @@
         "source_kinds": {
           "type": "array",
           "description": "The grounding tier of each fact. Generic enum (adapted from the donor SOURCE-KINDs): code-body = executable logic read directly; type-def = type/schema/struct/interface/DB-schema declaration (generalizes COBOL data-def); comment = inline prose; doc = README/external. TRUST RULE: a rule is 'trusted' only when grounded in code-body and/or type-def; resting on comment/doc alone makes it RISK-eligible.",
-          "items": {
-            "type": "string",
-            "enum": ["code-body", "type-def", "comment", "doc"]
-          }
+          "items": { "type": "string", "enum": ["code-body", "type-def", "comment", "doc"] }
         }
       }
     },
@@ -39,12 +36,75 @@
       "required": ["id", "statement", "confidence", "provenance"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^RULE-[0-9]{3,6}$" },
+        "id": {
+          "type": "string",
+          "anyOf": [
+            { "pattern": "^RULE-[0-9]{3,6}$" },
+            { "pattern": "^.+#[0-9]+(~r[0-9]+)*$" }
+          ],
+          "description": "RULE-NNN, or (v1.2.0) the statement id garden's domain-run gave it ('<target>#<n>', a repaired one '<target>#<n>~r<k>')."
+        },
         "statement": { "type": "string", "minLength": 1 },
         "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
         "provenance": { "$ref": "#/$defs/provenance" },
-        "source_ref": { "type": "string" }
-      }
+        "source_ref": { "type": "string" },
+        "statement_key": {
+          "type": "string",
+          "pattern": "^v1:[0-9a-f]{64}$",
+          "description": "v1.2.0. The statement's identity for a ruling: its file and its claims with their indices, never its lines."
+        },
+        "status": {
+          "enum": ["Checked", "open", "confirmed", "stale"],
+          "description": "v1.2.0. The effective status: stale (the code changed since it was checked) overrides the rest."
+        },
+        "located": {
+          "type": "boolean",
+          "description": "v1.2.0. False when the writer left no usable anchor (no source_ref)."
+        },
+        "target": {
+          "type": ["string", "null"],
+          "description": "v1.2.0. The target the statement was extracted from (metadata.targets[].id)."
+        },
+        "claims": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["i", "type", "text", "ranges"],
+            "properties": {
+              "i": { "type": "integer", "minimum": 0 },
+              "type": { "type": "string", "minLength": 1 },
+              "text": { "type": "string" },
+              "when": {
+                "type": "array",
+                "items": { "type": "integer" }
+              },
+              "unless": {
+                "type": "array",
+                "items": { "type": "integer" }
+              },
+              "of": {
+                "type": "array",
+                "items": { "type": "integer" }
+              },
+              "ranges": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/range" }
+              },
+              "guard_ranges": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/range" }
+              }
+            }
+          },
+          "description": "v1.2.0. The statement's claims: i, type, text, when/unless/of (claim indices), ranges and guard_ranges ({file, from, to}, inclusive, 1-based)."
+        },
+        "checked_by": {
+          "enum": ["codex", "you"],
+          "description": "v1.2.0. Who stands behind it: the checker, or a person's confirm."
+        },
+        "ruling": { "$ref": "#/$defs/ruling" }
+      },
+      "dependencies": { "statement_key": ["status", "located", "target", "claims"] }
     },
     "validation": {
       "type": "object",
@@ -96,16 +156,7 @@
     },
     "requirement": {
       "type": "object",
-      "required": [
-        "title",
-        "description",
-        "legacy_components",
-        "data_access",
-        "dependencies",
-        "business_rules",
-        "validations",
-        "error_paths"
-      ],
+      "required": ["title", "description", "legacy_components", "data_access", "dependencies", "business_rules", "validations", "error_paths"],
       "additionalProperties": false,
       "properties": {
         "title": { "type": "string" },
@@ -141,10 +192,7 @@
           "description": "Required (may be empty).",
           "items": { "$ref": "#/$defs/errorPath" }
         },
-        "status": {
-          "type": "string",
-          "enum": ["active", "review", "unresolvable"]
-        },
+        "status": { "type": "string", "enum": ["active", "review", "unresolvable"] },
         "disposition": {
           "type": "string",
           "enum": ["keep", "modify", "drop", "new"],
@@ -185,11 +233,11 @@
             }
           },
           "if": {
-            "properties": { "status": { "const": "unconfirmed" } }
+            "properties": {
+              "status": { "const": "unconfirmed" }
+            }
           },
-          "then": {
-            "required": ["why"]
-          }
+          "then": { "required": ["why"] }
         },
         "business_domain": {
           "type": "object",
@@ -204,12 +252,12 @@
         }
       },
       "if": {
-        "properties": { "disposition": { "const": "drop" } },
+        "properties": {
+          "disposition": { "const": "drop" }
+        },
         "required": ["disposition"]
       },
-      "then": {
-        "required": ["disposition_reason"]
-      }
+      "then": { "required": ["disposition_reason"] }
     },
     "domain": {
       "type": "object",
@@ -235,6 +283,28 @@
           "description": "The estate Louvain community index this domain was derived from. Advisory provenance only — NOT authoritative."
         }
       }
+    },
+    "range": {
+      "type": "object",
+      "required": ["file", "from", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "from": { "type": "integer", "minimum": 1 },
+        "to": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ruling": {
+      "type": "object",
+      "required": ["action", "by", "at"],
+      "additionalProperties": false,
+      "description": "v1.2.0. A person's ruling: confirm or reject (a reject carries its note), who made it and when (unix seconds).",
+      "properties": {
+        "action": { "enum": ["confirm", "reject"] },
+        "note": { "type": "string" },
+        "by": { "type": "string", "minLength": 1 },
+        "at": { "type": "integer" }
+      }
     }
   },
   "properties": {
@@ -244,8 +314,8 @@
       "additionalProperties": false,
       "properties": {
         "schema_version": {
-          "enum": ["1.0.0", "1.1.0"],
-          "description": "The contract version (1.1.0 adds the optional metadata.coverage and requirement.corroboration; every 1.0.0 document stays valid). Every emitted document MUST carry this; a consumer rejects a schema_version it has no validator for (no silent best-effort)."
+          "enum": ["1.0.0", "1.1.0", "1.2.0"],
+          "description": "The contract version (1.1.0 adds the optional metadata.coverage and requirement.corroboration; every 1.0.0 document stays valid; 1.2.0 is the J6 v3 model built from garden's domain-run: statements with claims, status and rulings, plus metadata.accounting, rule_groups, followups and targets). Every emitted document MUST carry this; a consumer rejects a schema_version it has no validator for (no silent best-effort)."
         },
         "migration_mode": {
           "type": "string",
@@ -279,27 +349,186 @@
           "type": "boolean",
           "description": "v1.1.0, optional (schema bundle 1.3.2). The build left tests, data, manifests and documents out (an extracted rule counts whatever its file). Set by the build, never by a read's coverage relabel; absent means a build from before this field (no claim). A row carried from an earlier build because its unit left the index is flagged `unindexed` on the read's rows and keeps that build's verdict."
         },
+        "accounting": {
+          "type": "object",
+          "description": "v1.2.0 (schema bundle 1.4.0). The model's targets, how many are accounted for (fresh, their lines accounted, every statement Checked or confirmed), its open statements (open or rejected) and its stale targets (the code changed since they were checked).",
+          "required": ["targets", "accounted", "open", "stale"],
+          "additionalProperties": false,
+          "properties": {
+            "targets": { "type": "integer", "minimum": 0 },
+            "accounted": { "type": "integer", "minimum": 0 },
+            "open": { "type": "integer", "minimum": 0 },
+            "stale": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "rule_groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "kind", "rule", "details", "withheld", "stale"],
+            "properties": {
+              "id": { "type": "string" },
+              "kind": { "type": "string" },
+              "rule": { "type": ["object", "null"] },
+              "details": { "type": "array" },
+              "withheld": { "type": "array" },
+              "stale": { "type": "boolean" }
+            }
+          },
+          "description": "v1.2.0. The plain-words rule groups (business first, housekeeping last): id, g, title, area, kind, rule (null when withheld), details, withheld (each with its reason), desc, and stale (a statement it cites rests on code that changed). Every sentence cites statement ids."
+        },
+        "followups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "kind"],
+            "properties": {
+              "id": { "type": "string" },
+              "kind": { "type": "string", "minLength": 1 },
+              "ruling": { "$ref": "#/$defs/ruling" }
+            }
+          },
+          "description": "v1.2.0. What a person can check, in the writer's order: id, kind (flagged, open, refused, scope), where, statement, target, unknown, check, sites, and the live ruling when one applies."
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "file", "lines", "target_hash", "accounted", "stale", "unaccounted_reasons", "statements", "rejected"],
+            "properties": {
+              "id": { "type": "string" },
+              "accounted": { "type": "boolean" },
+              "stale": { "type": "boolean" },
+              "unaccounted_reasons": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "statements": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "rejected": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "statement_key", "ruling"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "statement": { "type": ["string", "null"] },
+                    "statement_key": { "type": "string" },
+                    "ruling": { "$ref": "#/$defs/ruling" }
+                  }
+                }
+              },
+              "ruling": { "$ref": "#/$defs/ruling" }
+            }
+          },
+          "description": "v1.2.0. Every target of the model: id, file, lines, target_hash, accounted, stale, unaccounted_reasons, statements, rejected (each with its ruling), ruling."
+        },
+        "built_at": {
+          "type": "integer",
+          "description": "v1.2.0. When the build judged the model against the checkout, unix seconds: the model is as of this time."
+        },
+        "skipped": {
+          "type": "object",
+          "required": ["retired", "malformed", "old_loop"],
+          "additionalProperties": false,
+          "description": "v1.2.0. Rows the build did not read: retired, malformed, old_loop (rules from before J6 v3).",
+          "properties": {
+            "retired": { "type": "integer", "minimum": 0 },
+            "malformed": { "type": "integer", "minimum": 0 },
+            "old_loop": { "type": "integer", "minimum": 0 }
+          }
+        },
         "coverage": {
           "type": "object",
-          "description": "v1.1.0, optional (this shape since schema bundle 1.3.0). The share of behaviour-bearing nodes in product code that are REAL requirements (resolved to a stated, sourced business rule) and the configured minimum the build was held to: '23% real requirements \u00b7 4397 placeholders \u00b7 minimum 80%'. Risk-flagged placeholders are shown in the graph as unconfirmed but never count toward the minimum (operator decision 2026-11-01, wicked-core#1233); tests, data, manifests and documents are not behaviour-bearing (not_product).",
+          "description": "v1.1.0, optional (this shape since schema bundle 1.3.0). The share of behaviour-bearing nodes in product code that are REAL requirements (resolved to a stated, sourced business rule) and the configured minimum the build was held to: '23% real requirements · 4397 placeholders · minimum 80%'. Risk-flagged placeholders are shown in the graph as unconfirmed but never count toward the minimum (operator decision 2026-11-01, wicked-core#1233); tests, data, manifests and documents are not behaviour-bearing (not_product).",
           "required": ["real_pct", "min_pct", "behavior_bearing", "real", "placeholders", "unmapped", "not_product"],
           "additionalProperties": false,
           "properties": {
-            "real_pct": { "type": "integer", "minimum": 0, "maximum": 100, "description": "floor(real * 100 / behavior_bearing); 100 on an empty denominator. The one number the minimum is checked against." },
+            "real_pct": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "floor(real * 100 / behavior_bearing); 100 on an empty denominator. The one number the minimum is checked against."
+            },
             "min_pct": { "type": "integer", "minimum": 1, "maximum": 100 },
-            "behavior_bearing": { "type": "integer", "minimum": 0, "description": "Behaviour-bearing nodes in product code (the denominator)." },
-            "real": { "type": "integer", "minimum": 0, "description": "Behaviours resolved to a stated, sourced business rule." },
-            "placeholders": { "type": "integer", "minimum": 0, "description": "Behaviours carrying only a risk-flagged placeholder: shown, never counted." },
+            "behavior_bearing": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Behaviour-bearing nodes in product code (the denominator)."
+            },
+            "real": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Behaviours resolved to a stated, sourced business rule."
+            },
+            "placeholders": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Behaviours carrying only a risk-flagged placeholder: shown, never counted."
+            },
             "unmapped": { "type": "integer", "minimum": 0 },
-            "not_product": { "type": "integer", "minimum": 0, "description": "Behaviour-kind nodes left out because their file is a test, data, manifest or document file." }
+            "not_product": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Behaviour-kind nodes left out because their file is a test, data, manifest or document file."
+            }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["schema_version"],
+            "properties": {
+              "schema_version": { "const": "1.2.0" }
+            }
+          },
+          "then": {
+            "required": ["accounting", "rule_groups", "followups", "targets", "built_at", "skipped"]
+          }
+        }
+      ]
     },
     "domains": {
       "type": "object",
       "description": "REQUIRED. Keys are domain slugs; each value is a Domain.",
       "additionalProperties": { "$ref": "#/$defs/domain" }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["metadata"],
+        "properties": {
+          "metadata": {
+            "required": ["schema_version"],
+            "properties": {
+              "schema_version": { "const": "1.2.0" }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "domains": {
+            "additionalProperties": {
+              "properties": {
+                "requirements": {
+                  "additionalProperties": {
+                    "properties": {
+                      "business_rules": {
+                        "items": { "required": ["statement_key"] }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
