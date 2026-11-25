@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- **An editor install crew finished only in part no longer prints ok (#1576).** crew answers 200 `installed: true` and names what it could not finish: `skillsError` (the pack's skills were not written or published) or `withdrawn.error` (an update could not switch off or delete what it dropped). `scripts/editor/install.py` kept only `granted`/`grantError` and `conformance`, so the CLI printed `"ok": true`. It now prints crew's `skills`, `presets`, `skillsError` and `withdrawn`, and a part crew could not finish makes the result `"ok": false, "outcome": "partial"` with crew's reason, exit 1. The editors stay installed and recorded. A `grantError` is printed and stays ok, as before.
 - **The setup gate blocks on a python3-only host (#1580).** The UserPromptSubmit setup gate exited 2, but hooks.json runs `python3 … || python … || py -3 …`, so the non-zero exit ran the missing `python` and `py` and the hook ended with 127, a non-blocking error: the prompt went through and every prompt printed `command not found` twice. The gate now prints `{"decision": "block", "reason": …}` and exits 0, the way the other hooks signal, so no fallback runs. `tests/hooks/test_setup_gate_python_chain_1580.py` runs the hooks.json command under `sh` with a PATH that holds only `python3`.
 
 ## [12.68.6] - 2026-11-24

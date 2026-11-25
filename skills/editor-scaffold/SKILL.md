@@ -155,7 +155,10 @@ wicked-garden run scripts/editor/install.py --uninstall <pack name> [--crew-url 
 Idempotent by the pack's `name`: stage into `<root>/<name>/current/` (`$WICKED_EDITOR_INSTALL_ROOT`,
 else `$WICKED_HOME/editors`, else `~/.wicked/editors`: a program-owned place; the copy it replaces is kept in `previous/`), then `POST /api/v1/editors` on the daemon,
 which re-runs `pack check` **and the conformance run itself** before it records the editor in its
-registry. A refusal rolls the staged copy back and exits 1. `--target daemon` (the default)
+registry. A refusal rolls the staged copy back and exits 1. An install crew finished only in part (its
+`skillsError` or `withdrawn.error`: the editors are in, but the pack's skills or an update's withdrawals are
+not) prints `"ok": false, "outcome": "partial"` with crew's reason and exits 1;
+install the pack again once that is fixed. `--target daemon` (the default)
 installs it on; `daemon-off` installs it turned off. `--dry-run` writes nothing and prints the
 one JSON plan line the install's consent gate shows. Each choice id carries a digest of the planned
 manifest: approving it installs that pack only, and a pack changed since (another permission, version

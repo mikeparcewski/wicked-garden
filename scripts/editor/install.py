@@ -33,7 +33,13 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    the result says ``"outcome": "unknown"``. A ``pending.json`` marker, written before the call and removed
    once crew answers, tells the next install that ``current/`` was never confirmed: it replaces that copy and
    keeps ``previous/``, the last one crew confirmed, as the roll-back.
-5. **Record** ``<root>/<name>/installed.json`` and print it.
+5. **Record** ``<root>/<name>/installed.json`` and print it, with what crew reports: ``granted`` and the
+   ``skills`` and ``presets`` it added. crew installs the editors and still names any part it could not finish
+   (``skillsError``: the pack's skills were not written or published; ``withdrawn.error``: an update could not
+   switch off or delete what it dropped). Then the result is ``"ok": false, "outcome": "partial"`` with that
+   ``error``, and the exit code is 1: the editors are installed and recorded, and installing the pack again is
+   crew's fix. A ``grantError`` is printed and the install stays ok: the editor works, and its ``mcp.session``
+   asks instead.
 
 **Targets** (the consent gate's choices): ``daemon`` (the default) installs it turned on — it opens
 the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch on in studio Settings
@@ -664,10 +670,20 @@ def do_install(args) -> tuple[int, dict]:
               "editors": body.get("editors", []), "enabled": target == "daemon",
               "updated": bool(body.get("updated")), "installedAt": _now()}
     (key_root / "installed.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    # crew >= the MCP inspector bridge reports the install-consent grants it wrote (or why it could not).
-    grants = {k: body[k] for k in ("granted", "grantError") if k in body}
-    return 0, {**record, **grants, "target": target, "path": str(current),
-               "conformance": body.get("conformance")}
+    # crew >= the MCP inspector bridge reports the install-consent grants it wrote (or why it could not), and
+    # (wicked-crew#1703) the pack's skills and presets it added, and what an update withdrew.
+    crew_said = {k: body[k] for k in ("granted", "grantError", "skills", "presets", "skillsError", "withdrawn")
+                 if k in body}
+    out = {**record, **crew_said, "target": target, "path": str(current), "conformance": body.get("conformance")}
+    # crew answers 200 `installed: true` and names any part it could not finish (garden#1576): the editors are
+    # installed and recorded, but the result is not ok.
+    withdrawn = body.get("withdrawn")
+    # A grantError stays an ok install (the editor works; its mcp.session asks instead), as it always has.
+    unfinished = [m for m in (body.get("skillsError"), withdrawn.get("error") if isinstance(withdrawn, dict) else None)
+                  if isinstance(m, str) and m.strip()]
+    if unfinished:
+        return 1, {**out, "outcome": "partial", "error": "; ".join(unfinished)}
+    return 0, out
 
 
 def do_uninstall(args) -> tuple[int, dict]:
