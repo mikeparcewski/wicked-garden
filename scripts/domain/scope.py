@@ -125,6 +125,11 @@ def scope_ts(repo, phrase_list, cfg):
     res, sel_files, sel_defs, questions = {}, collections.OrderedDict(), collections.defaultdict(set), []
     for p in phrase_list:
         ws = [key(w) for w in sub(p) if w not in stop]
+        if not ws:
+            # no word left to match: `all([])` would match every definition
+            res[p] = dict(words=[], used="none", n=0, files=[], defs=[])
+            questions.append(f"'{p}' has no word to match: type a file, function or screen name, or drop it")
+            continue
         name_hits = [d for d in docs if all(w in d[3] for w in ws)]
         file_hits = [d for d in docs if all(w in (d[3] | d[4]) for w in ws)]
         hits = name_hits or file_hits

@@ -132,3 +132,13 @@ def test_the_language_split_replaces_the_proofs_repository_split():
     assert lookup.lang_of("src/a.py") == "other"
     assert lookup.card_facts(None, "app/cbl/X.cbl").startswith("CARD FACTS")
     assert lookup.card_facts(None, "app/cbl/X.cbl") != lookup.card_facts(None, "src/a.ts")
+
+
+def test_a_phrase_of_only_stopwords_matches_nothing_and_asks(repo_of):
+    # `all([])` is true: a phrase with no word left would match every definition in the repository
+    repo = repo_of("mini-ts")
+    sc = scope.build_scope(repo, "x", ["the of", "launch posture"])
+    assert sc["phrases"]["the of"]["n"] == 0
+    assert sc["target_files"] == ["src/core/launch-posture.ts"]
+    assert sc["unmatched_phrases"] == ["the of"]
+    assert "'the of' has no word to match: type a file, function or screen name, or drop it" in sc["questions"]

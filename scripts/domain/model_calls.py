@@ -21,6 +21,7 @@ WRITER, CHECKER = "claude", "codex"
 WRITER_MAX_OUTPUT = 64000  # the proof's CLAUDE_CODE_MAX_OUTPUT_TOKENS on extract, M-repair and repair (38.7K seen)
 FAMILY = {"claude": "anthropic", "codex": "openai"}
 CORE_ENV = "WICKED_CORE_BIN"
+ENGINE_CORE_ENV = "WICKED_CORE_EXE"
 _state = {"calls": None}
 
 
@@ -41,9 +42,13 @@ def configure(calls_dir):
 
 
 def core_bin():
-    b = os.environ.get(CORE_ENV) or shutil.which("wicked-core")
+    """The wicked-core this step's calls go through: ``WICKED_CORE_BIN`` (an operator override), else the engine's own
+    binary, which the daemon hands an armed step as ``WICKED_CORE_EXE`` (core C1), else PATH."""
+    b = (os.environ.get(CORE_ENV) or "").strip() or (os.environ.get(ENGINE_CORE_ENV) or "").strip() \
+        or shutil.which("wicked-core")
     if not b:
-        raise RuntimeError("wicked-core is not resolvable (WICKED_CORE_BIN or PATH): no model call can run")
+        raise RuntimeError("wicked-core is not resolvable (WICKED_CORE_BIN, WICKED_CORE_EXE or PATH): "
+                           "no model call can run")
     return b
 
 
