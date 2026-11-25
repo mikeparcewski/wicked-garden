@@ -661,3 +661,63 @@ def test_uninstall_after_an_unanswered_update_removes_both_copies_ids(tmp_path, 
     assert code == 0 and deleted == ["/api/v1/editors/acme-terms", "/api/v1/editors/acme-terms-two"], deleted
     assert out["registry"] == {"acme-terms-two": "absent", "acme-terms": "removed"}
     assert not (root / "acme-terms").exists()
+
+
+# garden#1576: crew answers 200 `installed: true` and names what it could not finish. These answers copy the shape
+# crew's installPack returns (wicked-crew packages/crew/src/editors/pack-install.ts, the return of installPack:
+# skills, presets, skillsError, withdrawn, installed, updated, editors, check, conformance) and the route's
+# grantError (packages/crew/src/editors/routes.ts, POST /editors), with crew's own message texts
+# (packages/crew/src/editors/pack-extras.ts, writeSkills).
+CREW_CHECK = {"ok": True, "findings": []}
+CREW_EDITORS = [{"id": "acme-terms", "version": "0.1.0"}]
+SKILLS_HELD = [{"name": "wicked-garden-acme-terms", "key": "wicked-garden-acme-terms"},
+               {"name": "wicked-garden-acme-terms-checker", "key": "wicked-garden-acme-terms-checker"}]
+PUBLISH_FAILED = ("installed, but the skills root could not be published (a broken skill elsewhere), so workers do "
+                  "not get the pack’s skills; fix that and install the pack again")
+
+
+def _crew_answer(**extra) -> tuple[int, dict]:
+    return 200, {"presets": ["acme-terms-review"], **extra, "installed": True, "updated": False,
+                 "editors": CREW_EDITORS, "check": CREW_CHECK, "conformance": {"ok": True}}
+
+
+def _install_answered(sample: Path, root: Path, answer: tuple[int, dict]) -> tuple[subprocess.CompletedProcess, dict]:
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = answer
+        done = _run("--dir", str(sample), "--install-root", str(root), "--json", env={"WICKED_CREW_URL": d.origin})
+    return done, json.loads(done.stdout.strip().splitlines()[-1])
+
+
+def test_a_skills_error_from_crew_is_a_partial_install_not_ok(tmp_path, sample):
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skillsError=PUBLISH_FAILED))
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert out["ok"] is False and out["outcome"] == "partial"
+    assert out["skillsError"] == PUBLISH_FAILED
+    assert PUBLISH_FAILED in out["error"]
+    assert out["presets"] == ["acme-terms-review"] and "skills" not in out
+    # The editors ARE installed: the record stays, so an uninstall or the next install finds it.
+    assert (tmp_path / "root" / "acme-terms" / "installed.json").exists()
+
+
+def test_a_clean_install_prints_the_skills_and_presets_crew_installed(tmp_path, sample):
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert out["ok"] is True and "outcome" not in out
+    assert out["skills"] == SKILLS_HELD and out["presets"] == ["acme-terms-review"]
+
+
+def test_a_failed_withdrawal_is_partial_too(tmp_path, sample):
+    withdrawn = {"skills": ["wicked-garden-acme-old"], "presets": [],
+                 "error": "the skill wicked-garden-acme-old could not be switched off (disk full)"}
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, withdrawn=withdrawn))
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert out["ok"] is False and out["outcome"] == "partial" and withdrawn["error"] in out["error"]
+    assert out["withdrawn"] == withdrawn
+
+
+def test_a_grant_error_is_printed_and_stays_ok(tmp_path, sample):
+    # crew's route text (routes.ts POST /editors); the editor works, its mcp.session asks instead.
+    grant = "installed, but the install consent's grants were not written (it asks), and its earlier grants were not withdrawn: EACCES"
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, grantError=grant))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert out["ok"] is True and out["grantError"] == grant and "outcome" not in out
