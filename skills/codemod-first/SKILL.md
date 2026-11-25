@@ -8,7 +8,8 @@ description: |
   written rejection) in the plan or PR description.
 
   Use when: a dependency or toolchain version upgrade ("upgrade react 17 to 18",
-  "bump tokio to 1.40"), a framework or major-version migration, removing
+  "bump tokio to 1.40", "update express from 4 to 5", "switch from moment to
+  dayjs"), a framework or major-version migration, removing
   deprecated calls, an API rename, a lint or format rule rollout, language-level
   modernization (syntax, idioms), replacing one library with another, "port this
   module/app", or any change expected to touch more than about 10 similar sites.

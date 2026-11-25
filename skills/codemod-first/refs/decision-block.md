@@ -52,7 +52,9 @@ mechanical-first: rejected — <reason>
 ```
 
 The separator is an em dash (`—`) with a space on each side, and the reason is not empty, for
-example `mechanical-first: rejected — 3 sites, each semantically different`.
+example `mechanical-first: rejected — 3 sites, each semantically different`. The line may sit in
+a PR body's bullet list (`- `, `* `, `1. `), in a block quote (`> `), or in bold
+(`**mechanical-first: rejected** — …`); a block may be fenced inside a block quote.
 
 ## What fails
 

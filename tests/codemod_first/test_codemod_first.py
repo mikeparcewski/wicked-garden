@@ -99,6 +99,7 @@ def test_trigger_eval(case):
     ("replace-library", "replacing one library with another"), ("rename", "API rename"),
     ("lint-rollout", "lint or format rule rollout"), ("modernize", "modernization"),
     ("port", "port this module/app"), ("migrate", "migration"),
+    ("update", "update express from 4 to 5"), ("switch-library", "switch from moment to dayjs"),
 ])
 def test_the_description_names_every_trigger_family(family, words):
     """An agent activates on the description, so every family the script knows is in it."""

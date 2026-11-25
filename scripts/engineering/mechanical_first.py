@@ -40,9 +40,16 @@ UNFENCED_HEADER_RE = re.compile(r"^ {0,3}mechanical-first\s*:\s*$")
 CONTAINER_RE = re.compile(r"^(?: {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+| {0,3}>[ \t]?)+")
 OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
 INDENTED_RE = re.compile(r"^(?: {4}|\t)")
+QUOTE_RE = re.compile(r"^(?: {0,3}>[ \t]?)+")
+# A bolded declaration (`**mechanical-first: rejected** — ...`, `**mechanical-first:** rejected — ...`)
+# reads as the same line once the leading bold span is unwrapped.
+BOLD_RE = re.compile(r"^(?P<mark>\*\*|__)(?P<inner>.+?)(?P=mark)")
 LINE_END_RE = re.compile(r"\r\n|\r|\n")  # CommonMark line endings only (not U+2028 and kin)
 MAX_DIGITS = 9
 KEY_RE = re.compile(r"^\s*(?P<key>[a-z_]+)\s*:\s?(?P<value>.*?)\s*$")
+
+# A package-like token: `backticked`, @scoped, with a dot, dash, slash or digit, or a *js name.
+_PKG = r"`[^`\s]+`|@[\w.-]+/[\w.-]+|[a-z][\w]*[.\-/\d][\w.\-/]*|[a-z]\w*js\b"
 
 # The skill's trigger families (its description says the same in words). Each pattern is matched
 # case-insensitively against the request as a whole word or phrase.
@@ -66,10 +73,24 @@ TRIGGERS: dict[str, str] = {
                      r"\b(?:lint(?:er|ing)?|eslint|ruff|clippy|prettier|black|formatter|biome)\b"),
     "modernize": r"\bmoderni[sz](?:e|es|ed|ing|ation)\b",
     "port": r"\bport(?:s|ed|ing)?\b\s+(?:this|the|our|a|an)?\s*(?:module|app|application|service|codebase|library)\b",
+    # "update react to 18", "update express from 4 to 5", "update all dependencies to latest",
+    # "update the dependencies"; never a bare "update the README"
+    "update": (r"\bupdat(?:e|es|ed|ing)\b(?:\s+\S+){1,4}?\s+to\s+(?:v?\d+(?:\.\d+)*\b|(?:the\s+)?(?:latest|newest)\b)"
+               r"|\bupdat(?:e|es|ed|ing)\b(?:\s+(?:all|the|our|every))*\s+(?:dep(?:endenc(?:y|ies)|s)|packages|libraries)\b"),
+    # "switch from moment to dayjs": one side must look like a package (backticked, scoped,
+    # dotted/dashed/digit, or a *js name), so "switch from tabs to spaces" stays quiet
+    "switch-library": (r"\bswitch(?:es|ed|ing)?\s+from\s+(?:" + _PKG + r")\s+to\s+\S+"
+                       r"|\bswitch(?:es|ed|ing)?\s+from\s+\S+\s+to\s+(?:" + _PKG + r")"),
     # "more than about 10 similar sites": a two-digit-or-more count of sites, or dozens/hundreds
     "repeated-sites": (r"\b(?:\d{2,}|dozens of|hundreds of)\s+(?:similar|identical|matching|repeated)?\s*"
                        r"(?:sites|call\s?sites|places|occurrences|usages|files)\b"),
 }
+
+
+def _plain(line: str) -> str:
+    """The line as a reader sees it: list and quote markers stripped, a leading bold span unwrapped."""
+    bare = CONTAINER_RE.sub("", line, count=1)
+    return BOLD_RE.sub(lambda m: m.group("inner"), bare, count=1)
 
 
 def _decisions(text: str) -> tuple[list[dict], list[str]]:
@@ -83,7 +104,10 @@ def _decisions(text: str) -> tuple[list[dict], list[str]]:
         line = lines[i]
         bare = CONTAINER_RE.sub("", line, count=1)
         fence = None if INDENTED_RE.match(line) else OPEN_RE.match(bare)
-        if fence and fence.group("run")[0] == "`" and "`" in fence.group("info"):
+        if fence and fence.group("run")[0] == "`" and fence.group("run") in fence.group("info"):
+            # an inline code span that closes on this line (```npm test``` is the gate.): plain text
+            fence = None
+        elif fence and fence.group("run")[0] == "`" and "`" in fence.group("info"):
             # not a fence but an inline code span: it runs to the next line holding the same
             # backtick run, and everything up to there is code, never a decision
             run = fence.group("run")
@@ -93,25 +117,27 @@ def _decisions(text: str) -> tuple[list[dict], list[str]]:
             i = j + 1
             continue
         if fence is None:
-            m = None if INDENTED_RE.match(line) else REJECTION_RE.match(line)
+            plain = _plain(line)
+            m = None if INDENTED_RE.match(line) else REJECTION_RE.match(plain)
             if m:
                 if m.group("reason"):
                     forms.append({"form": "rejected", "reason": m.group("reason")})
                 else:
                     errors.append(f"line {i + 1}: the rejection has no reason")
-            elif not INDENTED_RE.match(line) and REJECTION_ATTEMPT_RE.match(line):
+            elif not INDENTED_RE.match(line) and REJECTION_ATTEMPT_RE.match(plain):
                 errors.append(f"line {i + 1}: a rejection reads exactly `mechanical-first: rejected — <reason>` "
-                              f"(a space after the colon, then an em dash, —), not {line.strip()[:60]!r}")
-            elif not INDENTED_RE.match(line) and UNFENCED_HEADER_RE.match(line):
+                              f"(a space after the colon, then an em dash, —), not {plain.strip()[:60]!r}")
+            elif not INDENTED_RE.match(line) and UNFENCED_HEADER_RE.match(plain):
                 errors.append(f"line {i + 1}: a decision block is fenced (``` or ~~~): this one is not")
             i += 1
             continue
         run = fence.group("run")
         closer = re.compile(rf"^ {{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$")
+        quoted = bool(QUOTE_RE.match(line))  # a fence opened inside a quote: its body lines carry `> `
         body: list[tuple[int, str]] = []
         j = i + 1
         while j < len(lines) and not closer.match(CONTAINER_RE.sub("", lines[j], count=1)):
-            body.append((j + 1, lines[j]))
+            body.append((j + 1, QUOTE_RE.sub("", lines[j], count=1) if quoted else lines[j]))
             j += 1
         i = j + 1
         content = [(n, ln) for n, ln in body if ln.strip()]
