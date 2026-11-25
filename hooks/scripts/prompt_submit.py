@@ -565,6 +565,24 @@ _GUARD_PASS_PREFIXES = (
 )
 
 
+def _setup_complete_on_disk() -> bool:
+    """config.json says setup_complete — the single source of truth.
+
+    Any unreadable, undecodable or non-object config counts as not set up.
+    It must never raise: an exception exits non-zero, and hooks.json's
+    `python3 || python || py -3` chain turns that into 127, which lets the
+    prompt through (garden#1580).
+    """
+    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
+    try:
+        if not config_path.exists():
+            return False
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError are ValueErrors
+        return False
+    return isinstance(config, dict) and bool(config.get("setup_complete", False))
+
+
 def _check_setup_gate(prompt: str) -> str | None:
     """Check if wicked-garden setup is needed.
 
@@ -597,15 +615,7 @@ def _check_setup_gate(prompt: str) -> str | None:
         from _session import SessionState
         state = SessionState.load()
         if state.setup_in_progress:
-            config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
-            config_done = False
-            try:
-                if config_path.exists():
-                    cfg = json.loads(config_path.read_text())
-                    config_done = cfg.get("setup_complete", False)
-            except (json.JSONDecodeError, OSError):
-                pass
-            if config_done:
+            if _setup_complete_on_disk():
                 # Config already complete — flag is stale, clear it
                 state.update(setup_in_progress=False)
             else:
@@ -614,17 +624,7 @@ def _check_setup_gate(prompt: str) -> str | None:
     except Exception:
         pass
 
-    # Check config.json on disk — the single source of truth for setup status.
-    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
-    config_ok = False
-    try:
-        if config_path.exists():
-            config = json.loads(config_path.read_text())
-            config_ok = config.get("setup_complete", False)
-    except (json.JSONDecodeError, OSError):
-        pass
-
-    if not config_ok:
+    if not _setup_complete_on_disk():
         return (
             "wicked-garden requires setup before first use.\n"
             "Invoke the wicked-garden-core skill's setup action (say: \"wicked-garden setup\")."

@@ -3,8 +3,8 @@
 The key lesson these helpers encode: E2E tests must NOT assume the developer's
 configured/onboarded machine. A fresh CI checkout has no
 ``~/.something-wicked/wicked-garden/config.json``, so prompt_submit's setup gate
-hard-blocks (exit 2) — correct behavior, but it means a test asserting exit 0
-fails in CI while passing locally. These helpers give each test an isolated,
+blocks (a ``decision: block`` JSON, exit 0) — correct behavior, but it means a
+test expecting the prompt to proceed fails in CI while passing locally. These helpers give each test an isolated,
 explicitly-(un)configured HOME so it behaves identically everywhere.
 """
 
@@ -31,7 +31,7 @@ def configured_home() -> tempfile.TemporaryDirectory:
 
 def unconfigured_home() -> tempfile.TemporaryDirectory:
     """A temp dir usable as $HOME with NO config — exercises the setup gate's
-    hard-block (exit 2)."""
+    block (a ``decision: block`` JSON, exit 0)."""
     return tempfile.TemporaryDirectory()
 
 

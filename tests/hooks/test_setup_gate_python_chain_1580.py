@@ -48,16 +48,19 @@ def _python3_only_path(root: Path) -> str:
     return str(bindir)
 
 
-def _run_hook(prompt: str, setup_complete: bool):
+def _run_hook(prompt: str, setup_complete: bool, config_text: str | bytes | None = None):
     root = Path(tempfile.mkdtemp(prefix="wg-1580-"))
     home = root / "home"
     tmp = root / "tmp"
     home.mkdir()
     tmp.mkdir()
     if setup_complete:
+        config_text = json.dumps({"setup_complete": True})
+    if config_text is not None:
         cfg = home / ".something-wicked" / "wicked-garden"
         cfg.mkdir(parents=True)
-        (cfg / "config.json").write_text(json.dumps({"setup_complete": True}), encoding="utf-8")
+        data = config_text if isinstance(config_text, bytes) else config_text.encode("utf-8")
+        (cfg / "config.json").write_bytes(data)
     sid = f"t1580-{uuid.uuid4().hex}"
     env = {
         "PATH": _python3_only_path(root),
@@ -86,16 +89,31 @@ def _last_json(stdout: str) -> dict:
     return json.loads(lines[-1])
 
 
+def _whole_json(stdout: str) -> dict:
+    """The block must be the hook's whole stdout, or Claude Code does not parse it."""
+    return json.loads(stdout)
+
+
 @unittest.skipIf(_SH is None or os.name == "nt", "needs a POSIX sh (the Claude Code hook shell)")
 class SetupGateThroughTheChain(unittest.TestCase):
     def test_no_setup_blocks_with_json_and_no_fallback_runs(self):
         r = _run_hook("show me all open tasks", setup_complete=False)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("not found", r.stderr)
-        out = _last_json(r.stdout)
+        out = _whole_json(r.stdout)
         self.assertEqual(out.get("decision"), "block", r.stdout)
         self.assertIn("requires setup before first use", out.get("reason", ""))
         self.assertIn("wicked-garden setup", out.get("reason", ""))
+
+    def test_a_config_that_is_not_an_object_blocks_and_does_not_crash(self):
+        # `[]` used to raise AttributeError in the gate: exit 1, then 127 through the chain.
+        # b"\xff" is not UTF-8: a decode error must count as not set up, too.
+        for text in ("[]", "null", b'{"setup_complete": true}\xff'):
+            with self.subTest(config=text):
+                r = _run_hook("show me all open tasks", setup_complete=False, config_text=text)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertNotIn("Traceback", r.stderr)
+                self.assertEqual(_whole_json(r.stdout).get("decision"), "block", r.stdout)
 
     def test_setup_command_passes_without_setup(self):
         r = _run_hook("/wicked-garden:setup", setup_complete=False)

@@ -12,7 +12,7 @@ estimated_minutes: 8
 This scenario tests the soft-gate path in `_check_setup_gate` (AC-277-2, AC-277-6). When
 `config.json` is present with `setup_complete=true` and the session sentinel confirms setup,
 but `needs_onboarding=true` and `onboarding_complete=false`, the guard must inject an
-onboarding directive into `additionalContext` rather than exiting 2. The guard must also
+onboarding directive into `additionalContext` rather than blocking (`decision: block`). The guard must also
 fail open (allow the prompt through) when the session state file is corrupt.
 
 ## Setup
