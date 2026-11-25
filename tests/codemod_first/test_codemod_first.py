@@ -338,3 +338,66 @@ def test_the_changelog_names_it():
     changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
     unreleased = changelog.split("## [Unreleased]", 1)[1].split("\n## [", 1)[0]
     assert NAME in unreleased
+
+
+# --- round 2 (coord) folds -------------------------------------------------------------------
+
+@pytest.mark.parametrize("request_text", [
+    "update react to 18",
+    "update express from 4 to 5",
+    "update all dependencies to latest",
+    "switch from moment to dayjs",
+    "update the dependencies",
+    "switch from `request` to `undici`",
+    "Update @types/node to v22",
+])
+def test_applies_catches_update_and_switch_wording(request_text):
+    assert _mf().applies(request_text)["applies"], (request_text, _mf().applies(request_text))
+
+
+@pytest.mark.parametrize("request_text", [
+    "update the README",
+    "switch from tabs to spaces in this file",
+    "update the docs to reflect the new flag",
+    "update the error message",
+    "switch from light to dark mode",
+])
+def test_update_and_switch_stay_quiet_without_a_version_or_package(request_text):
+    assert not _mf().applies(request_text)["applies"], (request_text, _mf().applies(request_text))
+
+
+@pytest.mark.parametrize("text", [
+    "- " + REJECTION,
+    "* " + REJECTION,
+    "1. " + REJECTION,
+    "> " + REJECTION,
+    "**" + REJECTION + "**",
+    "**mechanical-first:** rejected — 2 sites, a codemod costs more",
+    "- **mechanical-first: rejected** — 2 sites, a codemod costs more",
+], ids=["bullet", "star-bullet", "ordered", "quote", "bold", "bold-key", "bullet-bold"])
+def test_a_rejection_in_a_bullet_quote_or_bold_passes(text):
+    report = _mf().check(text)
+    assert report["ok"] and report["form"] == "rejected", report
+
+
+@pytest.mark.parametrize("text, needle", [
+    ("- mechanical-first: rejected - wrong dash", "em dash"),
+    ("**mechanical-first: rejected – en dash**", "em dash"),
+    ("- mechanical-first:", "fenced"),
+], ids=["bullet-dash", "bold-en-dash", "bullet-unfenced"])
+def test_a_near_miss_in_a_bullet_or_bold_names_the_form(text, needle):
+    report = _mf().check(text)
+    assert not report["ok"] and any(needle in e for e in report["errors"]), report
+
+
+def test_a_block_fenced_inside_a_quote_passes():
+    quoted = "\n".join("> " + line for line in VALID.split("\n"))
+    report = _mf().check(quoted)
+    assert report["ok"] and report["form"] == "block", report
+
+
+def test_a_same_line_code_span_does_not_swallow_the_block():
+    report = _mf().check("```npm test``` is the gate.\n\n" + VALID)
+    assert report["ok"] and report["form"] == "block", report
+    report = _mf().check("```npm test``` is the gate.\n\n" + REJECTION)
+    assert report["ok"] and report["form"] == "rejected", report
