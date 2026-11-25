@@ -15,9 +15,9 @@ is history, not the contract.
 
 | | |
 |---|---|
-| Bundle version (`VERSION`) | `1.3.2` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-11-22 from wicked-core `main` @ `4456a66`: optional boolean `metadata.product_only`, wicked-core#1697; 1.3.1 was the business domains, `requirement.business_domain` and `metadata.business_domains`; 1.3.0 was the real-requirements `metadata.coverage`, #1233) |
-| Schema contract version (`$id` / `metadata.schema_version`) | `1.1.0` (accepts `1.0.0` and `1.1.0`) |
-| Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.1.0` |
+| Bundle version (`VERSION`) | `1.4.0` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-11-25 from wicked-core#1922, J6 C2: domain-model 1.2.0, the J6 v3 model of checked statements, rule groups, follow-ups and targets; 1.3.2 was the optional boolean `metadata.product_only`, wicked-core#1697; 1.3.1 the business domains; 1.3.0 the real-requirements `metadata.coverage`, #1233) |
+| Schema contract version (`$id` / `metadata.schema_version`) | `1.2.0` (accepts `1.0.0`, `1.1.0` and `1.2.0`) |
+| Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.2.0` |
 | Canonical source | `wicked-core/crates/wicked-governance/schemas/domain-model.schema.json` |
 | Draft | JSON Schema draft-07 |
 
@@ -32,8 +32,9 @@ every time until 1.2.2→1.2.3, domain-model 1.1.0's optional `metadata.coverage
 `requirement.corroboration`). The
 **contract version** a document carries (`metadata.schema_version`,
 an enum since 1.1.0 whose newest entry matches the `$id` segment) is independent —
-the schemas document that independence themselves. Documents garden emits still carry
-`schema_version: "1.0.0"` (valid under 1.1.0); core's `domain-graph` emits `1.1.0`.
+the schemas document that independence themselves. Garden emits no document of its own since
+J6 v3 (it writes the store); core's `domain-graph` emits `1.2.0`, and `1.1.0` behind
+`--schema-version 1.1.0` until it is deleted.
 
 ## Drift gate (the cross-repo CI sync check)
 

@@ -13,7 +13,7 @@ vendored ``domain-model.schema.json`` uses):
    supports: ``type`` (object/array/string/integer/number), ``required``,
    ``properties``, ``additionalProperties`` (``false`` or a sub-schema), ``items``,
    ``enum``, ``const``, ``not``, ``pattern``, ``minItems``, ``minLength``, ``dependentRequired``,
-   ``propertyNames``,
+   ``propertyNames``, ``dependencies`` (array form), ``allOf``, ``anyOf``,
    ``minimum``/``maximum``, and the ``if``/``then`` conditional. This covers the
    hard invariants the schema expresses: required fields, business_rules minItems
    1, numeric confidence in [0,1], provenance shape, the disposition-drop ->
@@ -128,6 +128,12 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
         err(f"{instance!r} is not one of {schema['enum']!r}")
     if "not" in schema and _conforms(instance, schema["not"], root):
         err(f"{instance!r} must not match {schema['not']!r}")
+    # allOf / anyOf (domain-model 1.2.0: the version conditionals and the statement id forms)
+    for sub in schema.get("allOf", []):
+        _validate(instance, sub, path, root, errors)
+    any_of = schema.get("anyOf")
+    if any_of and not any(_conforms(instance, sub, root) for sub in any_of):
+        err(f"{instance!r} matches none of anyOf")
 
     if isinstance(instance, str):
         if "minLength" in schema and len(instance) < schema["minLength"]:
@@ -154,7 +160,10 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
         for req in schema.get("required", []):
             if req not in instance:
                 err(f"missing required property {req!r}")
-        for key, deps in schema.get("dependentRequired", {}).items():
+        # draft-07 `dependencies` (its array form) and the later `dependentRequired`
+        dep_req = dict(schema.get("dependentRequired", {}))
+        dep_req.update({k: v for k, v in schema.get("dependencies", {}).items() if isinstance(v, list)})
+        for key, deps in dep_req.items():
             if key in instance:
                 for dep in deps:
                     if dep not in instance:

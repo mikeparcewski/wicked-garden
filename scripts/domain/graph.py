@@ -3,8 +3,8 @@
 Ported from the J6 v3 proof (``proof-v3/scripts/lib.py`` and the read-only loader it used) with the
 proof's lane paths replaced by a :class:`Repo` (the store and the tree a run names). The logic is
 unchanged: comment and declaration cards, definition lines, decision lines and the test / vendor
-predicates. ``_BUILTIN_NAMES`` and ``is_test_path`` are copied from ``extract_loop.py`` (#1366), which
-goes in G5. Stdlib only.
+predicates. ``_BUILTIN_NAMES`` and ``is_test_path`` came from the old extract loop (#1366), deleted in
+G5; this is their home now. Stdlib only.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ import sqlite3
 import threading
 from urllib.parse import quote
 
-# --- #1366 pieces, copied from extract_loop.py ---
+# --- #1366 pieces (from the old extract loop) ---
 _BUILTIN_NAMES = frozenset(
     # Object / Function
     "toString valueOf hasOwnProperty isPrototypeOf toJSON apply call bind constructor "

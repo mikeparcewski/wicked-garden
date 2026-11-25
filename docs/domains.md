@@ -177,15 +177,11 @@ Not for running a query, testing a connection, granting an action or deploying a
 
 ## domain — The Domain Model and the Requirements Graph
 
-`wicked-garden-domain` — extracts a codebase's domain (testable business rules with a confidence and a provenance, entities, requirements) onto the estate graph, so wicked-core can build the repository's **requirements graph**. A shared substrate: `modernize` derives from it, and build, migrate, review, specify and explore read the same model.
+`wicked-garden-domain` — extracts a codebase's business rules as checked statements, each tied to the code lines it rests on, so wicked-core can build the repository's domain model (schema 1.2.0) on the estate graph. A shared substrate: `modernize` derives from it, and build, migrate, review, specify and explore read the same model.
 
-| Worker | What It Does |
-|--------|-------------|
-| `wicked-garden-domain-extractor` | States one business rule per behaviour (hub-first, the most central symbols first) and annotates the estate store |
-| `wicked-garden-domain-modeler` | Groups the rules into domains and invokes `wicked-core domain-graph`, which saves the graph into the estate store |
-| `wicked-garden-domain-coverage` | Checks the share against the minimum and threat-models the extracted model before the build (ungrounded rules, reason-less drops, holes) |
+**Worker**: none. The run is wicked-crew's `domain-extraction` job (studio's **Extract domain model**), two host steps with no agent seat of their own: `domain-run` (`scripts/domain/run.py`) finds the scope's targets, reuses everything whose code has not changed, has one seat state each decision and another check it against the cited lines, writes plain-words rule groups over the checked statements and stores it all on the estate nodes; `domain-graph` (`wicked-core domain-graph`) builds the model from those rows.
 
-Only **real requirements** count toward the minimum (80% by default; a repository can keep its own with `wicked-core requirements-target`): behaviours with a business rule at or above the confidence threshold, or a validated requirement. A placeholder (a risk flag, or a rule under the threshold) is shown and never counted. Test, spec and fixture files are left out by path, and so are data and document files, except an extracted rules-engine rule. The extractor checks each rule's shape and source before writing it; the page's review and the coverage evaluator judge whether it is grounded. In wicked-crew, a `domain-extraction` run maps a repository page by page until real requirements reach the minimum, printing one line per page ("Mapping wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders · about 2 h left"), and asks the operator when its budget is spent, the pages stall, or every unit was asked: map more, ask the placeholders this run left again, lower the minimum for this repository, or stop.
+Nothing is counted against a minimum. The model says, per target, whether its lines are accounted for, and per statement whether it is `Checked`, `open`, `confirmed` or `stale`, with a follow-up for what a person should look at. A person confirms or rejects an open statement, or confirms an unaccounted target, from the model view; a ruling stops applying when its statement or its code changes.
 
 ## How archetypes invoke domains
 

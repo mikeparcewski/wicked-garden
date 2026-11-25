@@ -1,12 +1,14 @@
 ---
 name: wicked-garden-domain
 description: |
-  The FOUNDATIONAL domain-model capability: extract a codebase's domain — testable
-  business rules (with confidence + provenance), entities, requirements — as a
-  schema-conformant model on the estate graph. The workers annotate the store;
-  wicked-core reads it and builds the requirements graph, fail-closed below
-  the configured minimum share of real requirements (80% by default). Steers
-  three workers.
+  The FOUNDATIONAL domain-model capability: extract a codebase's business rules as
+  checked statements, each tied to the code lines it rests on, and build the domain
+  model on the estate graph. A scoped run finds the code that decides the scope's
+  behaviour, has one seat state each decision and another check it against the
+  lines, writes the result to the repository's estate store, and wicked-core builds
+  the domain model (schema 1.2.0) from it. Nothing is counted against a minimum:
+  the model says which statements are checked, which are open, and what a person
+  should look at.
 
   A shared substrate, not a modernization tool. The `modernize` archetype DERIVES
   from it; build / migrate / review / specify / explore consume the SAME domain
@@ -15,7 +17,7 @@ description: |
   Use when: "extract the business rules / domain model from this codebase", "build
   a requirements graph from the code", "what does this system actually require",
   "reverse-engineer the domain before we build/port/migrate". Works on ANY codebase
-  (modern or legacy) — the value is the domain model, not the porting.
+  (modern or legacy).
 
   NOT the code transform itself (that is the archetype consuming this model). This
   skill produces the DOMAIN MODEL, not new code.
@@ -27,243 +29,68 @@ metadata:
 
 # wicked-garden-domain
 
-The **domain-model capability** — a foundational substrate, not a step inside one
-archetype. It produces the shared **domain model** (business rules + entities +
-requirements on the estate graph); the `modernize` archetype derives from it, and
-build / migrate / review / specify / explore consume the same model. Understanding
-a codebase's domain is upstream of building, porting, reviewing, or governing it.
+The **domain-model capability**: the shared model of what a codebase decides
+(business rules as checked statements on the estate graph). The `modernize`
+archetype derives from it; build / migrate / review / specify / explore read the
+same model.
 
-**The contract in one line:** the only thing that crosses repo lines is a
-document validating against the domain-model schema `1.1.0` (`1.0.0` documents stay valid; vendored at
-`vendor/domain-model.schema.json`, owner: `wicked-core/crates/wicked-governance/schemas/`)
-plus an estate `SymbolId` string. Garden STEERS (annotates the estate store + cross-checks the built document), core
-BUILDS (`wicked-core domain-graph` reads the store, builds the requirements graph,
-and coverage-gates fail-closed below the configured minimum), estate GROUNDS (owns SymbolId identity + the
-graph), crew GOVERNS (drives the run). The peer CLIs are shelled via
-`scripts/domain/_clients.py`, or mocked behind fixtures when absent.
+## How to run it
+
+Run the **Extract domain model** job (wicked-crew's `domain-extraction` preset) on
+a registered repository, with a scope: what part of the system the person wants
+mapped ("how refunds are approved"). Studio's Start shows the scope card first
+(the files and units it found) and carries the scope into the run.
+
+The run is two host steps and no agent seat of its own:
+
+1. `domain-run` runs `scripts/domain/run.py --db <repo store> --repo-root <checkout>
+   --scope <scope file>`. It finds the scope's targets, reuses everything whose code
+   has not changed (zero model calls), asks the run's own seats to state each
+   decision in the rest and to check it against the cited lines, writes the plain-words
+   rule groups over the checked statements, and stores it all on the estate nodes.
+2. `domain-graph` runs `wicked-core domain-graph`, which builds the domain model
+   (schema 1.2.0) from those rows into the same store, where crew and studio read it.
+
+Then **read the run's summary** (`summary.json` beside the run's calls: targets,
+accounted, checked, open, follow-ups, model calls) and the model view. Do not edit
+the store by hand.
+
+## What the model holds
+
+- **Statements**: one decision each, with its claims (conditions, effects, guards),
+  the lines every claim cites, and a status: `Checked` (a second seat confirmed it
+  against the code), `open` (not confirmed: see its follow-up), `confirmed` (a
+  person confirmed it) or `stale` (the code changed since; the next run checks it
+  again).
+- **Rule groups**: plain-words sentences written only over Checked statements, each
+  citing them. A sentence the check could not support is withheld with its reason.
+- **Follow-ups**: what a person should look at: a flagged statement, an open claim, a
+  target whose lines were not stated as a rule.
+- **Targets**: every unit in scope, and whether its lines are accounted for.
+
+A person rules on an open statement (Confirm or Reject with a note) or on an
+unaccounted target (Confirm: "these lines make no business decision") from the
+model view. A ruling binds to the statement and to its code: it stops applying when
+either changes.
 
 ## Runtime
+
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
-## The four-way seam
+`scripts/domain/run.py` needs an indexed estate store (`wicked-estate index`) and the
+run's model-call channel, which only a crew run provides. Outside a run there is no
+manual alternative: say that the extraction runs as a job.
 
-```
-crew GOVERNS  →  garden STEERS  →  core BUILDS  →  estate GROUNDS
-(drives the run) (this skill +     (domain-graph +  (SymbolId + graph
-                  3 workers)        coverage gate)   + Louvain clusters)
-```
+## The schema
 
-Garden never imports core or estate code — it shells their CLIs (argv lists, no
-shell string) or mocks them. It annotates the estate store and references SymbolId
-strings; core reads the store and builds + coverage-gates the requirements graph;
-estate is the sole writer of graph structure.
-
-## Routing — the three workers
-
-| Ask | Worker | Produces |
-|-----|--------|----------|
-| Mine business rules from the estate → domain-model doc | domain-extractor (`wicked-garden-domain-extractor`) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
-| Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | an advisory `domains{}` grouping by estate community; the requirements graph saved into the estate store by `wicked-core domain-graph` (core groups its domains by package directory; `--out` writes a JSON export) |
-| Threat-model the extracted model before build | domain-coverage (`wicked-garden-domain-coverage`) | pre-build threat list / RISK-flag reasons |
-
-**Hand-off** — open the worker's skill by name (`wicked-garden-domain-extractor`,
-`wicked-garden-domain-modeler`, `wicked-garden-domain-coverage`) and carry out its SKILL.md
-with the ask as the argument; on Claude Code this is the Skill tool, on any
-other seat open the named skill from your catalog and run it inline, keeping its output
-separate from yours, then continue here. Run order for a full extraction: **extractor →
-coverage → modeler** (coverage is the pre-build check; the modeler's build comes last, as
-in crew's `domain-extraction` preset). Each is independently invocable.
-
-## The document this skill emits
-
-A `domain-model@1.0.0` document (see `vendor/domain-model.schema.json`).
-Top-level `{ metadata, domains }`; every domain has `requirements` + `entities`;
-every requirement carries the full field set and **≥1 business rule**; every
-business rule carries a **numeric `confidence ∈ [0,1]`** and a
-**`provenance{source, ref, source_kinds}`**. Full field map + the hard
-invariants: [refs/domain-model-emit.md](refs/domain-model-emit.md).
-
-Reference-not-copy: `legacy_components[]` and `provenance.ref` hold estate
-**SymbolId references**, never a copy of the symbol's code, file, or line.
-estate resolves them live.
-
-## The working core slice (what ships in PHASE-1)
-
-Garden is skills-only, but the deterministic assembly + invariant enforcement is
-real code you can run and test today:
-
-```bash
-# Emit a conformant domain-model doc from mocked estate + rule inputs
-wicked-garden run scripts/domain/emit_domain_model.py --fixture > /tmp/domain-model.json
-
-# Validate any doc against the vendored schema + hard invariants
-wicked-garden run scripts/domain/validate_domain_model.py /tmp/domain-model.json
-```
-
-- `emit_domain_model.py` — the extractor's **deterministic core**: takes a mocked
-  estate cluster + a list of extracted rules and assembles a schema-conformant
-  document, enforcing the hard invariants at build time (drop needs a reason,
-  ≥1 rule per requirement, numeric confidence).
-- `validate_domain_model.py` — a stdlib-only draft-07 subset validation against
-  the vendored schema (no third-party dependency — the repo is stdlib+pytest
-  only), plus the extra invariants the schema can't express (numeric confidence
-  type, SymbolId-shaped references).
-- `scripts/domain/_clients.py` — the selection seam: `estate_client(db)` /
-  `core_client()` return CLI-backed clients when `wicked-estate` / `wicked-core`
-  resolve, else the mocks. Shells the peers (argv lists, no shell string).
-- `scripts/domain/_mocks.py` — the disjoint fixtures: a fake estate client
-  (canned clusters + `resolve`/`annotate`) and a fake brain client (the hermetic
-  doc-assembly lane). **These mock the peers; no other-product code is imported.**
-
-## Honest scope — implemented vs stubbed
-
-**Implemented + tested:** the vendored + pinned schema; the deterministic
-document assembler; the validator (schema + hard invariants); the CLI-backed
-clients (`_clients.py`) that shell the real `wicked-estate` + `wicked-core`, with
-argv-construction tests + an opt-in real-CLI lane; the fixture mocks; a conformant
-fixture document; the pytest suite that validates emitter output and the fixture
-against the schema.
-
-**Wired to live CLIs (`_clients.py`):** the estate surface (`resolve`,
-`annotate --replace`, `semantics`, `clusters --json --summary`,
-`annotations`) → `CliEstateClient`; the domain-graph build
-(`wicked-core domain-graph` — reads the store, builds the requirements graph,
-coverage-gates fail-closed below the configured minimum) → `CliCoreClient`. When the peers are absent, the
-selection seam falls back to `_mocks` for hermetic testing.
-
-**The model's one job:** stating each rule. The harness calls a bounded rule model
-(`WICKED_RULE_MODEL_BIN`, default `claude -p`); in a crew run's file mode the seat
-states the rules itself when no model is available. Everything around that call
-(enumeration, validation, the writes, coverage) is deterministic code. A real build
-needs an INDEXED store whose real requirements reach the configured minimum; a crew
-`domain-extraction` run maps it there page by page.
-
-## Coverage minimum, extraction order, corroboration (operator ruling 2026-10-31)
-
-- **Minimum, not 100%, and only real requirements count.** The graph is built once real
-  requirements (behaviours with a business rule at or above the confidence threshold, 0.75
-  by default, or a validated requirement) reach the configured minimum share of the
-  behaviours in product code: crew's `requirementsGraph.minCoveragePct` (Settings, default
-  80), which the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`. A placeholder (a
-  risk flag, or a rule under the threshold) is shown, never counted. Product code is decided
-  by file path: test, spec and fixture files and data, manifest and document files are left
-  out, though a test module inside a product file still counts, and an extracted
-  rules-engine rule outside test and fixture paths counts whatever its file extension. The
-  harness checks each rule's shape (a statement, a numeric confidence, a provenance) and
-  that its source is readable product code before writing it; whether a statement is
-  grounded in that source is for the page's review and the coverage evaluator to judge.
-  `wicked-core coverage --min-coverage-pct` and `wicked-core domain-graph` both read it.
-  Below it they say "23% real requirements, minimum 80% (1362 of 5786 behaviours; 4397
-  placeholders, 27 unmapped)" and fail closed; the mapping done so far stays in the estate
-  store, so the next run continues from it. The built graph carries `metadata.coverage`
-  (`real_pct`, `min_pct`, `behavior_bearing`, `real`, `placeholders`, `unmapped`,
-  `not_product`). A repository's
-  own minimum (`wicked-core requirements-target --set N`, kept in its store) comes before
-  the daemon-wide one.
-- **A generation keeps going.** A crew `domain-extraction` run maps one page (worklist, 500
-  behaviours by default, `WICKED_DOMAIN_PAGE_SIZE`) at a time; after each page the host step
-  `extract-next` (`scripts/domain/next_page.py`) prints one progress line ("Mapping
-  wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders ·
-  about 2 h left") and the run loops
-  back to `extract-prepare` until the minimum is reached. Each page frames the unmapped
-  behaviours first, then the placeholders earlier pages left, and skips a unit the seat
-  already answered in this run: an answered placeholder is asked again only when the operator
-  chooses to, while a unit the seat left unanswered can be framed again. The run asks the operator instead of mapping
-  on when the budget per grant (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES`
-  240, crew Settings) is spent, when two pages added no real requirement, when a page of 20
-  or more units resolved under 1 in 20, or when nothing is left to map. It offers map more
-  (while units are left), ask again the placeholders this run already asked about (when every
-  unit was asked but some are still placeholders; recommended while some were asked only
-  once), lower the minimum for this repository to the real share so far and build the graph
-  (once that share is at least 1%), or stop (what was mapped is kept).
-  With nothing left to map or ask again and a share under 1%, nothing can be lowered, so the run moves on
-  to the coverage step, which reports the share (after a low-yield last page it first asks,
-  with one choice: go on to the coverage step). A minimum the units left to ask cannot
-  reach gets no time estimate.
-- **Hub-first, fan-out order.** The extraction harness maps the most central symbols first
-  (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
-  distance, so the load-bearing behaviour is covered first. The order is deterministic: a
-  later run re-derives it and resumes at the frontier.
-- **Across the seat boundary.** In a wicked-crew `domain-extraction` run the extractor seat
-  runs in a container with no `wicked-core`, no `wicked-estate` and a read-only store. Two
-  host steps bracket it: `extract-prepare` writes the hub-first worklist
-  (`.wicked/domain/worklist.json`, `scripts/domain/prepare_worklist.py`), the seat states the
-  rules into `.wicked/domain/rules.json` (the extractor's file mode), and `extract-apply`
-  (`scripts/domain/apply_rules.py`) checks that file against its schema and the store,
-  refuses anything outside it or about a file the repository does not track, judges and
-  writes the rest with the harness's own validation (authored `extract-loop`), and writes
-  `coverage-report.json`.
-- **Corroboration.** Every requirement in the built graph carries `corroboration`:
-  `validated` when two or more independent sources support it (callers, tests, docs,
-  agreeing extractor seats), else `unconfirmed` with a `why` code and sentence
-  (`unindexed_file`, `dead_code`, `config_only`, `single_caller`, `test_only`, `doc_only`,
-  `extractors_only`). Core computes it; nothing in garden asserts it.
-
-## Estate id-scheme migration (2026-08) — when the pipeline must be re-run
-
-Estate id-scheme **"2"** nests method/field SymbolIds under their enclosing type
-(`<module>/Repo#save().` instead of `<module>/save().`). The first
-`wicked-estate index` per repo under a new-scheme binary hits the `id_scheme`
-meta mismatch and performs a **forced full re-extract** that re-mints every
-definition id — and the pipeline's outputs (`business_rule`/`risk` annotations +
-`node_semantics` written by `scripts/domain/extract_loop.py`) stay keyed to the
-OLD ids. Method/field-keyed rows **orphan**; module-level (top-level function /
-file) rows survive. Annotations are documented loss, not re-keyed.
-
-**Re-runs are required** for every repo that carries domain annotations, after
-its first index under the new binary — in exactly this order:
-
-1. `wicked-estate index <repo>` with the new binary (the loud full re-extract).
-2. Re-run the extraction loop: `wicked-garden run scripts/domain/extract_loop.py --db "<store>" …`
-   (it re-seeds from `wicked-core coverage`'s `unaccounted_nodes`, so orphaned
-   nodes simply reappear as unaccounted; the loop's pre-flight also warns when it
-   detects orphaned annotations before writing).
-3. Rebuild the domain graph: `wicked-core domain-graph` (coverage-gates
-   fail-closed below the configured minimum against the re-annotated store).
-
-Previously emitted `requirements_graph.json` / domain-model documents embedding
-old-scheme SymbolIds are stale until step 3 completes.
-
-**Quantify the damage first (operators)** — how many annotation rows would
-orphan (method/field-keyed) vs survive (still-live node), against any store:
-
-```sql
--- rows whose node no longer exists (orphaned) vs rows still keyed to a live node
-SELECT (n.symbol IS NULL) AS orphaned, count(*) AS rows
-FROM annotations a LEFT JOIN nodes n ON n.symbol = a.node_sym
-GROUP BY orphaned;
-
--- pre-migration estimate on an OLD-scheme store: rows keyed to a definition
--- nested inside a type (its id re-mints → orphans) vs module-level rows (id
--- unchanged → survive). Old flat ids don't encode nesting, so containment is
--- derived from byte spans: a Type-kinded node in the same file encloses it.
-SELECT EXISTS (
-         SELECT 1 FROM nodes t
-         WHERE t.file = n.file AND t.symbol != n.symbol
-           AND t.kind IN ('"class"','"struct"','"enum"','"trait"','"interface"',
-                          '"module"','"namespace"','"type_alias"','"type"')
-           AND json_extract(t.data,'$.location.span.start_byte')
-               <= json_extract(n.data,'$.location.span.start_byte')
-           AND json_extract(t.data,'$.location.span.end_byte')
-               >= json_extract(n.data,'$.location.span.end_byte')
-       ) AS would_orphan, count(*) AS rows
-FROM annotations a JOIN nodes n ON n.symbol = a.node_sym
-GROUP BY would_orphan;
-```
+The document validates against the domain-model schema (owner:
+`wicked-core/crates/wicked-governance/schemas/domain-model.schema.json`; vendored at
+`vendor/domain-model.schema.json`, pinned by `vendor/README.md`). Check a document
+with `wicked-garden run scripts/domain/validate_domain_model.py <doc.json>`.
 
 ## Ground in the repo's method first
 
 Before extracting, check for **wicked-understanding** repo playbooks (the
-"how to work in THIS repo" layer). A modernization lives or dies on
-repo-specific wiring. If present, load the matching playbook.
-
-## Depth
-
-- [refs/domain-model-emit.md](refs/domain-model-emit.md) — the full field map,
-  the seven hard invariants, and the SymbolId reference rule.
-- [refs/extraction-flow.md](refs/extraction-flow.md) — how the extractor drives
-  estate (resolve → annotate → semantics) and core (`domain-graph`), the
-  `_clients.py` selection seam, and the mock lane.
-- `vendor/README.md` — the vendored-schema pin + drift discipline.
+"how to work in THIS repo" layer). If present, load the matching playbook.
