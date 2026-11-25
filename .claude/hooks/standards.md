@@ -24,7 +24,7 @@ Prefer **command hooks** over prompt/agent hooks:
 | Need | Hook Type |
 |------|-----------|
 | File I/O, timestamps, queue processing | `command` (async for Stop) |
-| Must block an action based on content | `command` (exit 2 to block) |
+| Must block an action based on content | `command` (block through JSON on stdout, exit 0: hooks.json's `python3 \|\| python \|\| py -3` chain turns a non-zero exit into 127 on a python3-only host, garden#1580) |
 | Needs LLM reasoning to decide | `prompt` (single-turn, rare) |
 | Needs multi-turn tool use to verify | `agent` (very rare) |
 

@@ -9,9 +9,12 @@ estimated_minutes: 8
 
 # Setup Guard — Fresh Install (No Config)
 
-This scenario tests the hard-block path in `_check_setup_gate` (AC-277-1, AC-277-3, AC-277-4,
+This scenario tests the block path in `_check_setup_gate` (AC-277-1, AC-277-3, AC-277-4,
 AC-277-5). When the wicked-garden config (path resolved via `scripts/resolve_path.py`) does not exist, any prompt that
-is not a setup/help command must exit 2. Setup commands must always pass through, and once a
+is not a setup/help command must be blocked: the hook prints a UserPromptSubmit
+`{"decision": "block", "reason": …}` on stdout and exits 0. (It never exits 2: hooks.json's
+`python3 … || python … || py -3 …` chain would turn a non-zero exit into 127 on a python3-only
+host, which Claude Code does not treat as a block — garden#1580.) Setup commands must always pass through, and once a
 config with `setup_complete=true` plus a session sentinel exist, normal prompts must be allowed.
 
 ## Setup
@@ -25,8 +28,8 @@ export TEST_HOME=$(mktemp -d)
 
 ## Step 1: Non-setup prompt blocked when config absent
 
-With no config file and no session state, `prompt_submit.py` must exit 2 and write a message
-to stderr directing the user to run `/wicked-garden:setup`.
+With no config file and no session state, `prompt_submit.py` must exit 0 and print a block
+decision whose reason directs the user to run setup.
 
 ```bash
 # Ensure no config exists under the synthetic home
@@ -47,8 +50,8 @@ echo "Exit code: $?"
 
 ### Expected
 
-- Exit code is `2`
-- stderr contains `wicked-garden requires setup` or equivalent
+- Exit code is `0`
+- stdout is a JSON object with `"decision": "block"` and a `reason` containing `wicked-garden requires setup`
 - stdout does NOT contain a JSON response with `"continue": true`
 
 ---
@@ -158,13 +161,13 @@ print('PASS_THROUGH' if d.get('continue') else 'BLOCKED')
 
 ## Expected Outcome
 
-The guard exits 2 for any non-setup prompt when no config exists, passes setup/help commands
+The guard blocks any non-setup prompt (`decision: block`, exit 0) when no config exists, passes setup/help commands
 through unconditionally, and uses the `setup_confirmed` session sentinel to skip redundant
 config.json I/O on every subsequent turn once setup is complete.
 
 ## Success Criteria
 
-- [ ] Non-setup prompt exits 2 with informative stderr when no config.json (AC-277-1)
+- [ ] Non-setup prompt is blocked (`decision: block`, exit 0) with an informative reason when no config.json (AC-277-1)
 - [ ] `/wicked-garden:setup` passes through with exit 0 when no config (AC-277-3)
 - [ ] `/wicked-garden:help` passes through with exit 0 when no config (AC-277-3)
 - [ ] Normal prompt passes through after config + `setup_confirmed=true` sentinel (AC-277-4, AC-277-5)
