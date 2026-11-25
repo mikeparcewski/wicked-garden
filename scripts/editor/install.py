@@ -16,8 +16,10 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    file and its accepted declared card images at their manifest paths, the README, and (a pack that
    also ships skills or blocks, wicked-crew#1703) every entry under its ``skills_dir`` and each
    block's ``preset`` file, at their manifest paths. Malformed cosmetic images are skipped, as in pack
-   check (PK089); they never refuse an install. A link anywhere in the skills tree, or a preset outside
-   the pack, refuses it. Nothing else of the tree is copied (an editor is ONE self-contained file).
+   check (PK089); they never refuse an install. A link anywhere in the skills tree (the ``skills_dir``
+   itself too), a preset outside the pack, or a skill entry whose name is not ``[A-Za-z0-9_-]``
+   (crew's skill-name charset) refuses it. Nothing else of the tree is copied (an editor is ONE
+   self-contained file).
 3. **Swap** ``current/`` → ``previous/``, ``next/`` → ``current/``.
 4. **Register** with wicked-crew: ``POST /api/v1/editors {packRoot: <root>/<name>/current, enabled}``,
    plus ``approve: {skills: [<skill dir>…], blocks: [<block id>…]}`` for a pack with skills or blocks:
@@ -26,7 +28,9 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
    The daemon re-runs garden's ``pack check`` and this skill's **conformance run** against the staged
    copy itself, refuses on any failure (fail closed: no headless browser is a refusal), pins each
    entry's sha256 and records it in its editor registry. A refusal swaps ``previous/`` back (or
-   removes ``current/`` on a first install) and exits 1.
+   removes ``current/`` on a first install) and exits 1. A daemon that took the request and never answered
+   (a timeout, a dropped connection) may still finish: ``current/`` stays, and the result says
+   ``"outcome": "unknown"``; running the install again settles it.
 5. **Record** ``<root>/<name>/installed.json`` and print it.
 
 **Targets** (the consent gate's choices): ``daemon`` (the default) installs it turned on — it opens
@@ -93,9 +97,10 @@ PLAN_WHY_CHARS = 300
 
 
 class Failure(Exception):
-    def __init__(self, code: int, message: str):
+    def __init__(self, code: int, message: str, **extra):
         super().__init__(message)
         self.code = code
+        self.extra = extra
 
 
 def crew_origin(flag: str | None) -> str:
@@ -182,6 +187,9 @@ def locate(args) -> tuple[Path, dict]:
 # ── the pack's skills and block presets (wicked-crew#1703) ────────────────────────────────
 
 SKILL_NAME_RE = re.compile(r"^name:\s*['\"]?([^'\"]+?)['\"]?\s*$")
+# crew's skill name charset (wicked-crew packages/crew/src/skills/guards.ts SKILL_NAME_RE): a skill dir becomes
+# ``wicked-garden-<dir>``, a manifest key, a directory segment and a URL segment at once.
+SKILL_DIR_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _redirects(path: Path) -> bool:
@@ -300,8 +308,15 @@ def pack_inventory(pack: Path, manifest: dict) -> Inventory:
     skills: list[dict] = []
     skills_dir = _norm_rel(manifest.get("skills_dir", "skills"), "skills_dir")
     base = root / skills_dir
-    names = sorted(n for n in os.listdir(_plain_path(root, skills_dir)) if not n.startswith(".")) \
-        if base.is_dir() and not _redirects(base) else []
+    names: list[str] = []
+    if os.path.lexists(base):  # a skills_dir that is itself a link or junction refuses; it never reads as empty
+        plain = _plain_path(root, skills_dir)
+        if plain.is_dir():
+            names = sorted(n for n in os.listdir(plain) if not n.startswith("."))
+    for name in names:
+        if not SKILL_DIR_RE.match(name):
+            raise PackError(f"{skills_dir}/{name!r}: crew installs each entry as wicked-garden-<dir>, so its name "
+                            "must be only [A-Za-z0-9_-] (rename it, or move it out of the skills tree)")
 
     def refuse(err: OSError) -> None:
         raise PackError(f"{skills_dir}: a directory cannot be read ({err}); nothing is staged")
@@ -607,9 +622,18 @@ def do_install(args) -> tuple[int, dict]:
         if approve is not None:
             request["approve"] = approve  # the skills and blocks the plan listed (wicked-crew#1703)
         status, body = http_json("POST", f"{origin}/api/v1/editors", request)
-    except (urllib.error.URLError, OSError) as err:
+    except urllib.error.URLError as err:
+        # urlopen wraps what fails while connecting and sending: the request never reached crew whole.
         unswap(key_root, had_previous)
-        raise Failure(1, f"no daemon at {origin} ({err}); nothing was installed") from err
+        raise Failure(1, f"no daemon at {origin} ({err.reason}); nothing was installed") from err
+    except OSError as err:
+        # The request went out and no answer came back (a timeout, a dropped connection): crew may still finish
+        # the install, and it reads current/. Keep it in place, so a pack crew registers keeps its files.
+        raise Failure(1, f"the daemon at {origin} did not answer the install ({err or type(err).__name__}); it may "
+                         f"still finish it. {current} holds the staged copy"
+                         + (f" and {key_root / 'previous'} the earlier one" if had_previous else "")
+                         + ". Check Settings → Editors (GET /api/v1/editors), or run the install again: it is "
+                           "idempotent and settles it.", outcome="unknown") from err
     if status >= 400:
         unswap(key_root, had_previous)
         detail = {k: body[k] for k in ("code", "check", "conformance") if k in body}
@@ -705,7 +729,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         code, out = do_uninstall(args) if args.uninstall else do_install(args)
     except Failure as err:
-        code, out = err.code, {"ok": False, "error": str(err)}
+        code, out = err.code, {"ok": False, "error": str(err), **err.extra}
     else:
         out = {"ok": code == 0, **out}
     print(json.dumps(out) if args.json else json.dumps(out, indent=2))

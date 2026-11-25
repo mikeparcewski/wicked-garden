@@ -10,5 +10,6 @@ description: |
 
 # ACME terms
 
-One router per domain: this skill fronts the `acme-terms` domain and hands the
-check to its worker, `acme-terms-checker`.
+One router per domain: this skill fronts the pack's `terms` domain and hands the
+check to its worker, `wicked-garden-acme-terms-checker` (the name crew installs
+this pack's `skills/acme-terms-checker` under).
