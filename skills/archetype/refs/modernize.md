@@ -122,6 +122,9 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
 
 ### transform
 
+0. **Mechanical first.** Before the first edit, run `wicked-garden-codemod-first`
+   and put its `mechanical-first:` block (or its one-line rejection) in the
+   transform phase output.
 1. Transform **with leverage, not an agent-grind** — follow
    `wicked-garden-engineering-large-scale-migration` (MAP → TRANSFORM → GATE) and
    its ranked techniques menu: **prefer the lowest-numbered technique that fully

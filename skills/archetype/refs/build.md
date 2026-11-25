@@ -78,6 +78,10 @@ method." Absent? Discover it the usual way — and consider
 
 ### implement
 
+0. **Upgrade-shaped build?** A version upgrade, deprecation removal, API rename,
+   library swap, lint-rule rollout, or a change to more than about 10 similar
+   sites: run `wicked-garden-codemod-first` before the first edit and put its
+   `mechanical-first:` block (or its one-line rejection) in the plan.
 1. Before you write code, check what the chosen framework or library already
    provides for the job, at the version the repo pins. The user and the steering
    policies choose the stack (wicked-core rule POL-2101); never swap in another.

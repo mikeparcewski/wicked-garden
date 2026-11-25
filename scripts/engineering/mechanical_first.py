@@ -1,0 +1,225 @@
+#!/usr/bin/env python3
+"""mechanical_first.py — the deterministic half of the `wicked-garden-codemod-first` skill.
+
+    mechanical_first.py check <file | ->     # does the text hold one valid mechanical-first decision?
+    mechanical_first.py applies "<request>"  # is the request upgrade/modernization-shaped?
+
+``check`` reads the decision shape `skills/codemod-first/refs/decision-block.md` defines (the
+contract the wicked-core `mechanical_first` plan step also reads): a fenced block whose first
+non-blank line is exactly ``mechanical-first:`` with the six keys ``inventory``, ``count``,
+``recipe_checked``, ``codemod``, ``gate`` and ``residue``, or the single line
+``mechanical-first: rejected — <reason>`` outside a code block (fenced or indented). A
+near-miss declaration (a rejection with the wrong dash, a block header with text after it) is an
+error even beside a valid decision, never silently skipped. It prints
+``{"ok", "form", "errors", "block"}`` and exits 0 when the text holds exactly one valid decision,
+1 when it does not, 2 on a usage error.
+
+``applies`` is the trigger list the skill's description states, as a word match: it prints
+``{"applies", "matched"}`` and always exits 0. It is a hint for a seat that is unsure, not a gate.
+
+Standard library only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+KEYS = ("inventory", "count", "recipe_checked", "codemod", "gate", "residue")
+HEADER = "mechanical-first:"
+# Markdown positions (CommonMark): a fence opens with 0-3 spaces of indent and closes only on a
+# bare run of the same character at least as long; 4 spaces or a tab outside a fence is indented
+# code. A decision quoted as code in either form is not a decision.
+REJECTION_RE = re.compile(r"^ {0,3}mechanical-first: rejected — (?P<reason>.*?)\s*$")
+REJECTION_ATTEMPT_RE = re.compile(r"^ {0,3}mechanical-first\s*:\s*rejected\b", re.IGNORECASE)
+UNFENCED_HEADER_RE = re.compile(r"^ {0,3}mechanical-first\s*:\s*$")
+# A list item or block quote holds its own fences: its markers are stripped before a fence match.
+CONTAINER_RE = re.compile(r"^(?: {0,3}(?:[-*+]|\d{1,9}[.)])[ \t]+| {0,3}>[ \t]?)+")
+OPEN_RE = re.compile(r"^ {0,3}(?P<run>`{3,}|~{3,})(?P<info>.*)$")
+INDENTED_RE = re.compile(r"^(?: {4}|\t)")
+QUOTE_RE = re.compile(r"^(?: {0,3}>[ \t]?)+")
+# A bolded declaration (`**mechanical-first: rejected** — ...`, `**mechanical-first:** rejected — ...`)
+# reads as the same line once the leading bold span is unwrapped.
+BOLD_RE = re.compile(r"^(?P<mark>\*\*|__)(?P<inner>.+?)(?P=mark)")
+LINE_END_RE = re.compile(r"\r\n|\r|\n")  # CommonMark line endings only (not U+2028 and kin)
+MAX_DIGITS = 9
+KEY_RE = re.compile(r"^\s*(?P<key>[a-z_]+)\s*:\s?(?P<value>.*?)\s*$")
+
+# A package-like token: `backticked`, @scoped, with a dot, dash, slash or digit, or a *js name.
+_PKG = r"`[^`\s]+`|@[\w.-]+/[\w.-]+|[a-z][\w]*[.\-/\d][\w.\-/]*|[a-z]\w*js\b"
+
+# The skill's trigger families (its description says the same in words). Each pattern is matched
+# case-insensitively against the request as a whole word or phrase.
+TRIGGERS: dict[str, str] = {
+    "upgrade": r"\bupgrad(?:e|es|ed|ing)\b",
+    "bump": r"\bbump(?:s|ed|ing)?\b(?!\s+into\b)",
+    # a version move needs a version shape: v1 to v2, version 2 to 3, 2.1 to 3.0, or an arrow
+    "version-move": (r"\bv\d+(?:\.\d+)*\s*(?:→|->|to)\s*(?:v|version\s+)?\d+"
+                     r"|\bversion\s+\d+(?:\.\d+)*\s*(?:→|->|to)\s*(?:v|version\s+)?\d+"
+                     r"|\b\d+\.\d+(?:\.\d+)*\s*(?:→|->|to)\s*v?\d+|\b\d+(?:\.\d+)*\s*(?:→|->)\s*v?\d+"),
+    "migrate": r"\bmigrat(?:e|es|ed|ing|ion)\b",
+    "deprecated": r"\bdeprecat(?:ed|ion|ions)\b",
+    "rename": (r"\brenam(?:e|es|ed|ing)\b.*\b(?:everywhere|across|all)\b|\bapi rename\b"
+               r"|\brenam(?:e|es|ed|ing)\b(?:\s+\S+){0,4}?\s+(?:api|function|method|class|module|package|symbol|endpoint)s?\b"),
+    # a library by name (not "this", "the" or an operator) or by the word library/package/...
+    "replace-library": (r"\breplac(?:e|es|ed|ing)\s+(?!(?:this|that|these|those|it|the|a|an)\b)`?@?[a-z][\w.@/-]*`?\s+with\b"
+                        r"|\breplac(?:e|es|ed|ing)\b(?:\s+\S+){0,3}?\s+(?:library|package|dependency|framework|sdk|client)\s+with\b"
+                        r"|\bmove off\b"),
+    "lint-rollout": (r"\b(?:lint|format(?:ting)?|eslint|ruff|clippy)[\s-]+rules?\b"
+                     r"|\b(?:roll(?:s|ed|ing)?\s+out|adopt(?:s|ed|ing)?|enabl(?:e|es|ed|ing))\b.{0,40}?"
+                     r"\b(?:lint(?:er|ing)?|eslint|ruff|clippy|prettier|black|formatter|biome)\b"),
+    "modernize": r"\bmoderni[sz](?:e|es|ed|ing|ation)\b",
+    "port": r"\bport(?:s|ed|ing)?\b\s+(?:this|the|our|a|an)?\s*(?:module|app|application|service|codebase|library)\b",
+    # "update react to 18", "update express from 4 to 5", "update all dependencies to latest",
+    # "update the dependencies"; never a bare "update the README"
+    "update": (r"\bupdat(?:e|es|ed|ing)\b(?:\s+\S+){1,4}?\s+to\s+(?:v?\d+(?:\.\d+)*\b|(?:the\s+)?(?:latest|newest)\b)"
+               r"|\bupdat(?:e|es|ed|ing)\b(?:\s+(?:all|the|our|every))*\s+(?:dep(?:endenc(?:y|ies)|s)|packages|libraries)\b"),
+    # "switch from moment to dayjs": one side must look like a package (backticked, scoped,
+    # dotted/dashed/digit, or a *js name), so "switch from tabs to spaces" stays quiet
+    "switch-library": (r"\bswitch(?:es|ed|ing)?\s+from\s+(?:" + _PKG + r")\s+to\s+\S+"
+                       r"|\bswitch(?:es|ed|ing)?\s+from\s+\S+\s+to\s+(?:" + _PKG + r")"),
+    # "more than about 10 similar sites": a two-digit-or-more count of sites, or dozens/hundreds
+    "repeated-sites": (r"\b(?:\d{2,}|dozens of|hundreds of)\s+(?:similar|identical|matching|repeated)?\s*"
+                       r"(?:sites|call\s?sites|places|occurrences|usages|files)\b"),
+}
+
+
+def _plain(line: str) -> str:
+    """The line as a reader sees it: list and quote markers stripped, a leading bold span unwrapped."""
+    bare = CONTAINER_RE.sub("", line, count=1)
+    return BOLD_RE.sub(lambda m: m.group("inner"), bare, count=1)
+
+
+def _decisions(text: str) -> tuple[list[dict], list[str]]:
+    """Every decision in ``text``: ``(forms, errors)``. A block that is present but malformed
+    is an error, never silently skipped."""
+    forms: list[dict] = []
+    errors: list[str] = []
+    lines = LINE_END_RE.split(text)
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        bare = CONTAINER_RE.sub("", line, count=1)
+        fence = None if INDENTED_RE.match(line) else OPEN_RE.match(bare)
+        if fence and fence.group("run")[0] == "`" and fence.group("run") in fence.group("info"):
+            # an inline code span that closes on this line (```npm test``` is the gate.): plain text
+            fence = None
+        elif fence and fence.group("run")[0] == "`" and "`" in fence.group("info"):
+            # not a fence but an inline code span: it runs to the next line holding the same
+            # backtick run, and everything up to there is code, never a decision
+            run = fence.group("run")
+            j = i + 1
+            while j < len(lines) and run not in lines[j]:
+                j += 1
+            i = j + 1
+            continue
+        if fence is None:
+            plain = _plain(line)
+            m = None if INDENTED_RE.match(line) else REJECTION_RE.match(plain)
+            if m:
+                if m.group("reason"):
+                    forms.append({"form": "rejected", "reason": m.group("reason")})
+                else:
+                    errors.append(f"line {i + 1}: the rejection has no reason")
+            elif not INDENTED_RE.match(line) and REJECTION_ATTEMPT_RE.match(plain):
+                errors.append(f"line {i + 1}: a rejection reads exactly `mechanical-first: rejected — <reason>` "
+                              f"(a space after the colon, then an em dash, —), not {plain.strip()[:60]!r}")
+            elif not INDENTED_RE.match(line) and UNFENCED_HEADER_RE.match(plain):
+                errors.append(f"line {i + 1}: a decision block is fenced (``` or ~~~): this one is not")
+            i += 1
+            continue
+        run = fence.group("run")
+        closer = re.compile(rf"^ {{0,3}}{re.escape(run[0])}{{{len(run)},}}[ \t]*$")
+        quoted = bool(QUOTE_RE.match(line))  # a fence opened inside a quote: its body lines carry `> `
+        body: list[tuple[int, str]] = []
+        j = i + 1
+        while j < len(lines) and not closer.match(CONTAINER_RE.sub("", lines[j], count=1)):
+            body.append((j + 1, QUOTE_RE.sub("", lines[j], count=1) if quoted else lines[j]))
+            j += 1
+        i = j + 1
+        content = [(n, ln) for n, ln in body if ln.strip()]
+        first = content[0][1].strip() if content else ""
+        if first == HEADER:
+            forms.append(_block(content, errors))
+        elif first.startswith(HEADER) and not re.match(r"rejected\b(?!_)", first[len(HEADER):].strip(), re.IGNORECASE):
+            errors.append(f"line {content[0][0]}: a decision block starts with exactly `mechanical-first:` "
+                          f"on its own line, not {first[:60]!r}")
+        # else: some other code block, or a rejection quoted as code
+    return forms, errors
+
+
+def _block(content: list[tuple[int, str]], errors: list[str]) -> dict:
+    start = content[0][0]
+    values: dict[str, str] = {}
+    for n, line in content[1:]:
+        m = KEY_RE.match(line)
+        if not m or m.group("key") not in KEYS:
+            errors.append(f"line {n}: not one of the keys {', '.join(KEYS)}: {line.strip()[:60]}")
+            continue
+        key = m.group("key")
+        if key in values:
+            errors.append(f"line {n}: `{key}` is given twice")
+            continue
+        values[key] = m.group("value")
+    for key in KEYS:
+        if key not in values:
+            errors.append(f"block at line {start}: `{key}` is missing")
+        elif not values[key]:
+            errors.append(f"block at line {start}: `{key}` is empty")
+    numbers: dict[str, int] = {}
+    for key in ("count", "residue"):
+        if values.get(key):
+            if re.fullmatch(rf"\d{{1,{MAX_DIGITS}}}", values[key]):
+                numbers[key] = int(values[key])
+            elif re.fullmatch(r"\d+", values[key]):
+                errors.append(f"block at line {start}: `{key}` is too large (more than {MAX_DIGITS} digits)")
+            else:
+                errors.append(f"block at line {start}: `{key}` must be a whole number, not {values[key]!r}")
+    if len(numbers) == 2 and numbers["residue"] > numbers["count"]:
+        errors.append(f"block at line {start}: `residue` ({numbers['residue']}) is more than `count` ({numbers['count']})")
+    return {"form": "block", "line": start, **values}
+
+
+def check(text: str) -> dict:
+    forms, errors = _decisions(text)
+    if not forms and not errors:
+        errors.append("no mechanical-first decision: add the block or the one-line rejection "
+                      "(skills/codemod-first/refs/decision-block.md)")
+    if len(forms) > 1:
+        errors.append(f"{len(forms)} mechanical-first decisions: write exactly one")
+    ok = not errors
+    return {"ok": ok, "form": forms[0]["form"] if ok else None, "errors": errors,
+            "block": forms[0] if ok and forms[0]["form"] == "block" else None}
+
+
+def applies(request: str) -> dict:
+    matched = [name for name, pattern in TRIGGERS.items() if re.search(pattern, request, re.IGNORECASE)]
+    return {"applies": bool(matched), "matched": matched}
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    sub = ap.add_subparsers(dest="action", required=True)
+    c = sub.add_parser("check", help="check a plan, phase output or PR description for the decision")
+    c.add_argument("path", help="the file to read, or - for stdin")
+    a = sub.add_parser("applies", help="is this request upgrade/modernization-shaped?")
+    a.add_argument("request")
+    args = ap.parse_args(argv)
+    if args.action == "applies":
+        print(json.dumps(applies(args.request)))
+        return 0
+    try:
+        text = sys.stdin.read() if args.path == "-" else Path(args.path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        print(json.dumps({"ok": False, "form": None, "errors": [f"cannot read {args.path}: {exc}"], "block": None}))
+        return 2
+    report = check(text)
+    print(json.dumps(report))
+    return 0 if report["ok"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

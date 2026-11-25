@@ -159,6 +159,8 @@ acceptance criteria); move in small verifiable steps; record what you ran.
   a policy). Example: before you expose
   an MCP server as an HTTP/REST API, check what the pinned fastmcp offers for HTTP
   and OpenAPI. Do not write a generator first.
+- **C9 — Upgrades: run `wicked-garden-codemod-first` before any hand edit**, and
+  output its block or `mechanical-first: rejected — <reason>`.
 
 Method: read the design and scenarios; list the files you will touch; one change
 at a time, checked (C1) before the next; follow the repo's patterns; say so when
@@ -339,6 +341,7 @@ Rules cite the acceptance-program findings that motivated them.
 | C6 | F35 (garden#1223) |
 | C7 | garden#1229 (S17b reporter file in the worktree) |
 | C8 | operator ruling 2026-10-12 (wicked-core POL-2101; origin: MCP-as-API on fastmcp's built-ins, not a hand-written generator) |
+| C9 | garden#1334 |
 | E1 | F-RC1-060, F-RC1-062, F-RC1-071, F-RC2-037 |
 | E2 | program rule — the floor provisions |
 | E3 | garden#1223 (companion to wicked-core#760) |
