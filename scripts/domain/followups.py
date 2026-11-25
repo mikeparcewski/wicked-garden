@@ -105,7 +105,7 @@ def refusal_rows(after_m_targets, not_rules, S):
         tgt = tby.get(tid) or {}
         f, (lo, hi) = tgt.get("file") or "", tgt.get("lines") or [0, 0]
         rows.append(dict(kind="refused", where=_where(f, lo, hi), target=tid, unknown="not extracted: " + "; ".join(t.get("tfails") or []),
-                         check=_check_with_sites("State the decision in these lines as a rule, or confirm it is plumbing.", f, lo),
+                         check=_check_with_sites("State the decision in these lines as a rule, or confirm these lines make no business decision.", f, lo),
                          sites=sites(f, lo)))
     return rows
 

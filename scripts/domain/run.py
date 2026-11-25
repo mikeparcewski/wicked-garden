@@ -105,6 +105,28 @@ def _move_not_rule(n, moves):
     return dict(n, lines=r) if ok else None
 
 
+def rulings(prior, rec, sts, d):
+    """What a person ruled on this prior target that still applies (DES-C2 §8): only on unchanged code (``carry``), and
+    a statement ruling only on the statement it was made on (``store.live_ruling``). Returns the ids of the open
+    statements they confirmed (each carried as it stands, never checked again), the rejected ones with their text and
+    note (the target is extracted again), and whether they confirmed an unaccounted target's lines."""
+    if not rec or d != "carry":
+        return set(), [], False
+    th, confirmed, rejected = rec.get("target_hash"), set(), []
+    for s in sts:
+        if s.get("status") != "open":
+            continue  # only an open statement takes a ruling
+        r = store.live_ruling(prior, "statement", s.get("id"), th, s)
+        if r and r["action"] == "confirm":
+            confirmed.add(s["id"])
+        elif r:
+            text = ((prior.get(store.RULE) or {}).get(s["id"]) or {}).get("statement")
+            rejected.append(dict(statement=text, note=r.get("note") or ""))
+    tr = store.live_ruling(prior, "target", rec.get("target"), th)
+    unaccounted = bool((rec.get("state") or {}).get("unaccounted"))
+    return confirmed, rejected, bool(tr and tr["action"] == "confirm" and unaccounted)
+
+
 def plan_reuse(repo, S, C, prior):
     """Per target of ``S``: carry / revalidate / extract (``store.decide``), and what each brings."""
     by_prior = store.prior_targets(prior)
@@ -116,13 +138,18 @@ def plan_reuse(repo, S, C, prior):
         d, moves = store.decide(repo, rec) if rec else ("extract", {})
         sts = rec["_statements"] if rec else []
         nrs = list(rec.get("not_rules") or []) if rec else []
-        if any(s.get("m_fail") or s.get("status1") is None and s.get("status") == "open" for s in sts):
+        confirmed, rejected, target_confirmed = rulings(prior, rec, sts, d)
+        if any((s.get("m_fail") or s.get("status1") is None and s.get("status") == "open") and s.get("id") not in confirmed
+               for s in sts):
             d = "extract"  # a statement that failed the M checks is never sent to the checker as it stood
-        if rec and (rec.get("state") or {}).get("unaccounted") and not sts and not nrs:
+        if rec and (rec.get("state") or {}).get("unaccounted") and not sts and not nrs and not target_confirmed:
             # the writer gave the target no answer at all: asked again. One it answered with a refused not-rule stands
-            # on unchanged code (0 calls), with its follow-up for the user to settle.
+            # on unchanged code (0 calls), with its follow-up for the user to settle; so does one a person confirmed.
             d = "extract"
-        if d == "carry" and not all(_settled(s) for s in sts):
+        if rejected:
+            d = "extract"  # a person said a statement is wrong: the writer states the lines again, with their note
+            t["rejected"] = rejected
+        if d == "carry" and not all(_settled(s) or s.get("id") in confirmed for s in sts):
             d, moves = "revalidate", None  # same code: no move; the unsettled ones are checked again
         if d == "revalidate":
             moved = sts if moves is None else [store.relocate(s, moves) for s in sts]
@@ -131,7 +158,7 @@ def plan_reuse(repo, S, C, prior):
                 d = "extract"
             else:
                 for s in moved:
-                    if moves is None and _settled(s):
+                    if moves is None and (_settled(s) or s.get("id") in confirmed):
                         continue
                     for k in RESET:
                         s.pop(k, None)
@@ -258,7 +285,9 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         records.append(rec)
     rows, unplaced = store.rows_for(repo, dict(statements=live), records, groups, pmeta, fu, prior,
                                     lambda s: render(s, s.get("name")), uncited=uncited)
-    report = write(db, rows)
+    run_id = os.environ.get("WICKED_RUN_ID") or os.path.basename(os.path.normpath(out_dir))
+    own = store.run_row(repo, records, scope_in, S["scope_hash"], run_id, int(time.time()))
+    report = write(db, rows + ([own] if own else []))
     accounted = sum(1 for t in S["targets"] if not (R["targets"].get(t["id"]) or {}).get("unaccounted"))
     summary = dict(targets=len(S["targets"]), accounted=accounted, checked=sum(s["status"] == "Checked" for s in live),
                    open=sum(s["status"] == "open" for s in live), groups=len(groups), withheld=withheld,

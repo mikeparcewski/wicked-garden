@@ -32,6 +32,9 @@ def _text(*parts):
 CARDS = {"cobol": _text("cards", "cobol.md"), "generic": _text("cards", "generic.md")}
 XP = _text("prompts", "extract.txt")
 RM = _text("prompts", "repair_m.txt")
+REJECTED = ("\n\n=== REJECTED BY A PERSON ===\nA person read these statements of the targets above and rejected them; the "
+            "note says what is wrong. Do not state them again as they were: state the decision in those lines correctly, "
+            "or account for the lines as a not-rule.\n")
 TYPES = {"trigger", "condition", "effect", "else", "value"}
 REASONS = {"exit", "io-wrapper", "control-only", "display-format"}
 COBKW = set("""AND OR NOT IF TO OF IS THEN TRUE FALSE ELSE END-IF MOVE PERFORM UNTIL THRU THROUGH VARYING BY FROM INTO GIVING
@@ -247,6 +250,11 @@ def extract_call(repo, tby, call):
     with open(call["text_file"]) as fh:
         batch = fh.read()
     p = XP.replace("{{CARD}}", card_for(call, ts)).replace("{{BATCH}}", batch).replace("{{TARGETS}}", json.dumps([tgt_json(t) for t in ts], indent=0))
+    rej = [dict(target=t["id"], statement=r["statement"], note=r["note"]) for t in ts for r in t.get("rejected") or []]
+    if rej:
+        # a person rejected a statement of this batch (run.rulings): the writer reads what and why. A batch with none
+        # sends the frozen prompt unchanged.
+        p += REJECTED + json.dumps(rej, indent=0, ensure_ascii=False)
     out, rc = calls.claude("extract", call["id"], p, timeout=2400, max_output_tokens=calls.WRITER_MAX_OUTPUT)
     if not calls.answered(out, rc):
         raise calls.CallFailed(f"the writer's extract call {call['id']} did not answer (exit {rc}); nothing was stored")
