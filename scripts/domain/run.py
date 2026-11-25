@@ -12,8 +12,10 @@ and writes the same model.
 Usage: run.py --db <estate.db> --repo-root <tree> --scope <scope.json> [--out <dir>]
 ``--out`` defaults to a new ``.wicked/domain/runs/<UTC time>-<random>`` per run (a re-run in the same directory reuses its
 completed calls, so a retry of one run costs nothing; a new run never collides with an earlier run's evidence).
-``scope.json`` is ``{"intent": "...", "phrases": [...]?, "scope_hash": "..."?, "description": "..."?}``. With a
-``scope_hash`` (Start carries the preview's), a scope that no longer hashes the same is refused (exit 3).
+``scope.json`` is ``{"intent": "...", "phrases": [...]?, "scope_hash": "..."?, "description": "..."?}``, checked by
+``read_scope`` (anything else is refused, exit 3); the shipped step passes the file core wrote
+(``WICKED_DOMAIN_SCOPE``). With a ``scope_hash`` (Start carries the preview's), a scope that no longer hashes the
+same is refused (exit 3).
 Progress goes to stdout one line at a time; the run's summary is ``<out>/summary.json``.
 Exit: 0 done, 2 the store write failed, 3 refused before any call, 4 a writer call did not answer (nothing stored).
 """
@@ -37,6 +39,55 @@ RESET = ("check", "r", "status1", "repair", "sentence")
 
 class Refused(Exception):
     pass
+
+
+SCOPE_KEYS = {"intent", "phrases", "scope_hash", "description"}
+SCOPE_MAX_BYTES = 64 * 1024
+
+
+def read_scope(path):
+    """The scope Start carries (core C1 writes it to the step's private channel directory and passes its path as
+    ``WICKED_DOMAIN_SCOPE``), checked before anything runs: a JSON object of the known keys only, ``intent`` a non-empty
+    string, ``phrases`` a list of non-empty strings, ``scope_hash`` and ``description`` strings. Anything else is
+    refused by name (exit 3), never guessed at."""
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read(SCOPE_MAX_BYTES + 1)
+    except OSError as e:
+        raise Refused(f"the scope could not be read: {e}")
+    if len(raw) > SCOPE_MAX_BYTES:
+        raise Refused(f"the scope is over {SCOPE_MAX_BYTES} bytes")
+    def unique(pairs):
+        keys = [k for k, _ in pairs]
+        twice = sorted({k for k in keys if keys.count(k) > 1})
+        if twice:
+            raise ValueError(f"a key appears twice: {', '.join(twice)}")
+        return dict(pairs)
+
+    def no_constant(name):
+        raise ValueError(f"{name} is not JSON")
+
+    try:
+        sc = json.loads(raw.decode("utf-8"), object_pairs_hook=unique, parse_constant=no_constant)
+        # a lone surrogate (an escaped "\ud800") decodes, then fails the first time it is written out
+        json.dumps(sc, ensure_ascii=False).encode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError, ValueError, RecursionError) as e:
+        raise Refused(f"the scope is not JSON: {type(e).__name__}: {e}")
+    if not isinstance(sc, dict):
+        raise Refused("the scope is not a JSON object")
+    extra = sorted(set(sc) - SCOPE_KEYS)
+    if extra:
+        raise Refused(f"the scope has unknown keys: {', '.join(extra)}")
+    if not isinstance(sc.get("intent"), str) or not sc["intent"].strip():
+        raise Refused("the scope has no intent (a non-empty string)")
+    # a key that is present is checked whatever its value: `null` is not an absent key
+    ph = sc.get("phrases")
+    if "phrases" in sc and (not isinstance(ph, list) or not all(isinstance(p, str) and p.strip() for p in ph)):
+        raise Refused("the scope's phrases are not a list of non-empty strings")
+    for k in ("scope_hash", "description"):
+        if k in sc and not isinstance(sc[k], str):
+            raise Refused(f"the scope's {k} is not a string")
+    return sc
 
 
 def say(log, text):
@@ -231,10 +282,9 @@ def main(argv=None):
     if a.out is None:
         a.out = os.path.join(".wicked", "domain", "runs",
                              time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "-" + uuid.uuid4().hex[:8])
-    with open(a.scope) as fh:
-        scope_in = json.load(fh)
     log = lambda s: print(s, flush=True)  # noqa: E731
     try:
+        scope_in = read_scope(a.scope)
         run(a.repo_root, a.db, scope_in, a.out, log=log)
     except Refused as e:
         print(f"domain-run: refused: {e}", file=sys.stderr)
