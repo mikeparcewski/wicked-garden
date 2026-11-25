@@ -222,9 +222,11 @@ class TestRecentEmitQuery(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            for ev_type in ("wicked.garden.gate.decided", "wicked.garden.gate.blocked",
-                            "wicked.garden.rework.triggered"):
-                _seed_event(db, event_id=hash(ev_type) & 0xFFFFFF,
+            # Sequential ids: a salted str hash() could repeat an id.
+            for event_id, ev_type in enumerate(
+                    ("wicked.garden.gate.decided", "wicked.garden.gate.blocked",
+                     "wicked.garden.rework.triggered"), start=1):
+                _seed_event(db, event_id=event_id,
                             event_type=ev_type,
                             chain_id="proj-x.build",
                             ingested_at=int(time.time()))
