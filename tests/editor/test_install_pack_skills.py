@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -347,3 +348,102 @@ def test_a_readme_that_is_also_a_preset_cannot_swap_the_approved_bytes(tmp_path,
         mod.do_install(args)
     assert "differ from the files read for the plan" in str(refused.value)
     assert not (tmp_path / "root" / "acme-terms" / "current").exists()
+
+
+# ── garden#1570 follow-ups (wicked-crew#1703 garden half) ─────────────────────────────────────
+
+def test_the_sample_skills_name_each_other_by_their_installed_names():
+    """crew installs each skill as ``wicked-garden-<dir>``; a sibling named by its bare dir is a name no seat has."""
+    dirs = sorted(p.name for p in (SAMPLE / "skills").iterdir() if p.is_dir())
+    for d in dirs:
+        text = (SAMPLE / "skills" / d / "SKILL.md").read_text(encoding="utf-8")
+        body = "\n".join(line for line in text.splitlines() if not line.startswith("name:"))
+        bare = [t for t in re.findall(r"`([^`]+)`", body) if t in dirs]
+        assert bare == [], (d, bare)
+    router = (SAMPLE / "skills" / "acme-terms" / "SKILL.md").read_text(encoding="utf-8")
+    assert "`wicked-garden-acme-terms-checker`" in router
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlinks need privileges on Windows")
+def test_a_skills_dir_that_is_itself_a_link_refuses_the_plan_and_the_install(tmp_path, sample):
+    outside = tmp_path / "outside-skills"
+    shutil.move(str(sample / "skills"), str(outside))
+    (sample / "skills").symlink_to(outside, target_is_directory=True)
+    with FakeDaemon() as d:
+        planned = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                       env={"WICKED_CREW_URL": d.origin})
+        done = _install(sample, tmp_path / "root", d)
+        assert d.requests == [], "crew is never asked"
+    assert planned.returncode == 2 and "link" in planned.stderr, planned.stdout + planned.stderr
+    assert done.returncode in (1, 2) and "link" in json.loads(done.stdout)["error"]
+    assert not (tmp_path / "root" / "acme-terms" / "current").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a directory junction is Windows-only")
+def test_a_skills_dir_that_is_a_junction_refuses_the_plan(tmp_path, sample):
+    outside = tmp_path / "outside-skills"
+    shutil.move(str(sample / "skills"), str(outside))
+    made = subprocess.run(["cmd", "/c", "mklink", "/J", str(sample / "skills"), str(outside)],
+                          capture_output=True, text=True)
+    if made.returncode != 0:
+        pytest.skip("mklink /J unavailable")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2 and "link" in done.stderr
+
+
+@pytest.mark.parametrize("bad", ["acme.terms", "acme terms", "README.md"])
+def test_a_skill_dir_crew_cannot_name_refuses_the_plan(tmp_path, sample, bad):
+    """crew's SKILL_NAME_RE (packages/crew/src/skills/guards.ts) is ``^[A-Za-z0-9_-]+$``: a dir outside it would
+    pass the plan and the operator's approval, then fail at crew."""
+    if bad.endswith(".md"):
+        (sample / "skills" / bad).write_text("a loose file is an entry crew lists too\n", encoding="utf-8")
+    else:
+        (sample / "skills" / bad).mkdir()
+        (sample / "skills" / bad / "SKILL.md").write_text("---\nname: x\n---\nbody\n", encoding="utf-8")
+    with FakeDaemon() as d:
+        done = _run("--dir", str(sample), "--dry-run", "--install-root", str(tmp_path / "root"),
+                    env={"WICKED_CREW_URL": d.origin})
+    assert done.returncode == 2, done.stdout + done.stderr
+    assert repr(bad) in done.stderr and "[A-Za-z0-9_-]" in done.stderr
+
+
+def test_a_register_timeout_reports_an_unknown_outcome_and_keeps_the_staged_copy(tmp_path, sample, monkeypatch, capsys):
+    """crew may finish the install after the installer stops waiting: restoring ``previous/`` then would pull
+    the files out from under a registered pack, and "nothing was installed" would be a guess."""
+    mod = _module()
+    monkeypatch.setattr(mod, "HTTP_TIMEOUT_S", 0.5)
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    root = tmp_path / "root"
+    release = __import__("threading").Event()
+
+    def slow(_req):
+        release.wait(10)
+        return OK
+
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = slow
+        try:
+            code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", d.origin, "--json"])
+        finally:
+            release.set()
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and out["ok"] is False
+    assert out.get("outcome") == "unknown", out
+    assert "nothing was installed" not in out["error"] and "did not answer" in out["error"], out["error"]
+    assert (root / "acme-terms" / "current" / "wicked-pack.json").is_file(), "the staged copy stays in place"
+
+
+def test_an_unreachable_daemon_still_reports_nothing_installed(tmp_path, sample, monkeypatch, capsys):
+    mod = _module()
+    for var in ROOT_VARS:
+        monkeypatch.delenv(var, raising=False)
+    sys.path.insert(0, str(REPO / "tests" / "mcp"))
+    from daemon_fixture import closed_origin
+    root = tmp_path / "root"
+    code = mod.main(["--dir", str(sample), "--install-root", str(root), "--crew-url", closed_origin(), "--json"])
+    out = json.loads(capsys.readouterr().out)
+    assert code == 1 and "nothing was installed" in out["error"] and "outcome" not in out
+    assert not (root / "acme-terms" / "current").exists()
