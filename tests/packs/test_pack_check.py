@@ -107,8 +107,10 @@ def test_unterminated_frontmatter_is_pk011(tmp_path):
 def test_absolute_skills_dir_rejected(tmp_path):
     """skills_dir must not escape the pack root — absolute paths (POSIX or
     Windows drive-letter) fail structural validation (Copilot review, PR #1057)."""
-    for bad in ("/etc", "C:\\evil", "..\\up"):
-        root = tmp_path / f"acme-esc-{abs(hash(bad)) % 1000}"
+    # Index the folder names: str hash() is salted per process, so
+    # hash(bad) % 1000 could give two cases one folder (FileExistsError).
+    for i, bad in enumerate(("/etc", "C:\\evil", "..\\up")):
+        root = tmp_path / f"acme-esc-{i}"
         root.mkdir()
         (root / "wicked-pack.json").write_text(json.dumps({
             "spec": 1, "name": "acme-esc", "vendor": "acme", "version": "1.0.0",
