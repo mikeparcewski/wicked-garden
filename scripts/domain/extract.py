@@ -313,7 +313,8 @@ def extract_all(repo, S, C, workers=6):
             t, r = tby[tid], tres[tid]
             tstate[tid] = dict(call=call["id"], unaccounted=bool(r["tfails"]), tfails=r["tfails"])
             # a confirmed statement kept beside the new ones keeps its id (run.plan_reuse): new ids skip it
-            taken = {c.get("id") for c in t.get("confirmed") or []}
+            # (by its base id: a repair names its statement <id>~r<k>, check.py, so a new <id> would repair onto it)
+            taken = {str(c.get("id")).split("~", 1)[0] for c in t.get("confirmed") or []}
             free = (f"{tid}#{k}" for k in itertools.count() if f"{tid}#{k}" not in taken)
             for k, st in enumerate(r["statements"]):
                 st.update(id=next(free), target=tid, call=call["id"], m_fail=r["fails"].get(k) or [], kind="rule", name=t.get("anchor_name"))

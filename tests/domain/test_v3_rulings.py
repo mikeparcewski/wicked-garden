@@ -248,9 +248,54 @@ def test_the_counts_follow_what_a_person_confirmed(tmp_path, monkeypatch):
         rule(repo.db, "statement", sid, "confirm", read["anchor_symbol"],
              statement_key=store.statement_key(v["contract"]), target_hash=read["target_hash"])
     rule(repo.db, "target", main["target"], "confirm", main["anchor_symbol"], target_hash=main["target_hash"])
-    second, _, _, _ = rerun(repo, scope_in, tmp_path)
+    lines = []
+    second, _, _, _ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
     assert seats.n == 0 and second["reuse"]["extract"] == 0
     assert (second["open"], second["confirmed"], second["accounted"]) == (0, 2, second["targets"]), second
+    progress = [x for x in lines if " · checked " in x]
+    assert progress and all(" · 0 open · " in x for x in progress), progress
+    assert sum(int(x.split(" · ")[-1].split("/")[0]) for x in progress) == second["targets"], progress
+
+
+def test_a_kept_confirm_whose_target_now_cites_other_code_is_said_to_stop(tmp_path, monkeypatch):
+    repo, S, seats, scope_in = first_run(tmp_path, monkeypatch)
+    read = target_row(repo.db, "READ-PARA")
+    bid, bad = by_text(repo.db, "`PAY-AMOUNT` is set to zero")
+    eid, eof = by_text(repo.db, EOF_TEXT)
+    rule(repo.db, "statement", bid, "confirm", read["anchor_symbol"],
+         statement_key=store.statement_key(bad["contract"]), target_hash=read["target_hash"])
+    rule(repo.db, "statement", eid, "reject", read["anchor_symbol"], note="wrong",
+         statement_key=store.statement_key(eof["contract"]), target_hash=read["target_hash"])
+    plain = seats.claude
+
+    def cites_the_caller(step, cid, prompt, **kw):
+        out, rc = plain(step, cid, prompt, **kw)
+        if step == "extract":
+            j = json.loads(out)
+            for t in j["targets"]:
+                for st in t["statements"][:1]:
+                    st["context"] = [dict(symbol="MAIN-PARA", at=f"{PROG}:17")]
+            out = json.dumps(j)
+        return out, rc
+
+    monkeypatch.setattr(model_calls, "claude", cites_the_caller)
+    lines = []
+    second, _, _, _ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
+    assert target_row(repo.db, "READ-PARA")["target_hash"] != read["target_hash"]
+    assert second["confirmed"] == 0 and second["rulings_stale"] >= 1, second
+    assert any("confirmed no longer apply" in x for x in lines)
+
+
+def test_a_new_statement_never_takes_the_id_family_of_a_kept_repaired_one(monkeypatch):
+    t = dict(id="t", anchor_name="P", confirmed=[dict(id="t#0~r0", anchor=None, statement="s")])
+    S = dict(targets=[t])
+    C = dict(calls=[dict(id="c", targets=["t"])])
+    got = dict(statements=[dict(claims=[]), dict(claims=[])], not_rules=[], fails={}, tfails=[])
+    monkeypatch.setattr(extract, "extract_call", lambda repo, tby, call: (call, {"t": got}, False, []))
+    monkeypatch.setattr(extract.v2lib, "use_repo", lambda repo: None)
+    monkeypatch.setattr(extract.calls, "check_distinct", lambda: None)
+    res = extract.extract_all(None, S, C, workers=1)
+    assert [s["id"] for s in res["statements"]] == ["t#1", "t#2"]
 
 
 def test_each_run_records_its_scope(tmp_path, monkeypatch):

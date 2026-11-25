@@ -142,7 +142,7 @@ def plan_reuse(repo, S, C, prior):
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
-    ruled = dict(confirmed=set(), targets=set(), rejected=[], stale=0)
+    ruled = dict(confirmed={}, targets={}, rejected=[], live=0)
     ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
         rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
@@ -150,14 +150,10 @@ def plan_reuse(repo, S, C, prior):
         sts = rec["_statements"] if rec else []
         nrs = list(rec.get("not_rules") or []) if rec else []
         confirmed, rejected, target_confirmed = rulings(prior, rec, d, bool(rec) and rec["target"] == t["id"])
-        ruled["confirmed"] |= confirmed
-        # the rulings that held on this target's last run (under its id, or the record it matched) and stop now: its
-        # code changed or it took a new id
-        mine = {r["target"]: r for r in (rec, by_prior["id"].get(t["id"])) if r}
-        live = len(_held(prior, rec)) if rec and d == "carry" and rec["target"] == t["id"] else 0
-        ruled["stale"] += sum(len(_held(prior, r)) for r in mine.values()) - live
+        ruled["confirmed"].update({i: rec["target_hash"] for i in confirmed})
+        ruled["live"] += len(_held(prior, rec)) if rec and d == "carry" and rec["target"] == t["id"] else 0
         if target_confirmed:
-            ruled["targets"].add(t["id"])
+            ruled["targets"][t["id"]] = rec["target_hash"]
         if any((s.get("m_fail") or s.get("status1") is None and s.get("status") == "open") and s.get("id") not in confirmed
                for s in sts):
             d = "extract"  # a statement that failed the M checks is never sent to the checker as it stood
@@ -207,6 +203,12 @@ def plan_reuse(repo, S, C, prior):
         pending.extend(s for s in sts if s.get("status") == "pending")
         not_rules.extend(dict(n, target=t["id"]) for n in nrs)
         states[t["id"]] = dict(rec.get("state") or {}, call=call_of[t["id"]]["id"])
+    # the rulings that held on the last run over this scope's code (any prior target overlapping one of this scope's,
+    # whatever its id or text now) and do not apply now: its code changed, or its target took a new id
+    def overlaps(r):
+        return any(r.get("file") == t["file"] and r["lines"][0] <= t["lines"][1] and t["lines"][0] <= r["lines"][1]
+                   for t in S["targets"] if isinstance(r.get("lines"), list) and len(r["lines"]) == 2)
+    ruled["stale"] = sum(len(_held(prior, r)) for r in by_prior["id"].values() if overlaps(r)) - ruled["live"]
     return decision, carried, pending, not_rules, states, ruled
 
 
@@ -300,17 +302,6 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     else:
         R = dict(statements=A["statements"], not_rules=A["not_rules"], targets=A["targets"])
     live = [s for s in R["statements"] if s.get("status") in ("Checked", "open")]
-    for c in C["calls"]:
-        mine = [s for s in live if s.get("target") in c["targets"]]
-        ok = sum(1 for t in c["targets"] if not (R["targets"].get(t) or {}).get("unaccounted"))
-        say(log, f"{c['id']} · checked {sum(s['status'] == 'Checked' for s in mine)}/{len(mine)} · "
-                 f"{sum(s['status'] == 'open' for s in mine)} open · {ok}/{len(c['targets'])} targets accounted")
-    desc = scope_in.get("description") or os.path.basename(os.path.abspath(root))
-    groups, pmeta, prose_reused, pcounts, uncited = prose_for(live, desc, scope_in.get("description") or "", prior)
-    withheld = sum(len(g.get("withheld") or []) for g in groups)
-    say(log, f"prose · {len(groups)} groups · {withheld} withheld" + (f" · {len(uncited)} statements in no group" if uncited else "")
-        + (" · reused" if prose_reused else ""))
-    fu = followups.followups(repo, S, R)
     spans = store._unit_spans(repo)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     records = []
@@ -320,6 +311,29 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         rec = store.target_record(repo, t, call_of[t["id"]], sts, tn, R["targets"].get(t["id"]) or {}, spans, S["targets"])
         rec["anchor_symbol"] = t.get("anchor_symbol")
         records.append(rec)
+    # a confirm applies (in core) while its target's hash is the one it was made on; a target that went back to the
+    # writer for a sibling can come back with other pieces, and then the confirm it kept no longer applies: said
+    th_of = {r["target"]: r["target_hash"] for r in records}
+    tgt_of = {s.get("id"): s.get("target") for s in live}
+    confirmed = {i for i, h in ruled["confirmed"].items() if th_of.get(tgt_of.get(i)) == h}
+    confirmed_t = {i for i, h in ruled["targets"].items() if th_of.get(i) == h}
+    lost = len(ruled["confirmed"]) - len(confirmed) + len(ruled["targets"]) - len(confirmed_t)
+    if lost:
+        ruled["stale"] += lost
+        say(log, f"rulings · {lost} confirmed no longer apply: the writer's new statements changed what their target cites")
+    is_open = lambda s: s["status"] == "open" and s.get("id") not in confirmed  # noqa: E731
+    is_accounted = lambda t: not (R["targets"].get(t) or {}).get("unaccounted") or t in confirmed_t  # noqa: E731
+    for c in C["calls"]:
+        mine = [s for s in live if s.get("target") in c["targets"]]
+        ok = sum(1 for t in c["targets"] if is_accounted(t))
+        say(log, f"{c['id']} · checked {sum(s['status'] == 'Checked' for s in mine)}/{len(mine)} · "
+                 f"{sum(is_open(s) for s in mine)} open · {ok}/{len(c['targets'])} targets accounted")
+    desc = scope_in.get("description") or os.path.basename(os.path.abspath(root))
+    groups, pmeta, prose_reused, pcounts, uncited = prose_for(live, desc, scope_in.get("description") or "", prior)
+    withheld = sum(len(g.get("withheld") or []) for g in groups)
+    say(log, f"prose · {len(groups)} groups · {withheld} withheld" + (f" · {len(uncited)} statements in no group" if uncited else "")
+        + (" · reused" if prose_reused else ""))
+    fu = followups.followups(repo, S, R)
     rows, unplaced = store.rows_for(repo, dict(statements=live), records, groups, pmeta, fu, prior,
                                     lambda s: render(s, s.get("name")), uncited=uncited)
     run_id = os.environ.get("WICKED_RUN_ID") or os.path.basename(os.path.normpath(out_dir))
@@ -327,12 +341,10 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     if own is None:
         say(log, "the run's own record was not stored: no target of the scope has an estate node")
     report = write(db, rows + ([own] if own else []))
-    # a person's confirm settles what it names (core's truth table): the counts say so
-    accounted = sum(1 for t in S["targets"]
-                    if not (R["targets"].get(t["id"]) or {}).get("unaccounted") or t["id"] in ruled["targets"])
+    # a person's confirm settles what it names: the counts say so
+    accounted = sum(1 for t in S["targets"] if is_accounted(t["id"]))
     summary = dict(targets=len(S["targets"]), accounted=accounted, checked=sum(s["status"] == "Checked" for s in live),
-                   open=sum(s["status"] == "open" and s.get("id") not in ruled["confirmed"] for s in live),
-                   confirmed=len(ruled["confirmed"]), rulings_stale=ruled["stale"],
+                   open=sum(is_open(s) for s in live), confirmed=len(confirmed), rulings_stale=ruled["stale"],
                    rejected_again=[r["target"] for r in again], groups=len(groups), withheld=withheld,
                    followups=len(fu), reuse=n, prose_reused=prose_reused, prose_counts=pcounts, uncited=uncited,
                    model_calls=made_calls(calls_dir), unplaced=unplaced, store=report, scope_hash=S["scope_hash"],
