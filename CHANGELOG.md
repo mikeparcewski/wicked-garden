@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [12.68.8] - 2026-11-26
+
+Patch release on the train-15 cut 4405ea58, carrying 3 PRs since 12.68.7: #1585, #1586, #1583.
+
+### Fixed
+
+- **Editor install:** crew's `skillsError`, or a withdrawal that failed, now reports a partial install instead of ok (#1576). (#1585)
+
+### Changed
+
+- CI re-pins the selftest to wicked-ci main after wicked-ci #86 and #88 (the stand-in seam). (#1586)
+- Tests: garden's search and blast paths read a store written by estate's codegraph (wicked-estate#595). (#1583)
+
 ## [12.68.7] - 2026-11-25
 
 Patch release on the train-14 cut 66cc453f, carrying 20 PRs since 12.68.6: #1555, #1401, #1402, #1403, #1404, #1418, #1410, #1367, #1556, #1561, #1570, #1572, #1557, #1562, #1565, #1566, #1573, #1574, #1575, #1582.
