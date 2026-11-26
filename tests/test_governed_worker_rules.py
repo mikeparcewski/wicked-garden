@@ -392,3 +392,24 @@ def test_e7_judges_this_change_not_the_code_it_did_not_touch():  # wicked-core#1
     assert "including through code it did not touch" in flat
     assert "`RULE <id>: N/A — pre-existing: <file:line> is not in this change`" in flat
     assert "never a Critical or a FAIL" in flat
+
+
+def test_a10_what_is_already_known_is_asked_of_sources_not_recall():  # garden#1587
+    # A learning a person approved is a knowledge note. `recall` searches memories only, so a chat
+    # seat that ran the floor's one estate read (A7's `recall`) answered "nothing recorded" while the
+    # approved note sat in the knowledge store. The floor names the read that returns both.
+    rule = _rule("A10")
+    assert "`wicked-garden run scripts/mem/estate_memory.py --readonly sources '<a few words>'`" in rule
+    assert "approved knowledge notes" in rule and "memories" in rule
+    assert "`recall` searches memories only" in rule
+    assert "never say nothing is recorded from `recall` alone" in rule
+    floor = FLOOR.read_text(encoding="utf-8")
+    assert re.search(r"^\| A10 \|.*garden#1587", floor, re.M)
+
+
+def test_the_mem_router_sends_what_do_we_know_to_answer():  # garden#1587
+    mem = (FLOOR.parents[1] / "mem" / "SKILL.md").read_text(encoding="utf-8")
+    rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| `([a-z]+)` \| (.*?) \|", mem, re.M)}
+    assert "what do we know" not in rows["recall"], rows["recall"]
+    assert "memories only" in rows["recall"]
+    assert "what do we know about X" in rows["answer"]
