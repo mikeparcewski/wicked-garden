@@ -2263,7 +2263,9 @@ ENTRY_NOTE = """
   async function saveNote() {
     const p = parts[0]; if (!p) return;
     const before = p.lastChild.textContent;
-    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('note').value, before }], summary: 'A note' });
+    const r = await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('note').value, before }], summary: 'A note' });
+    // A second save (on change, then Save) needs the new head as its base, as a real editor keeps it.
+    if (r.ok && typeof r.payload.version === 'number') { head = r.payload.version; p.lastChild.textContent = before + ' ' + document.getElementById('note').value; }
   }
   SAVE_WIRING
   async function load() {"""
@@ -2308,8 +2310,9 @@ def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path, name, extra, f
         assert "Enter in its own text field" in enter["error"], enter
     else:
         assert cases["5-typing"]["ok"] is True and enter == {"fields": 1, "writes": 0, "head_moves": 0, "ok": True}, cases
-        # Its own instance: case 7 on the first instance still finds the field empty, fills it and saves once.
-        if name == "plain":
+        # Its own instance: case 7 on the first instance still finds the field empty, fills it and saves once, also
+        # after the probe's preparation saved a version on the second instance (saves-on-change).
+        if name in ("plain", "saves-on-change"):
             assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 1, cases["7-edit"]
 
 
@@ -2377,32 +2380,61 @@ class _EnterField:
 
 
 class _EnterFrame:
-    def __init__(self, mod, fields):
-        self.mod, self.fields = mod, fields
+    def __init__(self, mod, fields, on_body_enter=None):
+        self.mod, self.fields, self.on_body_enter, self.body_presses = mod, fields, on_body_enter, 0
 
     def locator(self, selector):
+        frame = self
         handles = self.fields if selector == self.mod.EDIT_FIELDS else []
-        return type("L", (), {"element_handles": lambda _self: handles})()
+
+        class Located:
+            def element_handles(self):
+                return handles
+
+            def count(self):
+                return len(handles)
+
+            def evaluate(self, js, timeout=None):
+                assert selector == "body"
+
+            def press(self, key, timeout=None):
+                assert selector == "body" and key == "Enter"
+                frame.body_presses += 1
+                if frame.on_body_enter:
+                    frame.on_body_enter()
+        return Located()
 
 
 def test_enter_check_charges_the_key_and_never_its_preparation_1591(monkeypatch):
     mod = _conformance_module()
     clock = _Clock()
     monkeypatch.setattr(mod, "time", clock)
-    # A change/blur autosave during preparation is settled first, never charged to Enter; a textarea is filled
-    # (a required one cannot hide the save) but Enter is not pressed in it.
+    # A change/blur autosave during preparation, even one debounced 1.9 s, is settled first and never charged to
+    # Enter; a textarea is filled (a required one cannot hide the save) but Enter is not pressed in it.
     page = _EnterPage(mod, clock)
-    field, body = _EnterField(mod, page, on_commit=page.write), _EnterField(mod, page, "TEXTAREA")
-    out = mod.enter_never_saves(page, _EnterFrame(mod, [field, body]))
+    field = _EnterField(mod, page, on_commit=lambda: page.later.append((clock.t + 1.9, page.write)))
+    body = _EnterField(mod, page, "TEXTAREA")
+    frame = _EnterFrame(mod, [field, body])
+    out = mod.enter_never_saves(page, frame)
     assert out == {"fields": 1, "writes": 0, "head_moves": 0, "ok": True}, out
     assert body.value == mod.EDIT_SENTENCE and body.pressed == 0 and field.pressed == 1 and page.head == 2
-    # A save that lands a second after the key is the key's.
+    assert frame.body_presses == 1  # and once with no field focused
+    # A save landing just inside the window after the key is the key's.
     page = _EnterPage(mod, clock)
-    late = _EnterField(mod, page, on_enter=lambda: page.later.append((clock.t + 1.0, page.write)))
+    late = _EnterField(mod, page, on_enter=lambda: page.later.append((clock.t + 2.9, page.write)))
     out = mod.enter_never_saves(page, _EnterFrame(mod, [late]))
     assert out["ok"] is False and out["writes"] == 1 and out["head_moves"] == 1, out
+    # A document-level key handler, with no field at all.
+    page = _EnterPage(mod, clock)
+    out = mod.enter_never_saves(page, _EnterFrame(mod, [], on_body_enter=page.write))
+    assert out["ok"] is False and out["fields"] == 0 and out["writes"] == 1, out
     # A field removed since it was found is skipped, not mistaken for another one.
     page = _EnterPage(mod, clock)
     gone, kept = _EnterField(mod, page, gone=True), _EnterField(mod, page, on_enter=page.write)
     out = mod.enter_never_saves(page, _EnterFrame(mod, [gone, kept]))
     assert out["gone"] == 1 and out["fields"] == 1 and out["writes"] == 1 and kept.pressed == 1, out
+    # Past the cap a field is not pressed, and the result says how many were left unchecked.
+    page = _EnterPage(mod, clock)
+    many = [_EnterField(mod, page) for _ in range(mod.ENTER_MAX_FIELDS + 1)]
+    out = mod.enter_never_saves(page, _EnterFrame(mod, many))
+    assert out["fields"] == mod.ENTER_MAX_FIELDS and out["unchecked"] == 1 and many[-1].pressed == 0, out
