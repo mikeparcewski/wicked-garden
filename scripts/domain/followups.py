@@ -119,7 +119,7 @@ def concern_rows(statements):
                 continue
             p = next((q for q in (lookup.pref(r) for r in c.get("lines") or [] if isinstance(r, str)) if q), None)
             cf, ca, cb = p if p else (f, lo, hi)
-            unknown = f"{name} does not do what its code suggests: {_sentence(c['text'])}"
+            unknown = f"In {name}: {_sentence(c['text'])}"
             if c.get("checked") != "SUPPORTED":
                 unknown += " The checker could not confirm this from the code it was shown."
             rows.append(dict(kind="flagged", where=_where(cf, ca, cb) if cf else None, statement=None, target=st.get("target"),
