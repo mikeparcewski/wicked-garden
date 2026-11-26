@@ -2257,3 +2257,272 @@ def test_run_plugin_real_host_hello_topics_and_summary_payload(tmp_path, run_plu
     finally:
         server.shutdown()
         server.server_close()
+
+
+ENTRY_NOTE = """
+  async function saveNote() {
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    const r = await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('note').value, before }], summary: 'A note' });
+    // A second save (on change, then Save) needs the new head as its base, as a real editor keeps it.
+    if (r.ok && typeof r.payload.version === 'number') { head = r.payload.version; p.lastChild.textContent = before + ' ' + document.getElementById('note').value; }
+  }
+  SAVE_WIRING
+  async function load() {"""
+
+
+def _note_editor(pack: Path, extra: str = "", *, form: str = '<input type="text" id="note" aria-label="Note">') -> None:
+    """An entry field beside a marked type=button Save, with ``extra`` script wired after it (a key or change handler).
+    garden#1591's editor saved from a <form> submit. That route does not reach the product: the host's frame is
+    sandbox="allow-scripts", with no allow-forms, so the browser blocks an implicit submission before any submit
+    handler runs. A key handler that saves is not blocked, and it is what the check catches."""
+    assert scaffold(pack, "--permissions", "artifact.read,artifact.write,ui.fullscreen").returncode == 0
+    entry = pack / FIXTURE_ENTRY
+    wiring = "document.getElementById('save').addEventListener('click', () => saveNote());" + extra
+    entry.write_text(entry.read_text()
+                     .replace('<button type="button" id="full">', form + ' ' + SAVE_BUTTON + ' <button type="button" id="full">', 1)
+                     .replace("\n  async function load() {", ENTRY_NOTE.replace("SAVE_WIRING", wiring), 1))
+    assert run("pin.py", str(pack)).returncode == 0
+
+
+ON_ENTER = "\n  document.getElementById('note').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); %s } });"
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+@pytest.mark.parametrize("name, extra, form, saves", [
+    ("saves-on-enter", ON_ENTER % "saveNote();", None, True),
+    # A save scheduled a second after the key is still the key's.
+    ("saves-later", ON_ENTER % "setTimeout(saveNote, 1000);", None, True),
+    # It saves on Enter only when its required textarea is filled too: the check fills every empty field first.
+    ("saves-when-complete", ON_ENTER % "if (document.getElementById('body').value) saveNote();",
+     '<input type="text" id="note" aria-label="Note"> <textarea id="body" required aria-label="Body"></textarea>', True),
+    # It saves on change (Enter is not the cause): the check commits and settles that save before any Enter.
+    ("saves-on-change", "\n  document.getElementById('note').addEventListener('change', () => saveNote());", None, False),
+    ("plain", "", None, False),
+    # coord R2 (W16): a change-only autosave debounced 3.5 s, cancelled by an explicit Save, no Enter handler. It
+    # passes every case on main; no write the check's own preparation could start may be charged to Enter.
+    ("debounced-autosave", "\n  let autosaveTimer = null;"
+     "\n  document.getElementById('note').addEventListener('change', () => { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(saveNote, 3500); });"
+     "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(autosaveTimer));", None, False),
+    # coord R2 delta (W16): it focuses its first field on load and saves 1.5 s after that field is blurred with a
+    # value (an explicit Save cancels it), with no Enter handler. Moving focus to the second field to press Enter
+    # there blurs the first: that save is the focus move's, not the key's.
+    ("blur-autosave", "\n  let blurTimer = null; const note = document.getElementById('note'); note.focus();"
+     "\n  note.addEventListener('blur', () => { if (note.value) { clearTimeout(blurTimer); blurTimer = setTimeout(saveNote, 1500); } });"
+     "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(blurTimer));",
+     '<input type="text" id="note" aria-label="Note"> <input type="text" id="other" aria-label="Other">', False),
+    # A document-level handler that saves on Enter with no field focused, its body unable to take focus: the
+    # no-field press reaches it (coord R2 delta 2).
+    ("saves-on-document-enter", "\n  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target === document.body)"
+     " { e.preventDefault(); saveNote(); } });", None, True),
+    # coord R2 delta 2 (W16): Enter on its focusable body only moves focus to the second field, which saves 1.5 s
+    # after it is blurred with a value. The no-field press runs on its own instances, so no later field step blurs it.
+    ("body-enter-moves-focus", "\n  let blurTimer = null; const other = document.getElementById('other'); document.body.tabIndex = 0;"
+     "\n  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target === document.body) { e.preventDefault(); other.focus(); } });"
+     "\n  other.addEventListener('blur', () => { if (other.value) { clearTimeout(blurTimer); blurTimer = setTimeout(saveNote, 1500); } });"
+     "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(blurTimer));",
+     '<input type="text" id="note" aria-label="Note"> <input type="text" id="other" aria-label="Other">', False),
+])
+def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path, name, extra, form, saves):
+    pack = tmp_path / name
+    _note_editor(pack, extra, **({"form": form} if form else {}))
+    cases = _cases(pack)
+    enter = cases["5-typing"]["enter"]
+    if saves:
+        assert cases["5-typing"]["ok"] is False and enter["ok"] is False and enter["writes"] >= 1, cases["5-typing"]
+        assert "Enter landed" in enter["error"], enter
+    else:
+        assert cases["5-typing"]["ok"] is True and enter["ok"] is True, cases["5-typing"]
+        assert enter["writes"] == enter["head_moves"] == 0 and enter["fields"] == (2 if form else 1), enter
+        # Its own instance: case 7 on the first instance still finds the field empty, fills it and saves once, also
+        # after the probe's preparation saved a version on the second instance (saves-on-change).
+        if name in ("plain", "saves-on-change"):
+            assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 1, cases["7-edit"]
+
+
+class _Clock:
+    t = 0.0
+
+    def monotonic(self):
+        return self.t
+
+
+class _EnterPage:
+    """The page calls enter_never_saves makes, without a browser: a host log of the editor's messages and a head."""
+
+    def __init__(self, mod, clock):
+        self.mod, self.clock, self.log, self.head, self.later = mod, clock, [], 1, []
+
+    def write(self):
+        self.log.append({"kind": "in", "type": "version.write"})
+        self.head += 1
+
+    def evaluate(self, js):
+        return self.log if js == self.mod.LOG else self.head
+
+    def wait_for_timeout(self, ms):
+        self.clock.t += ms / 1000
+        for due, fn in [x for x in self.later if x[0] <= self.clock.t]:
+            self.later.remove((due, fn))
+            fn()
+
+
+class _EnterField:
+    def __init__(self, mod, page, tag="INPUT", *, on_enter=None, on_edit=None, gone=False):
+        self.mod, self.page, self.tag, self.value = mod, page, tag, ""
+        self.on_enter, self.on_edit, self.gone, self.pressed = on_enter, on_edit, gone, 0
+
+    def is_visible(self):
+        return True
+
+    def is_editable(self):
+        return True
+
+    def input_value(self, timeout):
+        return self.value
+
+    def fill(self, value, timeout):  # an edit the editor sees (input, change): the check never makes one
+        self.value = value
+        if self.on_edit:
+            self.on_edit()
+
+    def evaluate(self, js, arg=None):
+        if js == self.mod.FIELD_VALUE:
+            return arg
+        if js == self.mod.SET_QUIETLY:
+            self.value = arg
+            return None
+        assert js == self.mod.ONE_LINE_FIELD, js
+        return self.tag == "INPUT"
+
+    def focus(self):
+        if self.gone:
+            raise RuntimeError("Element is not attached to the DOM")
+
+    def press(self, key, timeout):
+        assert key == "Enter"
+        self.pressed += 1
+        if self.on_enter:
+            self.on_enter()
+
+
+class _EnterFrame:
+    """The editor frame; Enter with no field focused reaches ``on_body_enter`` only once the frame's window has focus."""
+
+    def __init__(self, mod, page, fields, on_body_enter=None, focused=False):
+        self.mod, self.fields, self.on_body_enter, self.focused, self.body_presses = mod, fields, on_body_enter, focused, 0
+        self.window_focused = False
+        frame = self
+
+        class Keyboard:
+            def press(self, key):
+                assert key == "Enter"
+                frame.body_presses += 1
+                if frame.window_focused and frame.on_body_enter:
+                    frame.on_body_enter()
+        page.keyboard = Keyboard()
+
+    def locator(self, selector):
+        frame = self
+        handles = self.fields if selector == self.mod.EDIT_FIELDS else []
+
+        class Located:
+            def element_handles(self):
+                return handles
+
+            def count(self):
+                return len(handles)
+
+            def evaluate(self, js, timeout=None):
+                assert selector == "body", selector
+                if js == frame.mod.FOCUS_DOCUMENT:
+                    frame.window_focused = True
+                    return None
+                assert js == frame.mod.NOTHING_FOCUSED, js
+                return not frame.focused
+        return Located()
+
+
+def test_enter_check_charges_the_key_and_never_its_preparation_1591(monkeypatch):
+    mod = _conformance_module()
+    clock = _Clock()
+    monkeypatch.setattr(mod, "time", clock)
+    # coord R2 W16: an autosave debounced 3.5 s on any edit never starts, because the preparation sets values with
+    # no event the editor sees; a textarea is given a value too (a required one cannot hide a save) but never pressed.
+    page = _EnterPage(mod, clock)
+    autosave = lambda: page.later.append((clock.t + 3.5, page.write))  # noqa: E731
+    field, body = _EnterField(mod, page, on_edit=autosave), _EnterField(mod, page, "TEXTAREA", on_edit=autosave)
+    frame = _EnterFrame(mod, page, [field, body], on_body_enter=page.write)
+    out = mod.enter_never_saves(page, frame)
+    assert out == {"found": 1, "pressed": 1, "writes": 0, "head_moves": 0, "gone": False, "unprepared": 0}, out
+    clock.t += 10
+    page.wait_for_timeout(0)
+    assert page.head == 1 and field.value == body.value == mod.EDIT_SENTENCE and body.pressed == 0
+    assert field.pressed == 1 and frame.body_presses == 0  # a field's instance presses nothing else
+    # A save landing just inside the window after the key is the key's.
+    page = _EnterPage(mod, clock)
+    late = _EnterField(mod, page, on_enter=lambda: page.later.append((clock.t + 2.9, page.write)))
+    out = mod.enter_never_saves(page, _EnterFrame(mod, page, [late]))
+    assert out["writes"] == 1 and out["head_moves"] == 1, out
+    # A document-level key handler gets the no-field press, its frame's window focused first (coord R2 delta 2: a
+    # body that cannot take focus leaves the key with the host page). Nothing else runs on that instance: no field
+    # is prepared or pressed after it.
+    page = _EnterPage(mod, clock)
+    untouched = _EnterField(mod, page, on_enter=page.write)
+    frame = _EnterFrame(mod, page, [untouched], on_body_enter=page.write)
+    out = mod.enter_never_saves(page, frame, index=None)
+    assert out["found"] is None and out["pressed"] == 1 and out["writes"] == 1 and frame.window_focused, out
+    assert untouched.pressed == 0 and untouched.value == "", untouched.value
+    # It is not pressed when the editor focused something itself.
+    page = _EnterPage(mod, clock)
+    focused = _EnterFrame(mod, page, [], on_body_enter=page.write, focused=True)
+    out = mod.enter_never_saves(page, focused, index=None)
+    assert out["pressed"] == out["writes"] == 0 and focused.body_presses == 0, out
+    # Each instance presses only its own field.
+    page = _EnterPage(mod, clock)
+    first, second = _EnterField(mod, page), _EnterField(mod, page, on_enter=page.write)
+    out = mod.enter_never_saves(page, _EnterFrame(mod, page, [first, second]), index=1)
+    assert out["pressed"] == 1 and out["writes"] == 1 and first.pressed == 0, out
+    # The control takes every step but the key and watches CONTROL_WINDOW_S.
+    page = _EnterPage(mod, clock)
+    keyed = _EnterField(mod, page, on_enter=page.write)
+    frame = _EnterFrame(mod, page, [keyed], on_body_enter=page.write)
+    t0 = clock.t
+    for index in (None, 0):
+        out = mod.enter_never_saves(page, frame, index=index, press=False)
+        assert out["writes"] == 0 and out["pressed"] == 0 and keyed.pressed == frame.body_presses == 0, out
+    assert clock.t - t0 >= 2 * mod.CONTROL_WINDOW_S, clock.t - t0
+    # A field removed since it was found is reported, not mistaken for another one.
+    page = _EnterPage(mod, clock)
+    out = mod.enter_never_saves(page, _EnterFrame(mod, page, [_EnterField(mod, page, gone=True)]))
+    assert out["gone"] is True and out["pressed"] == 0, out
+
+
+def test_enter_probe_charges_only_what_the_key_lands_beyond_its_control_1591(monkeypatch):
+    mod = _conformance_module()
+    calls = []
+
+    def instance(browser, url, timeout_s, report, index, press=True):
+        calls.append((index, press))
+        # Every instance's focus move lands one background save (coord R2 delta: a blur autosave); the keyed one on
+        # field 2 also saves on its key.
+        return {"found": None if index is None else 5, "pressed": 1 if press else 0,
+                "writes": 1 + (1 if press and index == 2 else 0), "head_moves": 1, "gone": False, "unprepared": 0}
+    monkeypatch.setattr(mod, "_enter_instance", instance)
+    out = mod.enter_probe(None, "http://x/editors/conformance?editor=e&version=1", 5.0, {})
+    want = [(i, p) for i in [None, *range(mod.ENTER_MAX_FIELDS)] for p in (True, False)]
+    assert calls == want, calls
+    assert out["fields"] == mod.ENTER_MAX_FIELDS and out["unchecked"] == 5 - mod.ENTER_MAX_FIELDS, out
+    assert out["writes"] == 1 and out["head_moves"] == 0 and out["background"] == mod.ENTER_MAX_FIELDS + 1, out
+    assert out["ok"] is False and "Enter landed 1 write(s)" in out["error"], out
+    # The background alone is never the key's.
+    monkeypatch.setattr(mod, "_enter_instance", lambda *a, press=True: {
+        "found": 1, "pressed": 1 if press else 0, "writes": 1, "head_moves": 1, "gone": False, "unprepared": 0})
+    out = mod.enter_probe(None, "u", 5.0)
+    assert out == {"fields": 1, "writes": 0, "head_moves": 0, "background": 2, "ok": True}, out
+    # An editor that focused a field itself and has no one-line field: nothing is pressed, so no control runs.
+    calls.clear()
+    monkeypatch.setattr(mod, "_enter_instance", lambda *a, press=True: calls.append((a[-1], press)) or
+                        {"found": 0, "pressed": 0, "writes": 0, "head_moves": 0, "gone": False, "unprepared": 0})
+    assert mod.enter_probe(None, "u", 5.0) == {"fields": 0, "writes": 0, "head_moves": 0, "ok": True}
+    assert calls == [(None, True), (0, True)], calls

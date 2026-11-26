@@ -134,3 +134,35 @@ def test_cite_off_surfaces_in_self_check_and_fails(tmp_path: Path):
         str(html_path), "--repo", str(repo),
         "--no-pages", "--min-font-pt", "0", "--mode", "screen",
     ]) == 1
+
+
+def test_markdown_is_refused_not_passed_vacuously_1588(tmp_path: Path):
+    # garden#1588's exact repro: a placeholder, an uncited number and an unsourced URL in Markdown.
+    md = tmp_path / "h.md"
+    md.write_text("# Helpers\n\nTODO fill in. Revenue grew 47% last year (see https://example.invalid/x).\n",
+                  encoding="utf-8")
+    argv = [sys.executable, str(SCRIPT), str(md), "--no-pages", "--min-font-pt", "0", "--mode", "screen",
+            "--repo", str(tmp_path)]
+    proc = subprocess.run(argv, capture_output=True, text=True)
+    assert proc.returncode == 2, proc.stdout
+    payload = json.loads(proc.stdout)
+    assert payload["verdict"] == "ERROR" and "no HTML markup" in payload["error"]
+    assert "PASS" not in proc.stdout
+    # The same text as HTML still reaches the floors and fails on its findings.
+    html = tmp_path / "h.html"
+    html.write_text("<html><body><p>TODO fill in. Revenue grew 47% last year "
+                    "(see https://example.invalid/x).</p></body></html>", encoding="utf-8")
+    report = sc.run(str(html), check_pages=False, mode="screen", min_font_pt=0, repos=[str(tmp_path)])
+    assert report["verdict"] == "FAIL" and report["checks"]["claims"]["by_kind"]["placeholder"] == 1
+
+
+def test_html_with_no_text_blocks_is_unverified_not_refused_1588(tmp_path: Path):
+    # Real HTML the floors read nothing in (an image-only page) is UNVERIFIED with a disclosure, never PASS
+    # and never "not HTML".
+    page = tmp_path / "poster.html"
+    page.write_text("<!doctype html><html><body><img src='data:image/png;base64,iVBORw0KGgo=' alt=''></body></html>",
+                    encoding="utf-8")
+    report = sc.run(str(page), check_pages=False, mode="screen", min_font_pt=0)
+    assert report["verdict"] == "UNVERIFIED" and set(report["unverified"]) == {"claims", "contrast"}, report
+    assert any("no text blocks" in line for line in report["disclose"]), report["disclose"]
+    assert sc.main([str(page), "--no-pages", "--mode", "screen", "--min-font-pt", "0"]) == 3

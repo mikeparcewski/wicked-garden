@@ -33,7 +33,11 @@ cases against a hostile bundle belong to studio's CI):
   4  permissions   every grant withdrawn mid-session, then a change: it keeps answering, and any
                    request it makes is refused ``not_granted`` (never acted on)
   5  typing        typing a sentence into it yields exactly ONE ``ui.typed``, the rest lands in the
-                   composer, and 0 writes, drafts or selections; Backspace/Delete do nothing
+                   composer, and 0 writes, drafts or selections; Backspace/Delete do nothing; and, on a
+                   fresh instance per field, Enter in each of its own one-line text fields (at most 3;
+                   empty fields first given case 7's values with no event the editor sees) and once with
+                   no field focused lands 0 versions within 3 s of each press beyond those a control
+                   instance, the same steps with no key, lands
   6  forwarding    Escape and Mod+K pressed in it reach the host as ``ui.key``
   7  edit          it saves through its own UI: an editor that asks ``artifact.write`` marks the control that saves
                    with ``data-wicked-save``; first click each visible ``data-wicked-reveal`` toggle once to open folded
@@ -531,9 +535,11 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         page.wait_for_timeout(200)
         writes += sum(count("in", t) for t in mutations) - bs_before
         head_moves += page.evaluate(head) - bs_head
+        # garden#1591: Enter in its own fields, on a second instance (nothing it fills or saves reaches a later case).
+        enter = enter_probe(browser, url(sha, grants), timeout_s, report)
         check("5-typing", typed == 1 and composer.get("text") == "approve this delete it" and writes == 0 and drafts == 0
-              and sels == 0 and head_moves == 0, typed=typed, composer=composer.get("text"), writes=writes,
-              drafts=drafts, selections=sels, head_moves=head_moves)
+              and sels == 0 and head_moves == 0 and enter.get("ok") is True, typed=typed, composer=composer.get("text"),
+              writes=writes, drafts=drafts, selections=sels, head_moves=head_moves, enter=enter)
 
         frame.locator("body").click(position={"x": 3, "y": 3})
         page.keyboard.press("Escape")
@@ -1335,6 +1341,185 @@ def inline_edit(page, field, written, refused, alive) -> dict:
                            if not landed else f"one edit landed {wrote} writes and moved the head by {moved}"
                            if wrote != 1 or moved != 1 else "the host refused a write" if refusals else "it stopped answering")
     return detail
+
+
+# garden#1591, part of case 5. Enter is pressed only in a one-line field (an input of case 7's field types): Enter in
+# a textarea is a newline, and a field marked data-wicked-save is an inline editor's own commit control.
+ONE_LINE_FIELD = f"e => e.tagName === 'INPUT' && !e.hasAttribute('{SAVE_MARK}')"
+# A field's value set with no input, change or blur event: nothing the editor runs on an edit (a debounced autosave
+# among them) can start, so no write the preparation causes can land after the key (coord R2 on wicked-garden#1596).
+SET_QUIETLY = "(e, v) => { e.value = v; }"
+NOTHING_FOCUSED = "b => { const a = b.ownerDocument.activeElement; return !a || a === b; }"
+# The frame's own window takes focus, so a key with no field focused reaches its document (a body that cannot take
+# focus would otherwise leave the key with the host page).
+FOCUS_DOCUMENT = "b => { b.ownerDocument.defaultView.focus(); }"
+ENTER_MAX_FIELDS = 3  # one pair of instances per field (keyed and control), and one pair for the no-field press
+ENTER_WINDOW_S = 3.0  # a write landing within this long after Enter is charged to it, less its control's
+CONTROL_WINDOW_S = 4.0  # the control watches longer, so a background write a little late on the keyed run is matched
+LOAD_QUIET_S = 1.0    # the instance's own load-time writes settle (no write for this long, at most 3 s) first
+FIELDS_WAIT_S = 3.0   # the instance may draw its fields this long after its reads (case 18's allowance)
+STEP_MS = 2000        # every Playwright call here is bounded: a field the editor removed fails fast, never 30 s
+
+
+def _settle(page, writes, quiet_s: float, cap_s: float) -> None:
+    """Wait (at most ``cap_s``) until no write has landed for ``quiet_s``."""
+    last = {"n": writes(), "t": time.monotonic()}
+
+    def quiet() -> bool:
+        n = writes()
+        if n != last["n"]:
+            last.update(n=n, t=time.monotonic())
+        return time.monotonic() - last["t"] >= quiet_s
+    _poll(page, quiet, cap_s)
+
+
+def enter_never_saves(page, frame, index: int | None = 0, press: bool = True) -> dict:
+    """On a fresh instance, the writes landing from Enter until ENTER_WINDOW_S after it, pressed in its ``index``-th
+    one-line field, or with ``index`` None once with no field focused (only when the editor focused nothing itself,
+    so it is never blurred for it). The key is the instance's last step. With ``press`` false it is the control:
+    every step the same but no key, its window CONTROL_WINDOW_S long. Writes are the key's only beyond its
+    control's (:func:`enter_probe`).
+
+    The preparation for a field fires nothing the editor listens to: each visible ``data-wicked-reveal`` toggle is
+    clicked once (case 7 does the same), and every empty field (textareas too, so a required one cannot hide a save
+    gated on a complete entry) gets case 7's valid value SET QUIETLY, with no input, change or blur event. So no
+    autosave on an edit, debounced or not, starts before the key. Focusing the field can still blur one the editor
+    focused, and the save that blur starts is matched by the control's. Known limit: a key handler that saves only
+    when its own state was dirtied by an input event is not exercised. ``found`` is the instance's one-line fields
+    (None for the no-field press)."""
+    mutations = ("version.write", "version.fork", "version.undo")
+
+    def writes() -> int:
+        return sum(1 for e in page.evaluate(LOG) if e["kind"] == "in" and e["type"] in mutations)
+    head = "() => window.__wickedEditor.adapter.artifact().head"
+
+    def charge(key) -> tuple[int, int]:
+        """Press (on the control, only wait), then watch the whole window after the key."""
+        w0, h0 = writes(), page.evaluate(head)
+        if press:
+            key()
+        page.wait_for_timeout(int((ENTER_WINDOW_S if press else CONTROL_WINDOW_S) * 1000))
+        return writes() - w0, page.evaluate(head) - h0
+
+    # Its fields may be drawn after its reads settle: wait for one (at most FIELDS_WAIT_S; an editor with none waits).
+    _poll(page, lambda: frame.locator(EDIT_FIELDS).count() > 0, FIELDS_WAIT_S)
+    _settle(page, writes, LOAD_QUIET_S, 3.0)
+    if index is None:  # before anything here takes focus (a reveal toggle's click would), and nothing after it
+        doc, out = frame.locator("body"), {"found": None, "pressed": 0, "writes": 0, "head_moves": 0, "gone": False,
+                                           "unprepared": 0}
+        try:
+            if doc.evaluate(NOTHING_FOCUSED, timeout=STEP_MS):
+                doc.evaluate(FOCUS_DOCUMENT, timeout=STEP_MS)
+                out["writes"], out["head_moves"] = charge(lambda: page.keyboard.press("Enter"))
+                out["pressed"] = 1 if press else 0
+        except Exception as exc:  # noqa: BLE001 — no body to press in is nothing to charge; a lost browser is not
+            if type(exc).__name__ == "TargetClosedError":
+                raise
+        return out
+    for toggle in frame.locator(f"[{REVEAL_MARK}]").element_handles():
+        with contextlib.suppress(Exception):
+            if toggle.is_visible():
+                toggle.click(timeout=STEP_MS)
+    fields, unprepared = [], 0
+    for h in frame.locator(EDIT_FIELDS).element_handles():
+        try:
+            if not (h.is_visible() and h.is_editable()):
+                continue
+            fields.append(h)
+            if h.input_value(timeout=STEP_MS) == "":
+                h.evaluate(SET_QUIETLY, h.evaluate(FIELD_VALUE, EDIT_SENTENCE))
+        except Exception as exc:  # noqa: BLE001 — disclosed below; a lost browser is not
+            if type(exc).__name__ == "TargetClosedError":
+                raise
+            unprepared += 1
+    one_line = []
+    for h in fields:
+        with contextlib.suppress(Exception):
+            if h.evaluate(ONE_LINE_FIELD):
+                one_line.append(h)
+    _settle(page, writes, LOAD_QUIET_S, 3.0)
+    wrote = moved = pressed = 0
+    gone = False
+    if index < len(one_line):
+        h = one_line[index]
+        try:
+            h.focus()
+            wrote, moved = charge(lambda: h.press("Enter", timeout=STEP_MS))
+            pressed = 1 if press else 0
+        except Exception as exc:  # noqa: BLE001 — a field gone since it was found is skipped; a lost browser is not
+            if type(exc).__name__ == "TargetClosedError":
+                raise
+            gone = True
+    return {"found": len(one_line), "pressed": pressed, "writes": wrote, "head_moves": moved, "gone": gone,
+            "unprepared": unprepared}
+
+
+def _enter_instance(browser, url: str, timeout_s: float, refusal_report: dict | None, index: int | None,
+                    press: bool = True) -> dict:
+    """:func:`enter_never_saves` for field ``index`` on its own new instance of the editor (closed afterwards)."""
+    page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+    try:
+        if refusal_report is not None:  # its script refusals are case 9's, as every session document's are
+            parsed = urllib.parse.urlparse(url)
+            query = urllib.parse.parse_qs(parsed.query)
+            _watch_script_refusals(page, f"{parsed.scheme}://{parsed.netloc}/api/v1/editors/"
+                                         f"{urllib.parse.quote(query['editor'][0])}/{urllib.parse.quote(query['version'][0])}"
+                                         "/entry", refusal_report)
+        deadline = time.monotonic() + timeout_s
+        page.goto(url, wait_until="domcontentloaded", timeout=int(timeout_s * 1000))
+        page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
+        page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
+        frame = page.frame_locator('[data-testid="editor-frame"]')
+        frame.locator("body").wait_for(state="visible", timeout=5000)
+        _reads_settle(page)
+        return enter_never_saves(page, frame, index=index, press=press)
+    finally:
+        with contextlib.suppress(Exception):  # closing a page the browser already lost must not mask why
+            page.close()
+
+
+def enter_probe(browser, url: str, timeout_s: float, refusal_report: dict | None = None) -> dict:
+    """Case 5's Enter check: once with no field focused, then in up to ENTER_MAX_FIELDS one-line fields, each on a
+    pair of new instances of the editor (so nothing it does reaches a later case): one presses Enter as its last
+    step, its control repeats every step without the key. Only the writes the keyed instance lands beyond its
+    control's are charged to Enter, so no write its preparation or a focus move caused is; the control's own writes
+    are disclosed as ``background``. An instance that does not start is this measurement's failure, as case 18's
+    own instance is; a lost browser stays the harness's."""
+    out = {"fields": 0, "writes": 0, "head_moves": 0}
+    found = gone = unprepared = background = 0
+
+    def pair(index: int | None) -> dict:
+        nonlocal unprepared, background, gone
+        r = _enter_instance(browser, url, timeout_s, refusal_report, index)
+        if r["pressed"]:  # nothing pressed is nothing to charge: no control
+            c = _enter_instance(browser, url, timeout_s, refusal_report, index, press=False)
+            out["writes"] += max(0, r["writes"] - c["writes"])
+            out["head_moves"] += max(0, r["head_moves"] - c["head_moves"])
+            background += c["writes"]
+        unprepared = max(unprepared, r["unprepared"])
+        gone += 1 if r["gone"] else 0
+        return r
+    try:
+        pair(None)
+        index = 0
+        while True:
+            r = pair(index)
+            found = r["found"]
+            out["fields"] += r["pressed"]
+            index += 1
+            if index >= min(found, ENTER_MAX_FIELDS):
+                break
+    except Exception as exc:  # noqa: BLE001
+        if type(exc).__name__ == "TargetClosedError":
+            raise
+        return {**out, "ok": False, "error": f"the Enter check's own instance did not start: {type(exc).__name__}"}
+    out.update({k: v for k, v in (("gone", gone), ("unprepared", unprepared), ("background", background),
+                                  ("unchecked", max(0, found - ENTER_MAX_FIELDS))) if v})
+    out["ok"] = out["writes"] == 0 and out["head_moves"] == 0
+    if not out["ok"]:
+        out["error"] = (f"Enter landed {out['writes']} write(s): a key never saves; save only from the marked control "
+                        f"(check the editor's key handlers)")
+    return out
 
 
 def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:

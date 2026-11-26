@@ -52,7 +52,9 @@ wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescrip
   absent: it refuses naming the first collision and writes nothing. Then
   `npm install && npm run build`.
 - `--lang node|python` writes one dependency-free file (`<dir>/server.mjs` or
-  `<dir>/server.py`) — for a one-file server with no build step. Same no-overwrite rule.
+  `<dir>/server.py`) — for a one-file server with no build step. Same no-overwrite rule. It
+  has no `mcp-server.config.json`, so `install` (step 5) does not install it: scaffold
+  `--lang typescript` for a server you install; the report's `install` field says so.
 - It prints JSON with the written path, the run command, the probe command and (TypeScript)
   the secret variable's NAME.
 - **`--rest`** (TypeScript only; off by default, MCP-only stays the default): also serves every

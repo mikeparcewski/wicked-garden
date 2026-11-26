@@ -174,6 +174,9 @@ def main(argv: list[str] | None = None) -> int:
         "path": str(target),
         "run": run,
         "probe": f"wicked-garden run scripts/mcp/probe.py -- {run}",
+        # garden#1581: said here, not only when install.py refuses it.
+        "install": "not installable with install.py, which installs the --lang typescript scaffold "
+                   "(a build and mcp-server.config.json); run this one-file server directly",
     }, indent=2))
     return 0
 
