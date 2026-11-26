@@ -204,7 +204,7 @@ def relocate(st, moves):
     """``st`` with every cited line moved by the piece holding it; ``None`` when a citation is in no piece."""
     st = json.loads(json.dumps(st))
     ok = True
-    for c in st.get("claims") or []:
+    for c in list(st.get("claims") or []) + [x for x in st.get("concerns") or [] if isinstance(x, dict)]:
         for key in ("lines", "guards"):
             if c.get(key):
                 moved = [_move_ref(r, moves) for r in c[key]]

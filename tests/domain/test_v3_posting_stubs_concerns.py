@@ -186,6 +186,22 @@ def test_a_concern_the_checker_cannot_settle_is_raised_as_not_confirmed(tmp_path
     assert len(rows) == 1 and "could not confirm" in rows[0]["unknown"]
 
 
+def test_a_concern_moves_with_its_code_when_its_target_is_revalidated(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    C = batches.plan_batches(repo, S, str(tmp_path / "b"))
+    t = _target(S, "READ-PARA")
+    st = dict(id="t#0", anchor=dict(file=PROG, lines=[20, 29]),
+              claims=[dict(i=0, type="condition", text="`PAY-HOURS > 40`", lines=[f"{PROG}:24"])],
+              concerns=[dict(text=CONCERN, lines=[f"{PROG}:22"])])
+    call = next(c for c in C["calls"] if t["id"] in c["targets"])
+    rec = store.target_record(repo, t, call, [st], [], {}, store._unit_spans(repo), S["targets"])
+    edit(repo, PROG, lambda L: L[:13] + [b"       01  WS-COUNT                PIC 9 VALUE 0."] + L[13:])
+    d, moves = store.decide(graph.Repo(repo.root, repo.db), rec)
+    assert d == "revalidate"
+    assert store.relocate(st, moves)["concerns"][0]["lines"] == [f"{PROG}:23"]
+
+
 # ---------------- 3. stubs ----------------
 def test_a_stub_stated_as_doing_nothing_with_its_comment_is_a_statement(tmp_path):
     """Rule 12's shape: an effect that it does nothing, a value quoting the comment, and a concern naming the stub."""
