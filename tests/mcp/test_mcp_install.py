@@ -856,3 +856,32 @@ def test_the_uninstall_record_with_a_too_old_installer_names_the_uninstall(rig):
 def test_no_reason_asks_for_a_step_the_reader_cannot_rerun():
     # "run this step again" named an action no surface offers (the card has only its choices and Decline).
     assert "step again" not in INSTALL.read_text(encoding="utf-8")
+
+
+SCAFFOLD = REPO / "scripts" / "mcp" / "scaffold.py"
+
+
+@pytest.mark.parametrize("lang, file", [("node", "server.mjs"), ("python", "server.py")])
+def test_a_one_file_scaffold_is_refused_naming_the_real_gap_1581(rig, lang, file):
+    # garden#1581's repro: the scaffold's own --lang node|python output, then install --dir on it.
+    out = rig.tmp / f"one-file-{lang}"
+    made = subprocess.run([sys.executable, str(SCAFFOLD), "--name", "notes-demo", "--lang", lang, "--out", str(out)],
+                          capture_output=True, text=True, timeout=60)
+    assert made.returncode == 0, made.stderr
+    assert "typescript" in json.loads(made.stdout)["install"]
+    code, plan = rig.run("--dir", str(out), "--target", "operator", "--cli", "claude", "--dry-run", "--json",
+                         "--crew-url", closed_origin())
+    assert code == 2
+    error = plan["_stderr"]  # a refused --dry-run explains itself on stderr, as install.py --dry-run: <why>
+    assert f"one-file server ({file}, the scaffold's --lang {lang})" in error
+    assert "--lang typescript" in error and "scaffold the server first" not in error
+    assert not (rig.tmp / "root").exists()
+
+
+def test_a_dir_with_no_server_names_the_typescript_scaffold_1581(rig):
+    empty = rig.tmp / "empty"
+    empty.mkdir()
+    code, plan = rig.run("--dir", str(empty), "--dry-run", "--json", "--crew-url", closed_origin())
+    assert code == 2 and "--lang typescript" in plan["_stderr"] and "one-file" not in plan["_stderr"]
+    code, record = rig.run("--dir", str(empty), "--json", "--crew-url", closed_origin())
+    assert code == 2 and "--lang typescript" in record["error"]

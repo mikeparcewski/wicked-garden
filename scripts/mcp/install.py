@@ -303,13 +303,31 @@ def run_tree() -> Path:
     return Path(named) if named and Path(named).is_dir() else Path.cwd()
 
 
+# The one-file servers ``scaffold.py --lang node|python`` writes (and nothing else).
+ONE_FILE_SERVERS = {"server.mjs": "node", "server.py": "python"}
+
+
+def missing_config(server_dir: Path) -> str:
+    """garden#1581: why a ``--dir`` with no config cannot install, naming the real gap. A one-file
+    ``--lang node|python`` scaffold has no build and no config by design; install installs the
+    TypeScript scaffold (it builds dist/server.js), so "scaffold the server first" was wrong there."""
+    one = next((name for name in ONE_FILE_SERVERS if (server_dir / name).is_file()), None)
+    if one:
+        return (f"{server_dir} holds a one-file server ({one}, the scaffold's --lang {ONE_FILE_SERVERS[one]}) "
+                f"and no {CONFIG_NAME}: install installs the TypeScript scaffold only (it builds dist/server.js "
+                f"from package.json and reads its key from {CONFIG_NAME}). Scaffold with --lang typescript to "
+                f"install a server, or run the one-file server directly")
+    return (f"{server_dir} has no {CONFIG_NAME}: install needs a TypeScript scaffold "
+            f"(scaffold.py --lang typescript) or --from-npm")
+
+
 def locate(args) -> tuple[Path | None, dict]:
     if args.dir is not None:
         config_path = args.dir / CONFIG_NAME
         if not config_path.is_file():
             if args.from_npm:
                 return None, {}
-            raise Failure(2, f"{args.dir} has no {CONFIG_NAME}; scaffold the server first")
+            raise Failure(2, missing_config(args.dir))
     elif args.from_run:
         tree = run_tree()
         found = find_configs(tree)
