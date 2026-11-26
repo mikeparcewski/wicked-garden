@@ -186,7 +186,7 @@ def _scaffold_run_plugin(args, vendor: str, plugin_id: str, title: str) -> int:
             "samples": samples_rel.as_posix(),
         },
         "pin": f'wicked-garden run scripts/editor/pin.py "{out}"',
-        "check": f'npx wicked-garden pack check "{out}"',
+        "check": f'wicked-garden run scripts/pack/check.py "{out}"',
         "conformance": f'wicked-garden run scripts/editor/conformance.py --pack "{out}" --json',
     }, indent=2))
     return 0
@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
         "editor": {"id": editor_id, "version": args.version, "sha256": sha, "kinds": kinds, "permissions": perms,
                    "protocol": [1, 2], "surfaces": sorted(k for k in ("card", "options", "full") if k in surfaces)},
         "pin": f'wicked-garden run scripts/editor/pin.py "{out}"',
-        "check": f'npx wicked-garden pack check "{out}"',
+        "check": f'wicked-garden run scripts/pack/check.py "{out}"',
         "conformance": f'wicked-garden run scripts/editor/conformance.py --pack "{out}" --json',
     }, indent=2))
     return 0

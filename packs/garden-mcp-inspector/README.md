@@ -14,7 +14,7 @@ An artifact editor plugin for wicked-studio (`garden-mcp-inspector` 0.1.0), pack
 
 ```
 wicked-garden run scripts/editor/pin.py .            # re-pin the entry's sha256 after an edit
-npx wicked-garden pack check .                       # the manifest and the entry
+wicked-garden run scripts/pack/check.py .            # the manifest and the entry
 wicked-garden run scripts/editor/conformance.py --pack . --host-url <a wicked-crew daemon URL> --json
 ```
 

@@ -98,7 +98,7 @@ The template's plumbing is what the conformance run checks; keep it and put your
   focus ring, `prefers-reduced-motion` honoured.
 - After every edit of the entry, **re-pin** its hash (the host refuses a changed bundle, and a
   grant is keyed by that hash): `wicked-garden run scripts/editor/pin.py <dir>`. Then
-  `npx wicked-garden pack check <dir>`.
+  `wicked-garden run scripts/pack/check.py <dir>`.
 
 ## Surfaces (protocol 2)
 
