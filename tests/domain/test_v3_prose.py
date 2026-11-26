@@ -92,3 +92,32 @@ def test_a_follow_up_names_where_what_is_unknown_and_the_sites_to_check():
     assert r["kind"] == "open" and r["where"] == dict(file=f, lines=[20, 29])
     assert "the checker needs: the loop's end" in r["unknown"]
     assert r["sites"] == [17] and r["check"].endswith("Reached from 1 site: PAYCALC1.cbl:17.")
+
+
+def test_what_to_check_says_one_thing_per_sentence():
+    """core#1955: each part of a follow-up's "What to check" is its own sentence. A checker's reason or the repair's
+    errors carry no full stop of their own, and the "Reached from" sites used to run on from them."""
+    import os
+    from domain import defs, followups
+    defs.set_root(os.path.join(os.path.dirname(__file__), "fixtures", "v3", "mini-cobol"))
+    f = "app/cbl/PAYCALC1.cbl"
+    claims = [dict(i=0, type="condition", text="`PAY-HOURS > 40`", lines=[f"{f}:24"]),
+              dict(i=1, type="effect", text="`PAY-AMOUNT` is set to zero", when=[0], lines=[f"{f}:25-26"])]
+    base = dict(target="t1", status="open", anchor=dict(file=f, lines=[20, 29]), claims=claims)
+    flagged = dict(base, id="r#3", status1="flagged", repair=dict(errors=["repair returned no statement"]),
+                   check=dict(claims=[dict(i=1, verdict="OVERREACH", case="VALUE", both=True, witness="never zero")]))
+    unsure = dict(base, id="r#1", status1="unverifiable",
+                  check=dict(claims=[dict(i=0, verdict="UNVERIFIABLE", need="the FD of PAY-FILE",
+                                          reason="the excerpt does not show what AT END covers")]))
+    blank = dict(base, id="r#2", status1="unverifiable",
+                 check=dict(claims=[dict(i=0, verdict="UNVERIFIABLE", need="x", reason="")]))
+    checks = [r["check"] for r in followups.statement_rows([flagged, unsure, blank])]
+    assert checks == [
+        "Whether claim 1 holds: \"`PAY-AMOUNT` is set to zero\". The automatic repair failed its checks: repair "
+        "returned no statement. Reached from 1 site: PAYCALC1.cbl:17.",
+        "the excerpt does not show what AT END covers. Reached from 1 site: PAYCALC1.cbl:17.",
+        "Reached from 1 site: PAYCALC1.cbl:17.",
+    ]
+    # With no sites (not COBOL), the reason still ends as a sentence.
+    (r,) = followups.statement_rows([dict(unsure, anchor=dict(file="src/a.ts", lines=[1, 2]))])
+    assert r["check"] == "the excerpt does not show what AT END covers."
