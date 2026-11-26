@@ -37,13 +37,22 @@ def _where(f, a, b):
     return dict(file=f, lines=[a, b])
 
 
+def _sentence(text):
+    """``text`` stripped and ending as a sentence (a checker's reason or a repair error carries no full stop)."""
+    t = (text or "").strip()
+    return t if not t or t[-1] in ".!?" else t + "."
+
+
 def _check_with_sites(text, f, line):
+    """What to check, one thing per sentence: ``text``, then the PERFORM / GO TO sites that reach the paragraph."""
+    text = _sentence(text)
     s = sites(f, line)
     if not s:
         return text
     shown = ", ".join(f"{os.path.basename(f)}:{x}" for x in s[:MAX_SITES])
     more = f", and {len(s) - MAX_SITES} more" if len(s) > MAX_SITES else ""
-    return f"{text} Reached from {len(s)} site{'s' if len(s) != 1 else ''}: {shown}{more}."
+    reached = f"Reached from {len(s)} site{'s' if len(s) != 1 else ''}: {shown}{more}."
+    return f"{text} {reached}" if text else reached
 
 
 def _anchor(st):
@@ -72,7 +81,7 @@ def statement_rows(statements):
             what = (c.get("witness") or c.get("reason") or "").strip()
             check = f"Whether claim {c.get('i')} holds: \"{(_claim(st, c.get('i')).get('text') or '').strip()}\"."
             if repair:
-                check += " The automatic repair failed its checks: " + "; ".join(repair[:3])
+                check += " " + _sentence("The automatic repair failed its checks: " + "; ".join(repair[:3]))
             rows.append(dict(kind="flagged", where=_where(f, lo, hi), statement=st["id"], target=st.get("target"),
                              case=c.get("case"), both_passes=bool(c.get("both")), unknown=what,
                              check=_check_with_sites(check, f, lo), sites=sites(f, lo)))
