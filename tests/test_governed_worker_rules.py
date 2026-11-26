@@ -404,9 +404,17 @@ def test_a7s_estate_read_returns_approved_knowledge_notes_too():  # garden#1587
     assert "--readonly recall" not in FLOOR.read_text(encoding="utf-8")
 
 
-def test_the_mem_router_sends_what_do_we_know_to_answer():  # garden#1587
+def test_the_mem_recall_action_reads_both_stores():  # garden#1587 (round 1)
+    # Fifteen skills hand off to the mem skill's `recall` action for what is on record (ground, repo-learn's
+    # dedupe, QE's environment notes, audit's indexed code...). The action runs `sources`, so an approved
+    # knowledge note comes back to every one of them; the bare script `recall` stays memory-only.
     mem = (FLOOR.parents[1] / "mem" / "SKILL.md").read_text(encoding="utf-8")
     rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| `([a-z]+)` \| (.*?) \|", mem, re.M)}
-    assert "what do we know" not in rows["recall"], rows["recall"]
-    assert "memories only" in rows["recall"]
-    assert "what do we know about X" in rows["answer"]
+    assert "approved knowledge notes" in rows["recall"] and "what do we know about X" in rows["recall"]
+    section = mem[mem.index("## Recall"):]
+    section = section[: section.index("\n## ", 1)]
+    block = re.search(r"```bash\n(.*?)```", section, re.S).group(1)
+    assert "estate_memory.py sources '" in block and " recall '" not in block
+    assert "approved knowledge notes" in section
+    description = mem.split("---", 2)[1]
+    assert "recall (memories and approved notes;" in " ".join(description.split())
