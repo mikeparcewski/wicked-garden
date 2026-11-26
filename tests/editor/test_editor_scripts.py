@@ -2304,6 +2304,13 @@ ON_ENTER = "\n  document.getElementById('note').addEventListener('keydown', (e) 
     ("debounced-autosave", "\n  let autosaveTimer = null;"
      "\n  document.getElementById('note').addEventListener('change', () => { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(saveNote, 3500); });"
      "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(autosaveTimer));", None, False),
+    # coord R2 delta (W16): it focuses its first field on load and saves 1.5 s after that field is blurred with a
+    # value (an explicit Save cancels it), with no Enter handler. Moving focus to the second field to press Enter
+    # there blurs the first: that save is the focus move's, not the key's.
+    ("blur-autosave", "\n  let blurTimer = null; const note = document.getElementById('note'); note.focus();"
+     "\n  note.addEventListener('blur', () => { if (note.value) { clearTimeout(blurTimer); blurTimer = setTimeout(saveNote, 1500); } });"
+     "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(blurTimer));",
+     '<input type="text" id="note" aria-label="Note"> <input type="text" id="other" aria-label="Other">', False),
 ])
 def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path, name, extra, form, saves):
     pack = tmp_path / name
@@ -2314,8 +2321,8 @@ def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path, name, extra, f
         assert cases["5-typing"]["ok"] is False and enter["ok"] is False and enter["writes"] >= 1, cases["5-typing"]
         assert "Enter landed" in enter["error"], enter
     else:
-        assert cases["5-typing"]["ok"] is True and enter == {"fields": 1, "writes": 0, "head_moves": 0, "ok": True}, cases
-        # (debounced-autosave: its 3.5 s save never starts, because the check's preparation fires no edit event.)
+        assert cases["5-typing"]["ok"] is True and enter["ok"] is True, cases["5-typing"]
+        assert enter["writes"] == enter["head_moves"] == 0 and enter["fields"] == (2 if form else 1), enter
         # Its own instance: case 7 on the first instance still finds the field empty, fills it and saves once, also
         # after the probe's preparation saved a version on the second instance (saves-on-change).
         if name in ("plain", "saves-on-change"):
@@ -2449,26 +2456,45 @@ def test_enter_check_charges_the_key_and_never_its_preparation_1591(monkeypatch)
     frame = _EnterFrame(mod, [first, second])
     out = mod.enter_never_saves(page, frame, index=1, body=False)
     assert out["pressed"] == 1 and out["writes"] == 1 and first.pressed == 0 and frame.body_presses == 0, out
+    # The control takes every step but the key and watches each window CONTROL_WINDOW_S: the same save on a key
+    # never lands, and the span covers the keyed run's.
+    page = _EnterPage(mod, clock)
+    keyed = _EnterField(mod, page, on_enter=page.write)
+    frame = _EnterFrame(mod, [keyed], on_body_enter=page.write)
+    t0 = clock.t
+    out = mod.enter_never_saves(page, frame, press=False)
+    assert out["writes"] == 0 and out["pressed"] == 0 and keyed.pressed == frame.body_presses == 0, out
+    assert clock.t - t0 >= 2 * mod.CONTROL_WINDOW_S, clock.t - t0
     # A field removed since it was found is reported, not mistaken for another one.
     page = _EnterPage(mod, clock)
     out = mod.enter_never_saves(page, _EnterFrame(mod, [_EnterField(mod, page, gone=True)]))
     assert out["gone"] is True and out["pressed"] == 0, out
 
 
-def test_enter_probe_opens_one_instance_per_field_up_to_the_cap_1591(monkeypatch):
+def test_enter_probe_charges_only_what_the_key_lands_beyond_its_control_1591(monkeypatch):
     mod = _conformance_module()
     calls = []
 
-    def instance(browser, url, timeout_s, report, index):
-        calls.append(index)
-        return {"found": 5, "pressed": 1, "writes": 1 if index == 2 else 0, "head_moves": 0, "gone": False,
-                "unprepared": 0}
+    def instance(browser, url, timeout_s, report, index, press=True):
+        calls.append((index, press))
+        # Every instance's focus move lands one background save (coord R2 delta: a blur autosave); the keyed one on
+        # field 2 also saves on its key.
+        return {"found": 5, "pressed": 1 if press else 0, "writes": 1 + (1 if press and index == 2 else 0),
+                "head_moves": 1, "gone": False, "unprepared": 0}
     monkeypatch.setattr(mod, "_enter_instance", instance)
     out = mod.enter_probe(None, "http://x/editors/conformance?editor=e&version=1", 5.0, {})
-    assert calls == list(range(mod.ENTER_MAX_FIELDS)) and out["fields"] == mod.ENTER_MAX_FIELDS, (calls, out)
-    assert out["unchecked"] == 5 - mod.ENTER_MAX_FIELDS and out["ok"] is False and out["writes"] == 1, out
-    # An editor with no one-line field opens one instance (the press with no field focused) and passes.
+    assert calls == [(i, p) for i in range(mod.ENTER_MAX_FIELDS) for p in (True, False)], calls
+    assert out["fields"] == mod.ENTER_MAX_FIELDS and out["unchecked"] == 5 - mod.ENTER_MAX_FIELDS, out
+    assert out["writes"] == 1 and out["head_moves"] == 0 and out["background"] == mod.ENTER_MAX_FIELDS, out
+    assert out["ok"] is False and "Enter landed 1 write(s)" in out["error"], out
+    # The background alone is never the key's.
+    monkeypatch.setattr(mod, "_enter_instance", lambda *a, press=True: {
+        "found": 1, "pressed": 1 if press else 0, "writes": 1, "head_moves": 1, "gone": False, "unprepared": 0})
+    out = mod.enter_probe(None, "u", 5.0)
+    assert out == {"fields": 1, "writes": 0, "head_moves": 0, "background": 1, "ok": True}, out
+    # An editor with no one-line field opens one pair (the press with no field focused) and passes.
     calls.clear()
-    monkeypatch.setattr(mod, "_enter_instance", lambda *a: calls.append(a[-1]) or
+    monkeypatch.setattr(mod, "_enter_instance", lambda *a, press=True: calls.append((a[-1], press)) or
                         {"found": 0, "pressed": 0, "writes": 0, "head_moves": 0, "gone": False, "unprepared": 0})
-    assert mod.enter_probe(None, "u", 5.0) == {"fields": 0, "writes": 0, "head_moves": 0, "ok": True} and calls == [0]
+    assert mod.enter_probe(None, "u", 5.0) == {"fields": 0, "writes": 0, "head_moves": 0, "ok": True}
+    assert calls == [(0, True), (0, False)], calls
