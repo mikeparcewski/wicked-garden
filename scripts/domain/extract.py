@@ -213,30 +213,38 @@ def is_rule(st, repo=None):
     if {c.get("type") for c in claims} & {"condition", "else", "value"}:
         return True
     return repo is not None and any(
-        p and lib.updates_records(repo, p[0], range(p[1], min(p[2], p[1] + 200) + 1))
+        p and lib.updates_records(repo, p[0], range(p[1], p[2] + 1))
         for c in claims if c.get("type") == "effect"
         for p in (pref(r) if isinstance(r, str) else None for r in c.get("lines") or []))
 
 
 def cite_copybooks(st):
-    """garden#1548: every field a claim names in backticks that its program defines in a copybook goes in the statement's
-    ``context`` with the copybook line (``app/cpy/CVACT01Y.cpy:7``), so the statement says which copybook it reads.
-    0 model calls; a field the model already placed keeps its entry. Not COBOL: unchanged."""
-    f = (st.get("anchor") or {}).get("file") or ""
-    if not is_cobol(f) or not isinstance(st.get("claims"), list):
+    """garden#1548: every field a claim names in backticks (outside a quoted literal) that exactly one of its program's
+    copybooks defines goes in the statement's ``context`` with the copybook line (``app/cpy/CVACT01Y.cpy:7``), so the
+    statement says which copybook it reads. A name the program defines itself, or two copybooks define, is left out
+    (the claim's qualification is not resolved here). 0 model calls; a field the model already placed keeps its entry;
+    a statement the M checks refused keeps whatever shape it has. Not COBOL: unchanged."""
+    f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
+    if not isinstance(f, str) or not is_cobol(f) or not isinstance(st.get("claims"), list):
         return st
-    ctx = st.get("context") if isinstance(st.get("context"), list) else []
-    have = {x.get("symbol") for x in ctx if isinstance(x, dict)}
+    ctx = st.get("context")
+    if ctx is None:
+        ctx = []
+    if not isinstance(ctx, list):
+        return st
+    have = {x.get("symbol") for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str)}
+    in_program = lambda n: (defs.define(n, [f]) or ("",))[0] == f  # noqa: E731
+    books = defs.copybooks(f)
     for c in st["claims"]:
-        if not isinstance(c, dict):
+        if not isinstance(c, dict) or not isinstance(c.get("text"), str):
             continue
-        for span in re.findall(r"`([^`]+)`", c.get("text") or ""):
-            for name in defs.COBID.findall(span.upper()):
-                if name in have or name in COBKW:
+        for span in re.findall(r"`([^`]+)`", c["text"]):
+            for name in defs.COBID.findall(re.sub(r"'[^']*'|\"[^\"]*\"", " ", span).upper()):
+                if name in have or name in COBKW or in_program(name):
                     continue
-                d = v2lib.cob_define(name, f)
-                if d and d[0] != f and lib.ext(d[0]) == ".cpy":
-                    ctx.append(dict(symbol=name, at=f"{d[0]}:{d[1]}"))
+                hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
+                if len(hits) == 1:
+                    ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
                     have.add(name)
     st["context"] = ctx
     return st
@@ -254,7 +262,7 @@ def check_target(repo, tout, t, call):
         e = check_statement(repo, st, t, call)
         if not e and not is_rule(st, repo):
             ln = an["lines"]
-            nrs.append(dict(lines=f"{t['file']}:{ln[0]}-{ln[1]}", reason="control-only", note="derived: no condition, else or value claim", derived=True))
+            nrs.append(dict(lines=f"{t['file']}:{ln[0]}-{ln[1]}", reason="control-only", note="derived: no condition, else or value claim, and no record update", derived=True))
             continue
         keep.append(st)
         if e:

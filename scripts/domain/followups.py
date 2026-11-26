@@ -114,16 +114,19 @@ def concern_rows(statements):
             continue
         f, lo, hi = _anchor(st)
         name = st.get("name") or (st.get("anchor") or {}).get("symbol_id") or "this routine"
-        for k, c in enumerate(x for x in st.get("concerns") or [] if isinstance(x, dict)):
-            if c.get("checked") == "WRONG" or not (c.get("text") or "").strip():
+        cs = st.get("concerns") if isinstance(st.get("concerns"), list) else []
+        for k, c in enumerate(cs):
+            # only a concern the checker judged: one on a statement the M checks refused was never asked
+            if not isinstance(c, dict) or c.get("checked") not in ("SUPPORTED", "UNVERIFIABLE") \
+                    or not isinstance(c.get("text"), str) or not c["text"].strip():
                 continue
-            p = next((q for q in (lookup.pref(r) for r in c.get("lines") or [] if isinstance(r, str)) if q), None)
+            p = next((q for q in (lookup.pref(r) for r in (c.get("lines") if isinstance(c.get("lines"), list) else [])) if q), None)
             cf, ca, cb = p if p else (f, lo, hi)
             unknown = f"In {name}: {_sentence(c['text'])}"
             if c.get("checked") != "SUPPORTED":
                 unknown += " The checker could not confirm this from the code it was shown."
             rows.append(dict(kind="flagged", where=_where(cf, ca, cb) if cf else None, statement=None, target=st.get("target"),
-                             concern_of=st.get("id"), unknown=unknown,
+                             concern_of=st.get("id"), concern=k, unknown=unknown,
                              check=_check_with_sites("Read the cited lines and confirm this; the rule states the code as written.", cf, ca)
                              if cf else "Read the statement's code and confirm this.", sites=sites(cf, ca) if cf else []))
     return rows

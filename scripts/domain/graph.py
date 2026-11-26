@@ -313,29 +313,49 @@ def has_decision(repo, f, lines):
 
 
 # garden#1548: a record update is a business outcome even with no test (a posting paragraph's writes, their order).
-# WRITE / REWRITE / DELETE of a record, or the EXEC CICS form; a WRITEQ / DELETEQ queue is not one, nor a word in a
-# literal or a data name (`WS-WRITE-FLAG`).
-RECORD_UPDATE_COBOL = re.compile(r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)\s+[A-Z]", re.I)
+# The verb as a token: `WRITE` / `REWRITE` / `DELETE` with or without its record on the same line (a CICS command
+# often puts FILE(...) on the next), never inside a data name (`WS-WRITE-FLAG`), never a queue (`WRITEQ`, `DELETEQ`)
+# and never a CICS command that touches no file record (`WRITE OPERATOR`, `DELETE CONTAINER`, `WRITE JOURNALNAME`).
+RECORD_UPDATE_COBOL = re.compile(
+    r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)(?![A-Z0-9-])(?!\s+(?:OPERATOR|CONTAINER|CHANNEL|JOURNALNAME|COUNTER|DCOUNTER)\b)",
+    re.I)
 _PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*))?", re.I)
-_PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\.\s*$")
+_PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\s*\.?\s*$", re.I)
 _LITERAL = re.compile(r"'[^']*'|\"[^\"]*\"")
 
 
 def _cobol_code(L, i, cm):
-    """Line ``i``'s code area (columns 8-72) with its literals blanked; empty on a comment or a short line."""
+    """Line ``i``'s code area (columns 8-72) with its literals blanked and an inline `*>` comment cut; empty on a
+    comment or a short line."""
     s = L[i - 1]
-    return "" if i in cm or len(s) <= 7 else _LITERAL.sub(" ", s[7:72])
+    if i in cm or len(s) <= 7:
+        return ""
+    c = _LITERAL.sub(" ", s[7:72])
+    return c.split("*>", 1)[0]
 
 
 def _cobol_paragraphs(repo, f, L, cm):
-    """The PROCEDURE DIVISION's paragraphs of ``f`` as (NAME, first line, last line), in source order."""
+    """The PROCEDURE DIVISION's paragraphs and sections of ``f`` as (NAME, first line, last line), in source order. A
+    section runs to the next section (its paragraphs included); a paragraph to the next header. A header is a name in
+    area A (columns 8-11) alone on its line, its period on that line or the next."""
     ps = procedure_start(repo, f)
     if not ps:
         return []
-    heads = [(m.group(1).upper(), i) for i in range(ps + 1, len(L) + 1)
-             if i not in cm and len(L[i - 1]) > 8 and L[i - 1][7] != " "
-             for m in [_PARA_COBOL.match(L[i - 1][7:72].strip())] if m]
-    return [(nm, a, (heads[k + 1][1] - 1) if k + 1 < len(heads) else len(L)) for k, (nm, a) in enumerate(heads)]
+    heads = []
+    for i in range(ps + 1, len(L) + 1):
+        s = L[i - 1]
+        body = s[7:72].split("*>", 1)[0]
+        if i in cm or not body.strip() or len(body) - len(body.lstrip()) > 3:  # area A: columns 8-11
+            continue
+        m = _PARA_COBOL.match(body.strip())
+        nxt = L[i][7:72].strip() if i < len(L) and len(L[i]) > 7 else ""
+        if m and (s[7:72].rstrip().endswith(".") or nxt == "."):
+            heads.append((m.group(1).upper(), i, bool(m.group(2))))
+    out = []
+    for k, (nm, a, sec) in enumerate(heads):
+        later = [h for h in heads[k + 1:] if h[2]] if sec else heads[k + 1:k + 2]
+        out.append((nm, a, later[0][1] - 1 if later else len(L)))
+    return out
 
 
 def updates_records(repo, f, lines):
@@ -348,10 +368,15 @@ def updates_records(repo, f, lines):
     cm = comment_lines(repo, f)
     paras = _cobol_paragraphs(repo, f, L, cm)
     order = [p[0] for p in paras]
+    seen = {}
 
     def direct(a, b):
-        return any(RECORD_UPDATE_COBOL.search(_cobol_code(L, j, cm)) for j in range(a, b + 1) if 1 <= j <= len(L))
+        if (a, b) not in seen:
+            seen[(a, b)] = any(RECORD_UPDATE_COBOL.search(_cobol_code(L, j, cm)) for j in range(max(a, 1), min(b, len(L)) + 1))
+        return seen[(a, b)]
 
+    if isinstance(lines, range):  # a model's range is cut to the file before it is walked
+        lines = range(max(lines.start, 1), min(lines.stop, len(L) + 1))
     out = []
     for i in lines:
         if not 1 <= i <= len(L):

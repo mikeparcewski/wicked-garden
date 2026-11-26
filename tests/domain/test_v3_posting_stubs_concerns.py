@@ -6,8 +6,10 @@ Fixtures: mini-cobol (``fixtures/v3``, the estate graph ``wicked-estate index`` 
 update rewrites one line of the tree copy in place, so every line number and target the graph holds still applies.
 """
 import json
+import os
+import time
 
-from domain import batches, extract, graph, lookup, model_calls, run, scope, store
+from domain import batches, check, extract, followups, graph, lookup, model_calls, run, scope, store
 from tests.domain.test_v3_store import PROG, FakeSeats, edit, fake_write, make_repo, stored
 
 WRITE_18 = b"           WRITE PAY-LINE"  # MAIN-PARA's CLOSE (line 18) becomes a record update
@@ -231,3 +233,130 @@ def test_a_field_the_program_defines_gets_no_copybook_context(tmp_path):
     lookup.use_repo(make_repo(tmp_path, "mini-cobol"))
     st = dict(anchor=dict(file=PROG, lines=[20, 29]), claims=[dict(i=0, type="effect", text="moves `'Y'` to `WS-EOF`", lines=[f"{PROG}:22"])])
     assert extract.cite_copybooks(st)["context"] == []
+
+
+# ---------------- round-1 review folds ----------------
+FORMS = "app/cbl/FORMS1.cbl"
+_FORMS = """       IDENTIFICATION DIVISION.
+       PROGRAM-ID. FORMS1.
+       PROCEDURE DIVISION.
+       MAIN-PARA.
+           PERFORM CICS-PARA
+           PERFORM QUEUE-PARA
+           PERFORM POST-SEC
+           PERFORM low-para
+           CLOSE PAY-FILE *> WRITE PAY-LINE
+           GOBACK.
+       CICS-PARA.
+           EXEC CICS WRITE
+                FILE('ACCTDAT')
+           END-EXEC.
+       QUEUE-PARA.
+           EXEC CICS WRITEQ TS QUEUE('Q1') FROM(WS-X) END-EXEC
+           EXEC CICS WRITE OPERATOR TEXT(WS-MSG) END-EXEC
+           EXEC CICS DELETE CONTAINER('C1') CHANNEL('CH') END-EXEC
+           MOVE 'Y' TO WS-WRITE-FLAG.
+       POST-SEC SECTION.
+       POST-A.
+           MOVE 1 TO WS-N.
+       POST-B.
+           REWRITE 01-ACCT-REC.
+       low-para.
+           DELETE ACCT-FILE RECORD.
+"""
+
+
+def _forms(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    with open(os.path.join(repo.root, FORMS), "w") as fh:
+        fh.write(_FORMS)
+    return repo
+
+
+def test_a_cics_or_line_end_verb_is_an_update_a_queue_or_operator_message_is_not(tmp_path):
+    repo = _forms(tmp_path)
+    L = graph.flines(repo, FORMS)
+    got = graph.updates_records(repo, FORMS, range(1, len(L) + 1))
+    # 5 CICS-PARA, 7 POST-SEC (its POST-B rewrites), 8 low-para (a lower-case header); 12 the line-end CICS WRITE;
+    # 24 a digit-led record name; 26 DELETE ... RECORD. Not: 6 (a queue, an operator message, a container, a data
+    # name), 9 (the WRITE is in an inline comment), 16-19.
+    assert got == [5, 7, 8, 12, 24, 26], got
+
+
+def test_a_model_range_is_cut_to_the_file_before_it_is_walked(tmp_path):
+    repo = _forms(tmp_path)
+    t0 = time.time()
+    assert graph.updates_records(repo, FORMS, range(1, 10 ** 12)) == [5, 7, 8, 12, 24, 26]
+    st = dict(anchor=dict(file=FORMS, lines=[11, 14]), claims=[dict(i=0, type="effect", text="writes", lines=[f"{FORMS}:1-{10 ** 12}"])])
+    assert extract.is_rule(st, repo) and time.time() - t0 < 5
+
+
+def test_a_claim_numbered_like_a_concern_keeps_its_verdict():
+    st = dict(id="s", claims=[dict(i=0, type="condition"), dict(i=1000, type="effect")], concerns=[dict(text="x", lines=["a:1"])])
+    assert check.concern_ids(st) == [1001]
+    assert [c["i"] for c in check.table(st)] == [0, 1000, 1001]
+    res = {"s": dict(claims=[dict(i=0, verdict="SUPPORTED"), dict(i=1000, verdict="WRONG"), dict(i=1001, verdict="SUPPORTED")])}
+    got = check.split_concerns(res, [st])
+    assert [c["i"] for c in res["s"]["claims"]] == [0, 1000] and list(got["s"]) == [0]
+    plain = dict(id="p", claims=[dict(i=1000, type="effect")])
+    res = {"p": dict(claims=[dict(i=1000, verdict="SUPPORTED")])}
+    check.split_concerns(res, [plain])
+    assert res["p"]["claims"] == [dict(i=1000, verdict="SUPPORTED")]  # no concerns: nothing is taken
+
+
+def test_each_repair_child_gets_its_own_unjudged_copy_of_the_concerns():
+    s = dict(concerns=[dict(text="x", lines=["a:1"], checked="SUPPORTED", reason="r")])
+    a, b = check.inherited_concerns({}, s), check.inherited_concerns({}, s)
+    assert a == b == [dict(text="x", lines=["a:1"])]
+    check.judge_concerns(dict(concerns=a), {0: dict(verdict="WRONG")}, {0: dict(verdict="WRONG")})
+    assert a[0]["checked"] == "WRONG" and "checked" not in b[0] and s["concerns"][0]["checked"] == "SUPPORTED"
+    assert check.inherited_concerns(dict(concerns=[dict(text="own", lines=["a:2"])]), s) == [dict(text="own", lines=["a:2"])]
+
+
+def test_the_reason_comes_from_the_pass_that_gave_the_verdict():
+    st = dict(concerns=[dict(text="x", lines=["a:1"])])
+    check.judge_concerns(st, {0: dict(verdict="UNVERIFIABLE", reason="not shown")}, {0: dict(verdict="SUPPORTED", reason="it holds")})
+    assert (st["concerns"][0]["checked"], st["concerns"][0]["reason"]) == ("SUPPORTED", "it holds")
+
+
+def test_two_concerns_with_one_text_and_place_are_two_stored_rows(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    lookup.use_repo(repo)
+    S = scope.build_scope(repo, "PAYCALC1")
+    st = dict(id="t#0", status="Checked", target=_target(S, "READ-PARA")["id"], name="READ-PARA", anchor=dict(file=PROG, lines=[20, 29]),
+              concerns=[dict(text=CONCERN, lines=[f"{PROG}:22"], checked="SUPPORTED")] * 2)
+    other = dict(st, id="t#1")
+    rows = followups.concern_rows([st, other])
+    assert len(rows) == 4 and len({(r["concern_of"], r["concern"]) for r in rows}) == 4
+    keys = {store.sha(json.dumps({k: r.get(k) for k in ("kind", "where", "statement", "target", "claim", "unknown", "concern_of", "concern")},
+                                 sort_keys=True).encode())[:16] for r in rows}
+    assert len(keys) == 4
+
+
+def test_a_malformed_or_unchecked_concern_raises_no_row_and_crashes_nothing(tmp_path):
+    lookup.use_repo(make_repo(tmp_path, "mini-cobol"))
+    base = dict(id="t#0", status="open", target="t", anchor=dict(file=PROG, lines=[20, 29]),
+                claims=[dict(i=0, type="effect", text=42, lines=[f"{PROG}:22"])])
+    for bad in (123, "x", [123, dict(text=7, lines=[f"{PROG}:22"], checked="SUPPORTED")], [dict(text="never asked", lines=[f"{PROG}:22"])],
+                [dict(text="t", lines=5, checked="SUPPORTED")]):
+        st = dict(base, concerns=bad)
+        rows = followups.concern_rows([st])
+        if isinstance(bad, list) and isinstance(bad[0], dict) and bad[0].get("lines") == 5:
+            assert [r["where"] for r in rows] == [dict(file=PROG, lines=[20, 29])]  # unusable lines: the row sits on the anchor
+        else:
+            assert rows == [], bad
+        store.cited(st)
+        store.relocate(st, {})
+        extract.cite_copybooks(st)
+        check.table(dict(st, claims=[dict(i=0, type="effect", text="x")]))
+
+
+def test_a_quoted_literal_or_a_field_two_copybooks_define_gets_no_copybook_context(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    with open(os.path.join(repo.root, "app/cpy/PAYDUP.cpy"), "w") as fh:
+        fh.write("       01  PAY-DUP.\n           05  PAY-RATE            PIC 9(3)V99.\n")
+    edit(repo, PROG, _at(13, b"       COPY PAYDUP."))  # WS-EOF's line becomes a second COPY: PAY-RATE is now in two
+    lookup.use_repo(graph.Repo(repo.root, repo.db))
+    st = dict(anchor=dict(file=PROG, lines=[20, 29]),
+              claims=[dict(i=0, type="effect", text="moves `'PAY-HOURS'` to the message; `PAY-RATE` times `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
+    assert {x["symbol"]: x["at"] for x in extract.cite_copybooks(st)["context"]} == {"PAY-AMOUNT": "app/cpy/PAYREC.cpy:5"}
