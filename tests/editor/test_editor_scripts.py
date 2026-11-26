@@ -2257,3 +2257,48 @@ def test_run_plugin_real_host_hello_topics_and_summary_payload(tmp_path, run_plu
     finally:
         server.shutdown()
         server.server_close()
+
+
+ENTRY_NOTE = """
+  async function saveNote() {
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('note').value, before }], summary: 'A note' });
+  }
+  SAVE_WIRING
+  async function load() {"""
+
+
+def _note_editor(pack: Path, *, saves_on_enter: bool) -> None:
+    """An entry field beside a marked type=button Save. With ``saves_on_enter`` the field also saves on Enter, the
+    shape of garden#1591's editor. (Its <form> route does not reach the product: the host's frame is
+    sandbox="allow-scripts", with no allow-forms, so the browser blocks an implicit submission before any submit
+    handler runs. A key handler that saves is not blocked, and is what the check catches.)"""
+    assert scaffold(pack, "--permissions", "artifact.read,artifact.write,ui.fullscreen").returncode == 0
+    entry = pack / FIXTURE_ENTRY
+    wiring = "document.getElementById('save').addEventListener('click', () => saveNote());"
+    if saves_on_enter:
+        wiring += ("\n  document.getElementById('note').addEventListener('keydown', (e) => "
+                   "{ if (e.key === 'Enter') { e.preventDefault(); saveNote(); } });")
+    entry.write_text(entry.read_text()
+                     .replace('<button type="button" id="full">',
+                              '<input type="text" id="note" aria-label="Note"> ' + SAVE_BUTTON + ' <button type="button" id="full">', 1)
+                     .replace("\n  async function load() {", ENTRY_NOTE.replace("SAVE_WIRING", wiring), 1))
+    assert run("pin.py", str(pack)).returncode == 0
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path):
+    submits, plain = tmp_path / "submits", tmp_path / "plain"
+    _note_editor(submits, saves_on_enter=True)
+    cases = _cases(submits)
+    typing = cases["5-typing"]
+    assert typing["ok"] is False and typing["enter"]["fields"] == 1 and typing["enter"]["writes"] >= 1, typing
+    assert "Enter in its own text field" in typing["error"], typing
+    # The same field and Save with no Enter handler: Enter lands nothing, and case 7 still saves through Save
+    # (the field case 5 filled was put back empty, so case 7 fills it again).
+    _note_editor(plain, saves_on_enter=False)
+    cases = _cases(plain)
+    assert cases["5-typing"]["ok"] is True and cases["5-typing"]["enter"] == {"fields": 1, "writes": 0, "head_moves": 0}, cases
+    assert cases["6-forwarding"]["ok"] is True, cases["6-forwarding"]
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 1, cases["7-edit"]

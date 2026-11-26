@@ -33,7 +33,10 @@ cases against a hostile bundle belong to studio's CI):
   4  permissions   every grant withdrawn mid-session, then a change: it keeps answering, and any
                    request it makes is refused ``not_granted`` (never acted on)
   5  typing        typing a sentence into it yields exactly ONE ``ui.typed``, the rest lands in the
-                   composer, and 0 writes, drafts or selections; Backspace/Delete do nothing
+                   composer, and 0 writes, drafts or selections; Backspace/Delete do nothing; Enter
+                   pressed in each of its own one-line text fields (filled first, as case 7 fills them)
+                   lands 0 versions: a field in a form with a submit button never saves on Enter
+                   (measured after case 6, so its keys never reach case 6's forwarded list)
   6  forwarding    Escape and Mod+K pressed in it reach the host as ``ui.key``
   7  edit          it saves through its own UI: an editor that asks ``artifact.write`` marks the control that saves
                    with ``data-wicked-save``; first click each visible ``data-wicked-reveal`` toggle once to open folded
@@ -551,6 +554,16 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         dropped = count("dropped", "ui.key") - dropped_before
         check("6-forwarding", keys[:3] == ["Escape", "Mod+K", "Alt+J"] and dropped == 0 and alive(), keys=keys,
               decision_chords_forwarded=dropped)
+
+        # 5 (garden#1591): "a key never sends" covers Enter in its own fields. Measured here, after case 6, so a
+        # forwarded Enter can never reach case 6's key list; a failure is case 5's.
+        enter = enter_never_saves(page, frame, lambda: sum(count("in", t) for t in mutations), head)
+        cases["5-typing"]["enter"] = enter
+        if enter["writes"] or enter["head_moves"]:
+            cases["5-typing"].update(ok=False, error=f"Enter in its own text field landed {enter['writes']} write(s): "
+                                                     f"a key never saves (an entry field in a form with a submit button "
+                                                     f"submits on Enter unless the submit is prevented)")
+            raise CaseFailed("5-typing")
 
         errors_before = len(errors)
         for junk in JUNK:
@@ -1335,6 +1348,50 @@ def inline_edit(page, field, written, refused, alive) -> dict:
                            if not landed else f"one edit landed {wrote} writes and moved the head by {moved}"
                            if wrote != 1 or moved != 1 else "the host refused a write" if refusals else "it stopped answering")
     return detail
+
+
+# The one-line text fields case 5 presses Enter in: case 7's fields without the textarea (Enter there is a newline),
+# and never a field marked data-wicked-save (an inline editor commits that one by design).
+ENTER_FIELDS = ", ".join(f"{sel}:not([{SAVE_MARK}])" for sel in EDIT_FIELDS.split(", ") if sel != "textarea")
+ENTER_MAX_FIELDS = 8
+ENTER_QUIET_S = 1.0
+
+
+def enter_never_saves(page, frame, writes, head: str) -> dict:
+    """garden#1591, part of case 5: in each visible, editable one-line text field of the editor's own (at most
+    ENTER_MAX_FIELDS), Enter lands no version. The empty fields are filled first with case 7's valid values, so a
+    form that validates ``required`` fields cannot hide an implicit submission; each field is focused and its writes
+    settle (an editor that saves on change or blur is not charged to the key) before its Enter is counted. The fields
+    are put back as they were afterwards, for case 7."""
+    fields = frame.locator(ENTER_FIELDS)
+    usable = [fields.nth(i) for i in range(fields.count())]
+    usable = [f for f in usable if f.is_visible() and f.is_editable()][:ENTER_MAX_FIELDS]
+    was = [f.input_value() for f in usable]
+    for f, value in zip(usable, was):
+        if value == "":
+            f.fill(f.evaluate(FIELD_VALUE, EDIT_SENTENCE))
+    wrote = moved = 0
+    for f in usable:
+        f.focus()
+        last = {"n": writes(), "t": time.monotonic()}
+
+        def quiet() -> bool:
+            n = writes()
+            if n != last["n"]:
+                last.update(n=n, t=time.monotonic())
+            return time.monotonic() - last["t"] >= ENTER_QUIET_S
+        _poll(page, quiet, 3.0)
+        w0, h0 = writes(), page.evaluate(head)
+        f.press("Enter")
+        page.wait_for_timeout(400)
+        wrote += writes() - w0
+        moved += page.evaluate(head) - h0
+    for f, value in zip(usable, was):
+        try:
+            f.fill(value, timeout=2000)
+        except Exception:  # noqa: BLE001 — a field the editor removed meanwhile has nothing to put back
+            pass
+    return {"fields": len(usable), "writes": wrote, "head_moves": moved}
 
 
 def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
