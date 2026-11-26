@@ -3,7 +3,7 @@ name: wicked-garden-mem
 description: |
   Memory + knowledge over wicked-estate.
   One skill, routed actions: store (a durable decision/pattern/gotcha),
-  recall (this project's memories; all scopes on opt-in), answer (cited
+  recall (memories and approved notes; all scopes on opt-in), answer (cited
   synthesis from the knowledge + memory stores, plus live data-source rows
   when a crew step may query them), review (browse coverage by
   kind/tier), forget (kind-guarded erase of a scope subtree), maintain
@@ -70,7 +70,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 |--------|---------|-----|
 | `store` | persist one learning (decision, pattern, gotcha, discovery) | § Store |
 | `propose` | save one learning from a read-only seat (lands pending for operator approval) | § Propose |
-| `recall` | find memories ("what do we know about X") | § Recall |
+| `recall` | find what is on record ("what do we know about X"): memories and approved knowledge notes, each labelled with its store | § Recall |
 | `answer` | grounded, cited answer from the stores, and from a live data source's rows when crew lets the step query it | the `wicked-garden-search` skill's `refs/answer.md` |
 | `review` | browse what's stored (counts by kind/tier, scope digest) | § Review / Maintain |
 | `forget` | erase a scope subtree (kind-guarded) | § Forget |
@@ -139,19 +139,24 @@ same refusals. It answers `{"ok": true, "id": …, "facets": …}`; the memory i
 ## Recall
 
 ```bash
-... estate_memory.py recall '{"query":"<topic>"}'
+... estate_memory.py sources '{"query":"<topic>"}'
 ```
 
-By default recall searches the current project (`project:<checkout name>`; outside a
+Recall reads what is on record: the memories, and the approved knowledge notes (a learning a
+person approved, an ingested document). The answer has a `knowledge` list and a `memories`
+list, and every item is labelled with its store. The script's bare `recall` verb reads
+memories only; capture uses it to dedupe a memory, and it never finds a knowledge note.
+
+By default the memory side searches the current project (`project:<checkout name>`; outside a
 checkout, the run's `WICKED_RUN_PROJECT`, else the cwd's name)
 and its ancestors, so root-scoped memories stay visible and other projects'
 memories do not leak in. Operator memories (`operator:<id>`, how the user
 works) are recalled in every project. Pass `"scope"` to recall another project the same
 way. Searching everything, brain-migrated leaves
 (`brain:<project>/doc:<id>`) included, is an explicit opt-in:
-`"scope_prefix": ""` (or `"scope_prefix": "project:<name>"` for one subtree). Items return content, scope, tier,
-and score; present the top hits and cite `memory_id`/scope when the user
-needs provenance. For a synthesized, citation-bearing answer use the
+`"scope_prefix": ""` (or `"scope_prefix": "project:<name>"` for one subtree). Memories return content, scope, tier,
+and score, and knowledge notes their `source`; present the top hits and cite `memory_id`/scope
+or the source when the user needs provenance. For a synthesized, citation-bearing answer use the
 `answer` action instead.
 
 **Steering doctrine** (the governance rules, 7 steering types) lives in the

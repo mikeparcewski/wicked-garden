@@ -392,3 +392,29 @@ def test_e7_judges_this_change_not_the_code_it_did_not_touch():  # wicked-core#1
     assert "including through code it did not touch" in flat
     assert "`RULE <id>: N/A — pre-existing: <file:line> is not in this change`" in flat
     assert "never a Critical or a FAIL" in flat
+
+
+def test_a7s_estate_read_returns_approved_knowledge_notes_too():  # garden#1587
+    # A learning a person approved is a knowledge note. `recall` searches memories only, so a chat
+    # seat that ran the floor's one estate read (A7's `recall`) answered "nothing recorded" while the
+    # approved note sat in the knowledge store. The floor's read is `sources`: memories and notes.
+    rule = _rule("A7")
+    assert "`wicked-garden run scripts/mem/estate_memory.py --readonly sources '<a few words>'`" in rule
+    assert "(sources returns approved memories and notes, never a pending proposal)" in rule
+    assert "--readonly recall" not in FLOOR.read_text(encoding="utf-8")
+
+
+def test_the_mem_recall_action_reads_both_stores():  # garden#1587 (round 1)
+    # Fifteen skills hand off to the mem skill's `recall` action for what is on record (ground, repo-learn's
+    # dedupe, QE's environment notes, audit's indexed code...). The action runs `sources`, so an approved
+    # knowledge note comes back to every one of them; the bare script `recall` stays memory-only.
+    mem = (FLOOR.parents[1] / "mem" / "SKILL.md").read_text(encoding="utf-8")
+    rows = {m.group(1): m.group(2) for m in re.finditer(r"^\| `([a-z]+)` \| (.*?) \|", mem, re.M)}
+    assert "approved knowledge notes" in rows["recall"] and "what do we know about X" in rows["recall"]
+    section = mem[mem.index("## Recall"):]
+    section = section[: section.index("\n## ", 1)]
+    block = re.search(r"```bash\n(.*?)```", section, re.S).group(1)
+    assert "estate_memory.py sources '" in block and " recall '" not in block
+    assert "approved knowledge notes" in section
+    description = mem.split("---", 2)[1]
+    assert "recall (memories and approved notes;" in " ".join(description.split())

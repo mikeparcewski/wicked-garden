@@ -899,3 +899,19 @@ def test_propose_with_nothing_names_what_is_missing(monkeypatch, capsys):
     out = json.loads(capsys.readouterr().out.strip())
     assert out["ok"] is False and "nothing to propose" in out["reason"]
     assert seen == []
+
+
+def test_recall_reads_memories_only_and_sources_reads_both(monkeypatch, capsys):
+    # garden#1587: the floor's A10 rests on this split. An approved knowledge note comes back from
+    # `sources` (the answer action's feed), never from `recall`.
+    note = {"body_snippet": "the suite only passes inside a real git checkout",
+            "source": "tiny-math:test/repo.test.js"}
+    rec = _Recorder({"knowledge.recall": {"items": [note]},
+                     "memory.recall": {"items": []}})
+    code, out, rec = _run(monkeypatch, capsys, "recall", {"query": "how tests run"}, rec)
+    assert code == 0 and [t for t, _ in rec.calls] == ["memory.recall"]
+    assert out["items"] == []
+    rec = _Recorder({"knowledge.recall": {"items": [note]},
+                     "memory.recall": {"items": []}})
+    code, out, rec = _run(monkeypatch, capsys, "sources", {"query": "how tests run"}, rec)
+    assert code == 0 and out["knowledge"][0]["source"] == "tiny-math:test/repo.test.js"
