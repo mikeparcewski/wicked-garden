@@ -19,7 +19,8 @@ and prints one verdict:
 
 Exit: 0 = every floor met (and verified); 1 = a floor failed — fix the document and re-run;
 3 = no floor failed but the page count could not be verified — disclose it in notes.json;
-2 = usage / unreadable input. Stdlib only.
+2 = usage / unreadable input, or an input with no HTML text blocks (Markdown, plain text:
+nothing would be checked, garden#1588). Stdlib only.
 
 CLI:
     self_check.py <file.html> [--pdf <exported.pdf>] [--pages N [--exact]] [--render]
@@ -47,6 +48,12 @@ def run(html: str, pdf: str | None = None, pages: int | None = None, exact: bool
     checks["contrast"] = contrast_check.run(html, min_contrast, min_font_pt, mode)
     checks["claims"] = claims_scan.run(html, repos)
     checks["leaks"] = leak_scan.run(html, run_ids)
+    # garden#1588: a floor that inspected nothing never yields PASS. Markdown or plain text parses as
+    # HTML with no text blocks, so the claims and contrast floors would report "clean" over nothing.
+    if checks["claims"]["stats"]["blocks"] == 0 and checks["contrast"]["elements_checked"] == 0:
+        raise ValueError(f"self_check reads HTML: {html} has no HTML text blocks (0 parsed), so no floor "
+                         "checked anything. Run it on the HTML deliverable; a Markdown or plain-text file "
+                         "is not checked by these floors")
     if notes is not None:
         checks["notes"] = notes_check.run(notes)
     if check_pages:

@@ -134,3 +134,23 @@ def test_cite_off_surfaces_in_self_check_and_fails(tmp_path: Path):
         str(html_path), "--repo", str(repo),
         "--no-pages", "--min-font-pt", "0", "--mode", "screen",
     ]) == 1
+
+
+def test_markdown_is_refused_not_passed_vacuously_1588(tmp_path: Path):
+    # garden#1588's exact repro: a placeholder, an uncited number and an unsourced URL in Markdown.
+    md = tmp_path / "h.md"
+    md.write_text("# Helpers\n\nTODO fill in. Revenue grew 47% last year (see https://example.invalid/x).\n",
+                  encoding="utf-8")
+    argv = [sys.executable, str(SCRIPT), str(md), "--no-pages", "--min-font-pt", "0", "--mode", "screen",
+            "--repo", str(tmp_path)]
+    proc = subprocess.run(argv, capture_output=True, text=True)
+    assert proc.returncode == 2, proc.stdout
+    payload = json.loads(proc.stdout)
+    assert payload["verdict"] == "ERROR" and "no HTML text blocks" in payload["error"]
+    assert "PASS" not in proc.stdout
+    # The same text as HTML still reaches the floors and fails on its findings.
+    html = tmp_path / "h.html"
+    html.write_text("<html><body><p>TODO fill in. Revenue grew 47% last year "
+                    "(see https://example.invalid/x).</p></body></html>", encoding="utf-8")
+    report = sc.run(str(html), check_pages=False, mode="screen", min_font_pt=0, repos=[str(tmp_path)])
+    assert report["verdict"] == "FAIL" and report["checks"]["claims"]["by_kind"]["placeholder"] == 1
