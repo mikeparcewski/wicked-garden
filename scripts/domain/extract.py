@@ -232,7 +232,9 @@ def cite_copybooks(st):
         ctx = []
     if not isinstance(ctx, list):
         return st
-    have = {x.get("symbol") for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str)}
+    # a field the model placed with a reference keeps it; one it named with no reference gets the copybook line
+    have = {x.get("symbol") for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and isinstance(x.get("at"), str) and x["at"]}
+    bare = {x["symbol"]: x for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and x["symbol"] not in have}
     in_program = lambda n: (defs.define(n, [f]) or ("",))[0] == f  # noqa: E731
     books = defs.copybooks(f)
     for c in st["claims"]:
@@ -246,7 +248,10 @@ def cite_copybooks(st):
                 many = sum(1 for cp in books for s in defs.flines(cp) if len(s) > 7 and s[6] not in "*/"
                            and (defs.level(s) or (0, ""))[1] == name)
                 if len(hits) == 1 and many == 1:  # one definition in all its copybooks
-                    ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
+                    if name in bare:
+                        bare[name]["at"] = f"{hits[0][0]}:{hits[0][1]}"
+                    else:
+                        ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
                     have.add(name)
     st["context"] = ctx
     return st

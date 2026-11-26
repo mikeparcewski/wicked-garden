@@ -320,7 +320,8 @@ _NOT_A_RECORD = r"(?:OPERATOR|CONTAINER|CHANNEL|JOURNALNAME|COUNTER|DCOUNTER)\b"
 RECORD_UPDATE_COBOL = re.compile(r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)(?![A-Z0-9-])(?!\s+" + _NOT_A_RECORD + ")", re.I)
 _NOT_A_RECORD_NEXT = re.compile(r"^\s*" + _NOT_A_RECORD, re.I)
 _THRU_NEXT = re.compile(r"^\s*(?:THRU|THROUGH)\b", re.I)
-_PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*))?", re.I)
+_PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:OF|IN)\s+([A-Z0-9][A-Z0-9-]*))?"
+                            r"(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:OF|IN)\s+([A-Z0-9][A-Z0-9-]*))?)?", re.I)
 _PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\s*\.?\s*$", re.I)
 _LITERAL = re.compile(r"'[^']*'|\"[^\"]*\"")
 
@@ -363,7 +364,8 @@ def _is_update(L, i, cm):
 
 
 def _cobol_paragraphs(repo, f, L, cm):
-    """The PROCEDURE DIVISION's paragraphs and sections of ``f`` as (NAME, first line, last line), in source order. A
+    """The PROCEDURE DIVISION's paragraphs and sections of ``f`` as (NAME, first line, last line, is a section), in
+    source order. A
     section runs to the next section (its paragraphs included); a paragraph to the next header. A header is a name in
     area A (columns 8-11) alone on its line, its period on that line or the next."""
     ps = procedure_start(repo, f)
@@ -382,7 +384,7 @@ def _cobol_paragraphs(repo, f, L, cm):
     out = []
     for k, (nm, a, sec) in enumerate(heads):
         later = [h for h in heads[k + 1:] if h[2]] if sec else heads[k + 1:k + 2]
-        out.append((nm, a, later[0][1] - 1 if later else len(L)))
+        out.append((nm, a, later[0][1] - 1 if later else len(L), sec))
     return out
 
 
@@ -395,8 +397,21 @@ def updates_records(repo, f, lines):
     L = flines(repo, f) or []
     cm = comment_lines(repo, f)
     paras = _cobol_paragraphs(repo, f, L, cm)
-    order = [p[0] for p in paras]
     seen = {}
+    secs = [p for p in paras if p[3]]
+
+    def section_of(line):
+        return next((s[0] for s in secs if s[1] <= line <= s[2]), None)
+
+    def resolve(name, sec, line):
+        """The one procedure ``name`` (qualified by section ``sec``) names from ``line``: unqualified, a name two
+        sections share means the one in the caller's section. None when it is not one procedure."""
+        ks = [k for k, p in enumerate(paras) if p[0] == name]
+        if sec:
+            ks = [k for k in ks if section_of(paras[k][1]) == sec and not paras[k][3]]
+        elif len(ks) > 1:
+            ks = [k for k in ks if section_of(paras[k][1]) == section_of(line)]
+        return ks[0] if len(ks) == 1 else None
 
     def direct(a, b):
         if (a, b) not in seen:
@@ -417,9 +432,11 @@ def updates_records(repo, f, lines):
         if re.search(r"\bPERFORM\s*$", c, re.I) or _THRU_NEXT.match(nxt):  # the call wraps onto the next line
             c = c + " " + nxt
         for m in _PERFORM_COBOL.finditer(c):
-            a, b = m.group(1).upper(), (m.group(2) or m.group(1)).upper()
-            if a in order and b in order and order.index(a) <= order.index(b) \
-                    and direct(paras[order.index(a)][1], paras[order.index(b)][2]):  # the range's one source interval
+            up = [(g or "").upper() or None for g in m.groups()]
+            ka = resolve(up[0], up[1], i)
+            kb = resolve(up[2], up[3], i) if up[2] else ka
+            if ka is not None and kb is not None and ka <= kb \
+                    and direct(paras[ka][1], paras[kb][2]):  # the range's one source interval
                 out.append(i)
                 break
     return out

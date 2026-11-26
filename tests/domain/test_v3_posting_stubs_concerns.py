@@ -420,3 +420,44 @@ def test_a_field_one_copybook_defines_twice_gets_no_copybook_context(tmp_path):
     st = dict(anchor=dict(file=PROG, lines=[20, 29]),
               claims=[dict(i=0, type="effect", text="adds `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
     assert extract.cite_copybooks(st)["context"] == []
+
+
+QUAL = "app/cbl/QUAL1.cbl"
+_QUAL = """       IDENTIFICATION DIVISION.
+       PROGRAM-ID. QUAL1.
+       PROCEDURE DIVISION.
+       MAIN-SEC SECTION.
+       MAIN-PARA.
+           PERFORM SAVE-REC OF CLEANUP-SEC
+           PERFORM SAVE-REC IN OUTPUT-SEC
+           PERFORM SAVE-REC
+           GOBACK.
+       OUTPUT-SEC SECTION.
+       OUT-A.
+           PERFORM SAVE-REC.
+       SAVE-REC.
+           WRITE OUT-REC.
+       CLEANUP-SEC SECTION.
+       CLEAN-A.
+           PERFORM SAVE-REC.
+       SAVE-REC.
+           CLOSE OUT-FILE.
+"""
+
+
+def test_a_paragraph_name_two_sections_share_resolves_to_the_one_the_call_means(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    with open(os.path.join(repo.root, QUAL), "w") as fh:
+        fh.write(_QUAL)
+    got = graph.updates_records(repo, QUAL, range(1, 20))
+    # 6 names CLEANUP-SEC's SAVE-REC (a CLOSE); 7 OUTPUT-SEC's (a WRITE); 8 is ambiguous from MAIN-SEC, so not counted;
+    # 12 and 17 mean their own section's SAVE-REC; 14 is the WRITE itself
+    assert got == [7, 12, 14], got
+
+
+def test_a_field_the_model_named_with_no_reference_gets_its_copybook_line(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    lookup.use_repo(graph.Repo(repo.root, repo.db))
+    st = dict(anchor=dict(file=PROG, lines=[20, 29]), context=[dict(symbol="PAY-AMOUNT")],
+              claims=[dict(i=0, type="effect", text="adds `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
+    assert extract.cite_copybooks(st)["context"] == [dict(symbol="PAY-AMOUNT", at="app/cpy/PAYREC.cpy:5")]
