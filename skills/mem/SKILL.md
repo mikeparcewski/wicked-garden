@@ -70,8 +70,8 @@ Relative paths in this skill are relative to the directory that contains this SK
 |--------|---------|-----|
 | `store` | persist one learning (decision, pattern, gotcha, discovery) | § Store |
 | `propose` | save one learning from a read-only seat (lands pending for operator approval) | § Propose |
-| `recall` | find memories ("what do we know about X") | § Recall |
-| `answer` | grounded, cited answer from the stores, and from a live data source's rows when crew lets the step query it | the `wicked-garden-search` skill's `refs/answer.md` |
+| `recall` | find memories only (what was decided, witnessed or told; approved knowledge notes never come back from it) | § Recall |
+| `answer` | "what do we know about X": a grounded, cited answer from the knowledge and memory stores (approved knowledge notes included), and from a live data source's rows when crew lets the step query it | the `wicked-garden-search` skill's `refs/answer.md` |
 | `review` | browse what's stored (counts by kind/tier, scope digest) | § Review / Maintain |
 | `forget` | erase a scope subtree (kind-guarded) | § Forget |
 | `maintain` | reflect + coverage pulse (consolidation runs in-store) | § Review / Maintain |

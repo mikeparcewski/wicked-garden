@@ -69,9 +69,9 @@ evaluator, then creator) and say which you chose in your output.
   ids; a limit of the seat's own sandbox (a tool missing from PATH, a denied
   listen or write), which belongs to the seat image (docs/seat-limits.md); a verdict or ruling on this run. At most three per unit in all, across every turn. Propose each learning
   once: a later check covers only what happened since the last one, and never
-  re-proposes what this unit already proposed or recorded (recall returns approved
-  memories only, never a pending proposal). Skip one that
-  `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
+  re-proposes what this unit already proposed or recorded (sources returns approved
+  memories and notes, never a pending proposal). Skip one that
+  `wicked-garden run scripts/mem/estate_memory.py --readonly sources '<a few words>'`
   already returns. A proposal is not a write to the worktree, so an evaluator or a
   neutral unit proposes too. In a unit's report, report it
   under Counts as `memories proposed N` (a chat answer carries no count, A9), and
