@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+## [12.69.0] - 2026-11-26
+
+Release on the train-16 cut 35db0314, carrying 5 PRs since 12.68.8: #1578, #1579, #1592, #1594, #1593. The entries were written from each PR's changelog entry (the PR title and body where it had none).
+
+### Added
+
+- A later "Map the domain" run applies what a person ruled on the model view. A confirmed statement is carried as it stands and never checked again. A rejected one goes back to the writer with the person's note. A target confirmed as making no business decision is not asked about again. A ruling that no longer matches the code is not applied, and the progress line counts it (J6 G7). (#1579)
+
+### Removed
+
+- **domain:** the page-by-page extract loop and the three workers that steered it (`domain-extractor`, `domain-coverage`, `domain-modeler`) are deleted. The v3 domain run (`scripts/domain/run.py`, crew's two-step `domain-extraction` job) replaced them, and the domain skill says how to run it, what its two steps do and what the model holds. The vendored schema bundle is 1.4.0 (domain model 1.2.0), and `validate_domain_model.py` reads the 1.2.0 keywords (`allOf`, `anyOf`, draft-07 `dependencies`, `maxLength`) (J6 G5). (#1578)
+
+### Fixed
+
+- The editor-plugin builder's pack check runs in a seat. The editor-scaffold skill, its pack READMEs, the inspector pack's README and the scaffold's "check" next step now name `wicked-garden run scripts/pack/check.py <dir>`. The SessionStart peer-floor note names `wicked-garden run scripts/_pack_registry.py floors`. A seat's `wicked-garden` is the launcher, which refused `pack` with "unknown verb", so the worker's own manifest check never ran (garden#1589). (#1592)
+- **domain:** each follow-up's "What to check" says one thing per sentence. A checker's reason and the repair's errors now end in a full stop before "Reached from N sites", so they no longer run together (wicked-core#1955). (#1594)
+- **mem / governed-worker:** a learning a person approved comes back in a later chat. The mem skill's `recall` action and the floor's estate read (A7) now run `estate_memory.py sources`. It returns approved memories and approved knowledge notes, each labelled with its store, so a seat no longer misses an approved note or proposes it again. The bare `recall` script verb stays memory-only (garden#1587). (#1593)
+
 ## [12.68.8] - 2026-11-26
 
 Patch release on the train-15 cut 4405ea58, carrying 3 PRs since 12.68.7: #1585, #1586, #1583.
