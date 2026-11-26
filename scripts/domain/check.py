@@ -41,8 +41,48 @@ def is_cobol_program(f):
     return f.lower().endswith((".cbl", ".cob"))
 
 
+# garden#1548: concern k of a statement goes to the checker as claim CONCERN_I + k, one question each, and its verdicts
+# are taken out of the claims' before the union (:func:`split_concerns`): a concern never changes a statement's status.
+CONCERN_I = 1000
+
+
+def concerns_of(st):
+    return [c for c in st.get("concerns") or [] if isinstance(c, dict)]
+
+
 def table(st):
-    return [{k: c.get(k) for k in ("i", "type", "text", "when", "unless", "lines") if k in c} for c in st["claims"]]
+    return ([{k: c.get(k) for k in ("i", "type", "text", "when", "unless", "lines") if k in c} for c in st["claims"]]
+            + [{"i": CONCERN_I + k, "type": "concern", "text": c.get("text"), "lines": c.get("lines") or []}
+               for k, c in enumerate(concerns_of(st))])
+
+
+def split_concerns(res):
+    """Take each statement's concern verdicts out of one pass's result ``res`` ({id: result}, changed in place):
+    returns {id: {concern index: verdict row}}."""
+    out = {}
+    for sid, r in res.items():
+        cs = (r or {}).get("claims")
+        if not isinstance(cs, list):
+            continue
+        is_c = [isinstance(c, dict) and isinstance(c.get("i"), int) and c["i"] >= CONCERN_I for c in cs]
+        out[sid] = {c["i"] - CONCERN_I: c for c, y in zip(cs, is_c) if y}
+        r["claims"] = [c for c, y in zip(cs, is_c) if not y]
+    return out
+
+
+def judge_concerns(s, ca, cb):
+    """Each concern of ``s`` gets its two passes' verdict: WRONG when both flag it (it is dropped from the follow-ups),
+    SUPPORTED when one supports it and neither flags it, else UNVERIFIABLE (shown, said as not confirmed)."""
+    for k, c in enumerate(concerns_of(s)):
+        vs = [x for x in ((ca or {}).get(k), (cb or {}).get(k)) if x]
+        up = [(x.get("verdict") or "").upper() for x in vs]
+        if len(up) == 2 and all(v in FLAG for v in up):
+            c["checked"] = "WRONG"
+        elif "SUPPORTED" in up and not any(v in FLAG for v in up):
+            c["checked"] = "SUPPORTED"
+        else:
+            c["checked"] = "UNVERIFIABLE"
+        c["reason"] = next(((x.get("reason") or "").strip() for x in vs if (x.get("reason") or "").strip()), "")
 
 
 def item(n, st):
@@ -247,6 +287,9 @@ def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True, shown=None):
         fa = ex.submit(one_pass, repo, f"{tag}-a", sts, extra_of, fetch, sa)
         fb = ex.submit(one_pass, repo, f"{tag}-b", sts, extra_of, fetch, sb)
         (ra, ea, la), (rb, eb, lb) = fa.result(), fb.result()
+    ca, cb = split_concerns(ra), split_concerns(rb)
+    for s in sts:
+        judge_concerns(s, ca.get(s["id"]), cb.get(s["id"]))
     ext = {s["id"]: (extra_of or {}).get(s["id"], []) + ea.get(s["id"], []) + eb.get(s["id"], []) for s in sts}
     if shown is not None:
         for s in sts:
@@ -320,7 +363,7 @@ def check_all(repo, S, C, A, out_dir):
                     x["anchor"] = {}
                 x["anchor"]["symbol_id"] = x["anchor"].get("symbol_id") or t["anchor_symbol"]
                 errs += X.check_statement(repo, x, t, call)
-                if not X.is_rule(x):
+                if not X.is_rule(x, repo):
                     errs.append("kind: the repaired statement has no condition, else or value claim")
                 ln = x["anchor"].get("lines")
                 if isinstance(ln, list) and len(ln) == 2 and all(isinstance(v, int) for v in ln):
@@ -336,9 +379,10 @@ def check_all(repo, S, C, A, out_dir):
                 continue
             s["status"] = "replaced"
             for k, x in enumerate(reps):
-                new_sts.append(dict(anchor=x["anchor"], claims=x["claims"], context=x.get("context") or [], id=f"{s['id']}~r{k}", target=s["target"],
+                new_sts.append(X.cite_copybooks(dict(anchor=x["anchor"], claims=x["claims"], context=x.get("context") or [],
+                                    concerns=x.get("concerns") or s.get("concerns") or [], id=f"{s['id']}~r{k}", target=s["target"],
                                     call=cid, kind="rule", name=s.get("name"), m_fail=[], status="pending", repaired_from=s["id"],
-                                    fetched=s.get("fetched"), fetched_files=s.get("fetched_files")))
+                                    fetched=s.get("fetched"), fetched_files=s.get("fetched_files"))))
     timing["repair_s"] = round(time.time() - t2, 1)
     t3 = time.time()
     if new_sts:

@@ -95,12 +95,13 @@ def oversized(st):
 
 
 def cited(st):
-    """The (file, line) pairs a statement cites: its claims' lines and guards, and its context references."""
+    """The (file, line) pairs a statement cites: its claims' lines and guards, its concerns' lines (garden#1548: a
+    concern can cite a test outside its paragraph), and its context references."""
     out = set()
-    for c in st.get("claims") or []:
+    for c in list(st.get("claims") or []) + list(st.get("concerns") or []):
         if not isinstance(c, dict):
             continue
-        refs = [r for key in ("lines", "guards") if isinstance(c.get(key), list) for r in c[key]]
+        refs = [r for key in ("lines", "guards") if isinstance(c.get(key), list) for r in c[key] if isinstance(r, str)]
         for r in refs:
             p = lookup.pref(r)
             if p:

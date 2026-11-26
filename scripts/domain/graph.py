@@ -312,6 +312,63 @@ def has_decision(repo, f, lines):
     return any(rx.search(L[i - 1]) for i in lines if 1 <= i <= len(L) and i not in cm)
 
 
+# garden#1548: a record update is a business outcome even with no test (a posting paragraph's writes, their order).
+# WRITE / REWRITE / DELETE of a record, or the EXEC CICS form; a WRITEQ / DELETEQ queue is not one, nor a word in a
+# literal or a data name (`WS-WRITE-FLAG`).
+RECORD_UPDATE_COBOL = re.compile(r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)\s+[A-Z]", re.I)
+_PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*))?", re.I)
+_PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\.\s*$")
+_LITERAL = re.compile(r"'[^']*'|\"[^\"]*\"")
+
+
+def _cobol_code(L, i, cm):
+    """Line ``i``'s code area (columns 8-72) with its literals blanked; empty on a comment or a short line."""
+    s = L[i - 1]
+    return "" if i in cm or len(s) <= 7 else _LITERAL.sub(" ", s[7:72])
+
+
+def _cobol_paragraphs(repo, f, L, cm):
+    """The PROCEDURE DIVISION's paragraphs of ``f`` as (NAME, first line, last line), in source order."""
+    ps = procedure_start(repo, f)
+    if not ps:
+        return []
+    heads = [(m.group(1).upper(), i) for i in range(ps + 1, len(L) + 1)
+             if i not in cm and len(L[i - 1]) > 8 and L[i - 1][7] != " "
+             for m in [_PARA_COBOL.match(L[i - 1][7:72].strip())] if m]
+    return [(nm, a, (heads[k + 1][1] - 1) if k + 1 < len(heads) else len(L)) for k, (nm, a) in enumerate(heads)]
+
+
+def updates_records(repo, f, lines):
+    """garden#1548: the lines of COBOL file ``f`` that update a record: a WRITE / REWRITE / DELETE on the line, or a
+    PERFORM (a THRU range included) of paragraphs of the same file that hold one. One PERFORM level, so a posting
+    paragraph that performs its updates is itself an update. Not COBOL: none."""
+    if ext(f) not in COBOL_EXT:
+        return []
+    L = flines(repo, f) or []
+    cm = comment_lines(repo, f)
+    paras = _cobol_paragraphs(repo, f, L, cm)
+    order = [p[0] for p in paras]
+
+    def direct(a, b):
+        return any(RECORD_UPDATE_COBOL.search(_cobol_code(L, j, cm)) for j in range(a, b + 1) if 1 <= j <= len(L))
+
+    out = []
+    for i in lines:
+        if not 1 <= i <= len(L):
+            continue
+        c = _cobol_code(L, i, cm)
+        if RECORD_UPDATE_COBOL.search(c):
+            out.append(i)
+            continue
+        for m in _PERFORM_COBOL.finditer(c):
+            a, b = m.group(1).upper(), (m.group(2) or m.group(1)).upper()
+            if a in order and b in order and order.index(a) <= order.index(b) \
+                    and any(direct(x[1], x[2]) for x in paras[order.index(a):order.index(b) + 1]):
+                out.append(i)
+                break
+    return out
+
+
 # ---------------- hubs (#1366 generalised, DES §3.1 E) ----------------
 def build_edges(g):
     N = g.nodes

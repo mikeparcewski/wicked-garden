@@ -13,6 +13,8 @@ Verdict per claim:
 - WRONG: the code contradicts the claim (the opposite happens, or it never happens).
 - UNVERIFIABLE: settling the claim needs code that is not shown. Name it in `need`. Never use OVERREACH for this.
 
+A claim of type `concern` says what the routine's code means that its other claims, stated literally, do not (a branch that cannot run, an amount counted twice, a routine that does nothing though its name or comment says it does something). Judge it on its own: SUPPORTED when the shown code bears the consequence out, WRONG when the code shows it does not happen, UNVERIFIABLE when settling it needs code that is not shown. SCOPE does not apply to a concern.
+
 Do NOT:
 - report anything the statement does not claim: other outcomes, branches, effects and error paths are covered by other statements;
 - judge whether the statement is complete, important, or a business rule;
