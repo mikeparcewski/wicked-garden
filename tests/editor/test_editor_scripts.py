@@ -2311,6 +2311,17 @@ ON_ENTER = "\n  document.getElementById('note').addEventListener('keydown', (e) 
      "\n  note.addEventListener('blur', () => { if (note.value) { clearTimeout(blurTimer); blurTimer = setTimeout(saveNote, 1500); } });"
      "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(blurTimer));",
      '<input type="text" id="note" aria-label="Note"> <input type="text" id="other" aria-label="Other">', False),
+    # A document-level handler that saves on Enter with no field focused, its body unable to take focus: the
+    # no-field press reaches it (coord R2 delta 2).
+    ("saves-on-document-enter", "\n  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target === document.body)"
+     " { e.preventDefault(); saveNote(); } });", None, True),
+    # coord R2 delta 2 (W16): Enter on its focusable body only moves focus to the second field, which saves 1.5 s
+    # after it is blurred with a value. The no-field press runs on its own instances, so no later field step blurs it.
+    ("body-enter-moves-focus", "\n  let blurTimer = null; const other = document.getElementById('other'); document.body.tabIndex = 0;"
+     "\n  document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target === document.body) { e.preventDefault(); other.focus(); } });"
+     "\n  other.addEventListener('blur', () => { if (other.value) { clearTimeout(blurTimer); blurTimer = setTimeout(saveNote, 1500); } });"
+     "\n  document.getElementById('save').addEventListener('click', () => clearTimeout(blurTimer));",
+     '<input type="text" id="note" aria-label="Note"> <input type="text" id="other" aria-label="Other">', False),
 ])
 def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path, name, extra, form, saves):
     pack = tmp_path / name
@@ -2396,8 +2407,20 @@ class _EnterField:
 
 
 class _EnterFrame:
-    def __init__(self, mod, fields, on_body_enter=None, focused=False):
+    """The editor frame; Enter with no field focused reaches ``on_body_enter`` only once the frame's window has focus."""
+
+    def __init__(self, mod, page, fields, on_body_enter=None, focused=False):
         self.mod, self.fields, self.on_body_enter, self.focused, self.body_presses = mod, fields, on_body_enter, focused, 0
+        self.window_focused = False
+        frame = self
+
+        class Keyboard:
+            def press(self, key):
+                assert key == "Enter"
+                frame.body_presses += 1
+                if frame.window_focused and frame.on_body_enter:
+                    frame.on_body_enter()
+        page.keyboard = Keyboard()
 
     def locator(self, selector):
         frame = self
@@ -2411,14 +2434,12 @@ class _EnterFrame:
                 return len(handles)
 
             def evaluate(self, js, timeout=None):
-                assert selector == "body" and js == frame.mod.NOTHING_FOCUSED
+                assert selector == "body", selector
+                if js == frame.mod.FOCUS_DOCUMENT:
+                    frame.window_focused = True
+                    return None
+                assert js == frame.mod.NOTHING_FOCUSED, js
                 return not frame.focused
-
-            def press(self, key, timeout=None):
-                assert selector == "body" and key == "Enter"
-                frame.body_presses += 1
-                if frame.on_body_enter:
-                    frame.on_body_enter()
         return Located()
 
 
@@ -2431,43 +2452,49 @@ def test_enter_check_charges_the_key_and_never_its_preparation_1591(monkeypatch)
     page = _EnterPage(mod, clock)
     autosave = lambda: page.later.append((clock.t + 3.5, page.write))  # noqa: E731
     field, body = _EnterField(mod, page, on_edit=autosave), _EnterField(mod, page, "TEXTAREA", on_edit=autosave)
-    frame = _EnterFrame(mod, [field, body])
+    frame = _EnterFrame(mod, page, [field, body], on_body_enter=page.write)
     out = mod.enter_never_saves(page, frame)
     assert out == {"found": 1, "pressed": 1, "writes": 0, "head_moves": 0, "gone": False, "unprepared": 0}, out
     clock.t += 10
     page.wait_for_timeout(0)
     assert page.head == 1 and field.value == body.value == mod.EDIT_SENTENCE and body.pressed == 0
-    assert frame.body_presses == 1  # and once first with no field focused
+    assert field.pressed == 1 and frame.body_presses == 0  # a field's instance presses nothing else
     # A save landing just inside the window after the key is the key's.
     page = _EnterPage(mod, clock)
     late = _EnterField(mod, page, on_enter=lambda: page.later.append((clock.t + 2.9, page.write)))
-    out = mod.enter_never_saves(page, _EnterFrame(mod, [late]))
+    out = mod.enter_never_saves(page, _EnterFrame(mod, page, [late]))
     assert out["writes"] == 1 and out["head_moves"] == 1, out
-    # A document-level key handler, with no field at all; it is not pressed when the editor focused something itself.
+    # A document-level key handler gets the no-field press, its frame's window focused first (coord R2 delta 2: a
+    # body that cannot take focus leaves the key with the host page). Nothing else runs on that instance: no field
+    # is prepared or pressed after it.
     page = _EnterPage(mod, clock)
-    out = mod.enter_never_saves(page, _EnterFrame(mod, [], on_body_enter=page.write))
-    assert out["found"] == 0 and out["writes"] == 1, out
+    untouched = _EnterField(mod, page, on_enter=page.write)
+    frame = _EnterFrame(mod, page, [untouched], on_body_enter=page.write)
+    out = mod.enter_never_saves(page, frame, index=None)
+    assert out["found"] is None and out["pressed"] == 1 and out["writes"] == 1 and frame.window_focused, out
+    assert untouched.pressed == 0 and untouched.value == "", untouched.value
+    # It is not pressed when the editor focused something itself.
     page = _EnterPage(mod, clock)
-    focused = _EnterFrame(mod, [], on_body_enter=page.write, focused=True)
-    assert mod.enter_never_saves(page, focused)["writes"] == 0 and focused.body_presses == 0
-    # Each instance presses only its own field, and only the first presses with no field focused.
+    focused = _EnterFrame(mod, page, [], on_body_enter=page.write, focused=True)
+    out = mod.enter_never_saves(page, focused, index=None)
+    assert out["pressed"] == out["writes"] == 0 and focused.body_presses == 0, out
+    # Each instance presses only its own field.
     page = _EnterPage(mod, clock)
     first, second = _EnterField(mod, page), _EnterField(mod, page, on_enter=page.write)
-    frame = _EnterFrame(mod, [first, second])
-    out = mod.enter_never_saves(page, frame, index=1, body=False)
-    assert out["pressed"] == 1 and out["writes"] == 1 and first.pressed == 0 and frame.body_presses == 0, out
-    # The control takes every step but the key and watches each window CONTROL_WINDOW_S: the same save on a key
-    # never lands, and the span covers the keyed run's.
+    out = mod.enter_never_saves(page, _EnterFrame(mod, page, [first, second]), index=1)
+    assert out["pressed"] == 1 and out["writes"] == 1 and first.pressed == 0, out
+    # The control takes every step but the key and watches CONTROL_WINDOW_S.
     page = _EnterPage(mod, clock)
     keyed = _EnterField(mod, page, on_enter=page.write)
-    frame = _EnterFrame(mod, [keyed], on_body_enter=page.write)
+    frame = _EnterFrame(mod, page, [keyed], on_body_enter=page.write)
     t0 = clock.t
-    out = mod.enter_never_saves(page, frame, press=False)
-    assert out["writes"] == 0 and out["pressed"] == 0 and keyed.pressed == frame.body_presses == 0, out
+    for index in (None, 0):
+        out = mod.enter_never_saves(page, frame, index=index, press=False)
+        assert out["writes"] == 0 and out["pressed"] == 0 and keyed.pressed == frame.body_presses == 0, out
     assert clock.t - t0 >= 2 * mod.CONTROL_WINDOW_S, clock.t - t0
     # A field removed since it was found is reported, not mistaken for another one.
     page = _EnterPage(mod, clock)
-    out = mod.enter_never_saves(page, _EnterFrame(mod, [_EnterField(mod, page, gone=True)]))
+    out = mod.enter_never_saves(page, _EnterFrame(mod, page, [_EnterField(mod, page, gone=True)]))
     assert out["gone"] is True and out["pressed"] == 0, out
 
 
@@ -2479,22 +2506,23 @@ def test_enter_probe_charges_only_what_the_key_lands_beyond_its_control_1591(mon
         calls.append((index, press))
         # Every instance's focus move lands one background save (coord R2 delta: a blur autosave); the keyed one on
         # field 2 also saves on its key.
-        return {"found": 5, "pressed": 1 if press else 0, "writes": 1 + (1 if press and index == 2 else 0),
-                "head_moves": 1, "gone": False, "unprepared": 0}
+        return {"found": None if index is None else 5, "pressed": 1 if press else 0,
+                "writes": 1 + (1 if press and index == 2 else 0), "head_moves": 1, "gone": False, "unprepared": 0}
     monkeypatch.setattr(mod, "_enter_instance", instance)
     out = mod.enter_probe(None, "http://x/editors/conformance?editor=e&version=1", 5.0, {})
-    assert calls == [(i, p) for i in range(mod.ENTER_MAX_FIELDS) for p in (True, False)], calls
+    want = [(i, p) for i in [None, *range(mod.ENTER_MAX_FIELDS)] for p in (True, False)]
+    assert calls == want, calls
     assert out["fields"] == mod.ENTER_MAX_FIELDS and out["unchecked"] == 5 - mod.ENTER_MAX_FIELDS, out
-    assert out["writes"] == 1 and out["head_moves"] == 0 and out["background"] == mod.ENTER_MAX_FIELDS, out
+    assert out["writes"] == 1 and out["head_moves"] == 0 and out["background"] == mod.ENTER_MAX_FIELDS + 1, out
     assert out["ok"] is False and "Enter landed 1 write(s)" in out["error"], out
     # The background alone is never the key's.
     monkeypatch.setattr(mod, "_enter_instance", lambda *a, press=True: {
         "found": 1, "pressed": 1 if press else 0, "writes": 1, "head_moves": 1, "gone": False, "unprepared": 0})
     out = mod.enter_probe(None, "u", 5.0)
-    assert out == {"fields": 1, "writes": 0, "head_moves": 0, "background": 1, "ok": True}, out
-    # An editor with no one-line field opens one pair (the press with no field focused) and passes.
+    assert out == {"fields": 1, "writes": 0, "head_moves": 0, "background": 2, "ok": True}, out
+    # An editor that focused a field itself and has no one-line field: nothing is pressed, so no control runs.
     calls.clear()
     monkeypatch.setattr(mod, "_enter_instance", lambda *a, press=True: calls.append((a[-1], press)) or
                         {"found": 0, "pressed": 0, "writes": 0, "head_moves": 0, "gone": False, "unprepared": 0})
     assert mod.enter_probe(None, "u", 5.0) == {"fields": 0, "writes": 0, "head_moves": 0, "ok": True}
-    assert calls == [(0, True), (0, False)], calls
+    assert calls == [(None, True), (0, True)], calls
