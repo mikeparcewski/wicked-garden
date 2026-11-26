@@ -547,7 +547,7 @@ def _check_pack_floors():
     Extension-contract gap 6: third-party packs declare peer version floors
     in wicked-pack.json (``peers``). SessionStart runs the CHEAP check only
     (probe=False — garden's own version, zero subprocesses); the full probe
-    lives in ``npx wicked-garden pack floors``. Strictly fail-open: unknown
+    lives in ``wicked-garden run scripts/_pack_registry.py floors``. Strictly fail-open: unknown
     versions are never reported, and any error returns None.
     """
     try:
@@ -576,7 +576,7 @@ def _check_pack_floors():
             "[Packs] peer version floor violation(s) — pack capabilities may "
             "misbehave until peers are updated (informational, nothing is blocked):\n"
             + "\n".join(lines)
-            + "\n  Full probe: npx wicked-garden pack floors"
+            + "\n  Full probe: wicked-garden run scripts/_pack_registry.py floors"
         )
     except Exception:
         return None  # fail open — packs never block session start

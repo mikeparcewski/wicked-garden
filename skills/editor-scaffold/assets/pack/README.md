@@ -14,7 +14,7 @@ An artifact editor plugin for wicked-studio (`__EDITOR_ID__` __EDITOR_VERSION__)
 
 ```
 wicked-garden run scripts/editor/pin.py .            # re-pin the entry's sha256 after an edit
-npx wicked-garden pack check .                       # the manifest and the entry
+wicked-garden run scripts/pack/check.py .            # the manifest and the entry
 wicked-garden run scripts/editor/conformance.py --pack . --host-url <a wicked-crew daemon URL> --json
 ```
 
