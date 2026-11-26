@@ -310,7 +310,9 @@ def test_each_repair_child_gets_its_own_unjudged_copy_of_the_concerns():
     assert a == b == [dict(text="x", lines=["a:1"])]
     check.judge_concerns(dict(concerns=a), {0: dict(verdict="WRONG")}, {0: dict(verdict="WRONG")})
     assert a[0]["checked"] == "WRONG" and "checked" not in b[0] and s["concerns"][0]["checked"] == "SUPPORTED"
-    assert check.inherited_concerns(dict(concerns=[dict(text="own", lines=["a:2"])]), s) == [dict(text="own", lines=["a:2"])]
+    # a repair's own concern is added to the parent's, never in place of it; one with the parent's text is not repeated
+    got = check.inherited_concerns(dict(concerns=[dict(text="own", lines=["a:2"]), dict(text="x", lines=["a:1"])]), s)
+    assert got == [dict(text="x", lines=["a:1"]), dict(text="own", lines=["a:2"])]
 
 
 def test_the_reason_comes_from_the_pass_that_gave_the_verdict():
@@ -328,9 +330,9 @@ def test_two_concerns_with_one_text_and_place_are_two_stored_rows(tmp_path):
     other = dict(st, id="t#1")
     rows = followups.concern_rows([st, other])
     assert len(rows) == 4 and len({(r["concern_of"], r["concern"]) for r in rows}) == 4
-    keys = {store.sha(json.dumps({k: r.get(k) for k in ("kind", "where", "statement", "target", "claim", "unknown", "concern_of", "concern")},
-                                 sort_keys=True).encode())[:16] for r in rows}
-    assert len(keys) == 4
+    out, _ = store.rows_for(repo, dict(statements=[]), [], [], None, rows, {}, str)
+    fk = [r["key"] for r in out if r["key"].startswith(store.FOLLOWUP + ":")]
+    assert len(fk) == 4 and len(set(fk)) == 4, fk  # the store writer's own keys: no row overwrites another
 
 
 def test_a_malformed_or_unchecked_concern_raises_no_row_and_crashes_nothing(tmp_path):
@@ -360,3 +362,61 @@ def test_a_quoted_literal_or_a_field_two_copybooks_define_gets_no_copybook_conte
     st = dict(anchor=dict(file=PROG, lines=[20, 29]),
               claims=[dict(i=0, type="effect", text="moves `'PAY-HOURS'` to the message; `PAY-RATE` times `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
     assert {x["symbol"]: x["at"] for x in extract.cite_copybooks(st)["context"]} == {"PAY-AMOUNT": "app/cpy/PAYREC.cpy:5"}
+
+
+WRAP = "app/cbl/WRAP1.cbl"
+_WRAP = """       IDENTIFICATION DIVISION.
+       PROGRAM-ID. WRAP1.
+       PROCEDURE DIVISION.
+       MAIN-PARA.
+           PERFORM
+               SAVE-PARA
+           PERFORM A-PARA
+              THRU A-EXIT
+           PERFORM B-PARA THRU B-EXIT
+           MOVE 'START OF A LONG MESSAGE THAT SAYS WRITE THE RECO
+      -    'RD' TO WS-MSG
+           GOBACK.
+       A-PARA.
+           MOVE 1 TO WS-N.
+       A-EXIT.
+           EXIT.
+       A-WRITE.
+           WRITE A-REC.
+       SAVE-PARA. *> keeps the record
+           EXEC CICS WRITE
+                OPERATOR TEXT(WS-MSG)
+           END-EXEC
+           REWRITE S-REC.
+       SEC-1 SECTION.
+       B-PARA.
+           MOVE 2 TO WS-N.
+       SEC-2 SECTION.
+       B-EXIT.
+           EXIT.
+       C-PARA.
+           DELETE C-FILE RECORD.
+"""
+
+
+def test_a_wrapped_call_a_split_cics_command_and_a_continued_literal_read_as_the_code_runs(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    with open(os.path.join(repo.root, WRAP), "w") as fh:
+        fh.write(_WRAP)
+    L = graph.flines(repo, WRAP)
+    got = graph.updates_records(repo, WRAP, range(1, len(L) + 1))
+    # 5: PERFORM with its name on the next line (SAVE-PARA, a header with an inline comment, rewrites at 23).
+    # Not: 7 (A-PARA THRU A-EXIT on the next line: A-WRITE is after the range), 9 (B-PARA THRU B-EXIT crosses into
+    # SEC-2 but stops before C-PARA's DELETE), 10-11 (WRITE inside a continued literal), 20 (a CICS WRITE OPERATOR
+    # split over two lines). 18, 23 and 31 are the updates themselves.
+    assert got == [5, 18, 23, 31], got
+
+
+def test_a_field_one_copybook_defines_twice_gets_no_copybook_context(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    with open(os.path.join(repo.root, "app/cpy/PAYREC.cpy"), "a") as fh:
+        fh.write("       01  PAY-OLD.\n           05  PAY-AMOUNT          PIC 9(5)V99.\n")
+    lookup.use_repo(graph.Repo(repo.root, repo.db))
+    st = dict(anchor=dict(file=PROG, lines=[20, 29]),
+              claims=[dict(i=0, type="effect", text="adds `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
+    assert extract.cite_copybooks(st)["context"] == []

@@ -316,9 +316,10 @@ def has_decision(repo, f, lines):
 # The verb as a token: `WRITE` / `REWRITE` / `DELETE` with or without its record on the same line (a CICS command
 # often puts FILE(...) on the next), never inside a data name (`WS-WRITE-FLAG`), never a queue (`WRITEQ`, `DELETEQ`)
 # and never a CICS command that touches no file record (`WRITE OPERATOR`, `DELETE CONTAINER`, `WRITE JOURNALNAME`).
-RECORD_UPDATE_COBOL = re.compile(
-    r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)(?![A-Z0-9-])(?!\s+(?:OPERATOR|CONTAINER|CHANNEL|JOURNALNAME|COUNTER|DCOUNTER)\b)",
-    re.I)
+_NOT_A_RECORD = r"(?:OPERATOR|CONTAINER|CHANNEL|JOURNALNAME|COUNTER|DCOUNTER)\b"
+RECORD_UPDATE_COBOL = re.compile(r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)(?![A-Z0-9-])(?!\s+" + _NOT_A_RECORD + ")", re.I)
+_NOT_A_RECORD_NEXT = re.compile(r"^\s*" + _NOT_A_RECORD, re.I)
+_THRU_NEXT = re.compile(r"^\s*(?:THRU|THROUGH)\b", re.I)
 _PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*))?", re.I)
 _PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\s*\.?\s*$", re.I)
 _LITERAL = re.compile(r"'[^']*'|\"[^\"]*\"")
@@ -326,12 +327,39 @@ _LITERAL = re.compile(r"'[^']*'|\"[^\"]*\"")
 
 def _cobol_code(L, i, cm):
     """Line ``i``'s code area (columns 8-72) with its literals blanked and an inline `*>` comment cut; empty on a
-    comment or a short line."""
+    comment or a short line. A literal continued onto the next line is blanked to the line's end, and a continuation
+    line (`-` in column 7) is blanked up to the quote that closes it."""
     s = L[i - 1]
     if i in cm or len(s) <= 7:
         return ""
-    c = _LITERAL.sub(" ", s[7:72])
+    c = s[7:72]
+    if s[6] == "-":
+        b = c.lstrip()
+        q = b[:1]
+        k = b.find(q, 1) if q in ("'", '"') else -1
+        c = " " * (len(c) - len(b) + k + 1) + b[k + 1:] if k >= 0 else ""
+    c = _LITERAL.sub(" ", c)
+    c = re.split(r"['\"]", c, 1)[0]  # an unclosed quote opens a continued literal
     return c.split("*>", 1)[0]
+
+
+def _next_code(L, i, cm):
+    """The code of the first line after ``i`` that has any, '' at the end of the file."""
+    for j in range(i + 1, min(len(L), i + 5) + 1):
+        c = _cobol_code(L, j, cm)
+        if c.strip():
+            return c
+    return ""
+
+
+def _is_update(L, i, cm):
+    """Line ``i`` holds a record update: the verb, not followed (on this line or, when the verb ends it, the next) by a
+    command that touches no file record."""
+    c = _cobol_code(L, i, cm)
+    for m in RECORD_UPDATE_COBOL.finditer(c):
+        if c[m.end():].strip() or not _NOT_A_RECORD_NEXT.match(_next_code(L, i, cm)):
+            return True
+    return False
 
 
 def _cobol_paragraphs(repo, f, L, cm):
@@ -348,8 +376,8 @@ def _cobol_paragraphs(repo, f, L, cm):
         if i in cm or not body.strip() or len(body) - len(body.lstrip()) > 3:  # area A: columns 8-11
             continue
         m = _PARA_COBOL.match(body.strip())
-        nxt = L[i][7:72].strip() if i < len(L) and len(L[i]) > 7 else ""
-        if m and (s[7:72].rstrip().endswith(".") or nxt == "."):
+        nxt = L[i][7:72].split("*>", 1)[0].strip() if i < len(L) and len(L[i]) > 7 else ""
+        if m and (body.rstrip().endswith(".") or nxt == "."):
             heads.append((m.group(1).upper(), i, bool(m.group(2))))
     out = []
     for k, (nm, a, sec) in enumerate(heads):
@@ -372,7 +400,7 @@ def updates_records(repo, f, lines):
 
     def direct(a, b):
         if (a, b) not in seen:
-            seen[(a, b)] = any(RECORD_UPDATE_COBOL.search(_cobol_code(L, j, cm)) for j in range(max(a, 1), min(b, len(L)) + 1))
+            seen[(a, b)] = any(_is_update(L, j, cm) for j in range(max(a, 1), min(b, len(L)) + 1))
         return seen[(a, b)]
 
     if isinstance(lines, range):  # a model's range is cut to the file before it is walked
@@ -381,14 +409,17 @@ def updates_records(repo, f, lines):
     for i in lines:
         if not 1 <= i <= len(L):
             continue
-        c = _cobol_code(L, i, cm)
-        if RECORD_UPDATE_COBOL.search(c):
+        if _is_update(L, i, cm):
             out.append(i)
             continue
+        c = _cobol_code(L, i, cm)
+        nxt = _next_code(L, i, cm)
+        if re.search(r"\bPERFORM\s*$", c, re.I) or _THRU_NEXT.match(nxt):  # the call wraps onto the next line
+            c = c + " " + nxt
         for m in _PERFORM_COBOL.finditer(c):
             a, b = m.group(1).upper(), (m.group(2) or m.group(1)).upper()
             if a in order and b in order and order.index(a) <= order.index(b) \
-                    and any(direct(x[1], x[2]) for x in paras[order.index(a):order.index(b) + 1]):
+                    and direct(paras[order.index(a)][1], paras[order.index(b)][2]):  # the range's one source interval
                 out.append(i)
                 break
     return out

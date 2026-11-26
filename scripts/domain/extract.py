@@ -221,7 +221,7 @@ def is_rule(st, repo=None):
 def cite_copybooks(st):
     """garden#1548: every field a claim names in backticks (outside a quoted literal) that exactly one of its program's
     copybooks defines goes in the statement's ``context`` with the copybook line (``app/cpy/CVACT01Y.cpy:7``), so the
-    statement says which copybook it reads. A name the program defines itself, or two copybooks define, is left out
+    statement says which copybook it reads. A name the program defines itself, or its copybooks define twice, is left out
     (the claim's qualification is not resolved here). 0 model calls; a field the model already placed keeps its entry;
     a statement the M checks refused keeps whatever shape it has. Not COBOL: unchanged."""
     f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
@@ -243,7 +243,9 @@ def cite_copybooks(st):
                 if name in have or name in COBKW or in_program(name):
                     continue
                 hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
-                if len(hits) == 1:
+                many = sum(1 for cp in books for s in defs.flines(cp) if len(s) > 7 and s[6] not in "*/"
+                           and (defs.level(s) or (0, ""))[1] == name)
+                if len(hits) == 1 and many == 1:  # one definition in all its copybooks
                     ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
                     have.add(name)
     st["context"] = ctx

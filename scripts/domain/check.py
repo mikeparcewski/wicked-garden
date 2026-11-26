@@ -80,10 +80,16 @@ def split_concerns(res, sts):
 
 
 def inherited_concerns(x, s):
-    """A repaired statement's concerns: its own when the repair gave some, else a copy of the flagged statement's (the
-    repair prompt carries none), unjudged and one copy per child, so judging one child never changes another's."""
-    own = x.get("concerns") if isinstance(x.get("concerns"), list) and x.get("concerns") else concerns_of(s)
-    return [{k: v for k, v in c.items() if k not in ("checked", "reason")} for c in json.loads(json.dumps(own)) if isinstance(c, dict)]
+    """A repaired statement's concerns: the flagged statement's, then any new one the repair gave (same text: once),
+    unjudged and one copy per child, so judging one child never changes another's and a repair never drops one."""
+    new = x.get("concerns") if isinstance(x.get("concerns"), list) else []
+    out, seen = [], set()
+    for c in json.loads(json.dumps(concerns_of(s) + [c for c in new if isinstance(c, dict)])):
+        key = c.get("text") if isinstance(c.get("text"), str) else json.dumps(c, sort_keys=True)
+        if key not in seen:
+            seen.add(key)
+            out.append({k: v for k, v in c.items() if k not in ("checked", "reason")})
+    return out
 
 
 def judge_concerns(s, ca, cb):
