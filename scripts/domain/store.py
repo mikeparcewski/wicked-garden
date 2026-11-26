@@ -40,6 +40,7 @@ from domain import graph as lib  # noqa: E402
 from domain import lookup  # noqa: E402
 
 RULE, TARGET, GROUP, FOLLOWUP, RULING = "business_rule", "domain_target", "rule_group", "domain_followup", "rule_ruling"
+RUN = "domain_run"
 TYPES = (RULE, TARGET, GROUP, FOLLOWUP)
 RETIRED = "retired"
 AUTHOR = "wicked-garden/domain-run"
@@ -298,6 +299,55 @@ def content_hash(st):
     a = st.get("anchor") if isinstance(st.get("anchor"), dict) else {}
     claims = [[c.get(k) for k in ("type", "text", "when", "unless", "of")] for c in st.get("claims") or [] if isinstance(c, dict)]
     return sha(json.dumps([a.get("file"), claims], sort_keys=True, default=str).encode())
+
+
+def _compact(v):
+    """JSON as serde_json's ``Value::to_string`` writes it: no spaces, UTF-8 as is."""
+    return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
+
+
+def statement_key(st):
+    """wicked-core's ``statement_key`` (crates/wicked-governance/src/domain_extract.rs, R04), byte for byte: ``v1:`` and
+    the sha256 of ``[anchor file, claims as [i, type, text, when, unless, of]]``, the claims ordered by their index (a
+    non-negative integer, anything else last) and then by their own JSON. A person's ruling names the statement by it,
+    so a ruling never follows a statement whose claims or guards changed."""
+    a = st.get("anchor") if isinstance(st.get("anchor"), dict) else {}
+    cs = st.get("claims") if isinstance(st.get("claims"), list) else []
+    claims = [[c.get(k) for k in ("i", "type", "text", "when", "unless", "of")] for c in cs if isinstance(c, dict)]
+    top = 2 ** 64 - 1
+
+    def order(c):
+        i = c[0]
+        ok = isinstance(i, int) and not isinstance(i, bool) and 0 <= i <= top
+        return (i if ok else top, _compact(c))
+
+    claims.sort(key=order)
+    return "v1:" + sha(_compact([a.get("file"), claims]).encode())
+
+
+def live_ruling(prior, subject, ident, target_hash, st=None):
+    """The person's ruling on statement ``st`` (``subject`` "statement") or on target ``ident`` ("target"), as
+    ``wicked-core domain-ruling`` wrote it (``rule_ruling:<subject>:<id>``), when it still applies: made on this
+    target's code (``target_hash``) and, for a statement, on this statement (its ``statement_key``). Else ``None``."""
+    r = ((prior or {}).get(RULING) or {}).get(f"{subject}:{ident}")
+    if not isinstance(r, dict) or r.get("action") not in ("confirm", "reject") or r.get("target_hash") != target_hash:
+        return None
+    if subject == "statement" and (st is None or r.get("statement_key") != statement_key(st)):
+        return None
+    return r
+
+
+def run_row(repo, records, scope_in, scope_hash, run_id, at):
+    """The run's own record (DES-C2 §8, F02): the scope it was asked, its hash, the run and when, as
+    ``domain_run:<run id>`` on the first target of the scope that has a node, so a later model can say which scope it
+    shows. ``None`` when no target has one."""
+    sym = next((x for x in (symbol_for(repo, r["file"], r.get("anchor_symbol")) for r in records) if x), None)
+    if sym is None:
+        return None
+    scope = {k: scope_in[k] for k in ("intent", "phrases", "description") if k in scope_in}
+    value = dict(scope=scope, scope_hash=scope_hash, run_id=run_id, at=at)
+    return dict(op="annotate", symbol=sym, key=f"{RUN}:{run_id}", value=json.dumps(value, sort_keys=True),
+                type=RUN, author=AUTHOR, replace=True)
 
 
 def rows_for(repo, result, records, groups, prose_meta, followup_rows, prior, render, uncited=()):

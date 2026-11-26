@@ -93,7 +93,7 @@ Discover it the usual way — and consider
 
 **Domain-model extraction (the Domain-Brain path).** When the estate is graphed
 in **wicked-estate** and the goal is a shared, gate-able domain model — not just
-a local rule list — run the **Extract domain model** job (wicked-crew's
+a local rule list — run the **Map the domain** job (wicked-crew's
 `domain-extraction` preset, described by **`wicked-garden-domain`**) instead. Its
 `domain-run` step writes checked statements, rule groups, follow-ups and targets onto
 the estate nodes; its `domain-graph` step has wicked-core build the domain model

@@ -281,13 +281,26 @@ def test_a_string_over_its_max_length_is_refused():
     assert any("maxLength 60" in e for e in validate_document(doc))
 
 
-def test_an_integral_number_is_an_integer_as_draft_07_says():
+def test_a_float_is_not_an_integer_because_core_reads_an_integer():
+    # garden#1578 round 2 (F4): core reads integer fields as Rust integers (serde refuses 1.0),
+    # so the pre-flight must refuse what core would refuse.
     doc = core_v3()
     claim = _rules(doc)[0]["claims"][0]
-    claim["i"] = 0.0  # what core's jsonschema check accepts
     assert validate_document(doc) == []
-    claim["i"] = 0.5
-    assert any("is not of type" in e for e in validate_document(doc))
+    for v in (0.0, 0.5, True):
+        claim["i"] = v
+        assert any("is not of type" in e for e in validate_document(doc)), v
+
+
+def test_the_build_guide_preflight_refuses_a_float_exit_code():
+    # The same validator checks build guides (scripts/build_guide/_guide.py): `failedExit: [1.0]`
+    # would pass here and then fail core's serde read of `Vec<i32>`.
+    from domain.validate_domain_model import _validate
+    schema = {"type": "object", "properties": {"failedExit": {"type": "array", "items": {"type": "integer"}}}}
+    for exits, ok in (([1, 2], True), ([1.0], False)):
+        errors: list = []
+        _validate({"failedExit": exits}, schema, "$", schema, errors)
+        assert (errors == []) is ok, (exits, errors)
 
 
 def test_a_non_string_id_is_reported_not_raised():

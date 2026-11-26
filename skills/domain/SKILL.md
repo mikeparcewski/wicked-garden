@@ -32,7 +32,7 @@ same model.
 
 ## How to run it
 
-Run the **Extract domain model** job (wicked-crew's `domain-extraction` preset) on
+Run the **Map the domain** job (wicked-crew's `domain-extraction` preset) on
 a registered repository, with a scope: what part of the system the person wants
 mapped ("how refunds are approved"). Studio's Start shows the scope card first
 (the files and units it found) and carries the scope into the run.

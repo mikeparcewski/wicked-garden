@@ -252,5 +252,6 @@ def test_the_real_writer_round_trips_a_run(tmp_path, monkeypatch):
     model1 = stored(db)
     seats.n = 0
     second, _, _, _ = run.run(str(tree), db, scope_in, str(tmp_path / "run2"), log=lambda s: None)
-    assert seats.n == 0 and second["store"]["replaced"] == second["store"]["rows"]
+    # every row is replaced but the run's own record, which is new per run (domain_run:<run id>)
+    assert seats.n == 0 and second["store"]["replaced"] == second["store"]["rows"] - 1
     assert stored(db) == model1
