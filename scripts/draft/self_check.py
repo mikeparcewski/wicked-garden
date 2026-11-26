@@ -19,8 +19,8 @@ and prints one verdict:
 
 Exit: 0 = every floor met (and verified); 1 = a floor failed — fix the document and re-run;
 3 = no floor failed but the page count could not be verified — disclose it in notes.json;
-2 = usage / unreadable input, or an input with no HTML text blocks (Markdown, plain text:
-nothing would be checked, garden#1588). Stdlib only.
+2 = usage / unreadable input, or a file with no HTML markup at all (Markdown, plain text: nothing would
+be checked, garden#1588); HTML with no text blocks the floors can read is UNVERIFIED (3). Stdlib only.
 
 CLI:
     self_check.py <file.html> [--pdf <exported.pdf>] [--pages N [--exact]] [--render]
@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -48,12 +49,16 @@ def run(html: str, pdf: str | None = None, pages: int | None = None, exact: bool
     checks["contrast"] = contrast_check.run(html, min_contrast, min_font_pt, mode)
     checks["claims"] = claims_scan.run(html, repos)
     checks["leaks"] = leak_scan.run(html, run_ids)
-    # garden#1588: a floor that inspected nothing never yields PASS. Markdown or plain text parses as
-    # HTML with no text blocks, so the claims and contrast floors would report "clean" over nothing.
+    # garden#1588: a floor that inspected nothing never yields PASS. Markdown or plain text parses as HTML
+    # with no text blocks, so the claims and contrast floors would report "clean" over nothing.
     if checks["claims"]["stats"]["blocks"] == 0 and checks["contrast"]["elements_checked"] == 0:
-        raise ValueError(f"self_check reads HTML: {html} has no HTML text blocks (0 parsed), so no floor "
-                         "checked anything. Run it on the HTML deliverable; a Markdown or plain-text file "
-                         "is not checked by these floors")
+        if not _has_markup(html):
+            raise ValueError(f"self_check reads HTML: {html} has no HTML markup (Markdown or plain text?), so no "
+                             "floor would check anything. Run it on the HTML deliverable")
+        # Real HTML with no text the floors read (an image-only page, text only in images): UNVERIFIED.
+        for name in ("claims", "contrast"):
+            checks[name]["verified"] = False
+            checks[name]["empty"] = True
     if notes is not None:
         checks["notes"] = notes_check.run(notes)
     if check_pages:
@@ -71,7 +76,10 @@ def run(html: str, pdf: str | None = None, pages: int | None = None, exact: bool
             est = checks["pages"].get("estimate", {}).get("estimate")
             disclose.append(f"pages: count UNVERIFIED (no PDF and no renderer on this seat) — structural "
                             f"estimate {est}; verify with `page_count.py --pdf <export>` on the product's export")
-        if "contrast" in unverified:
+        if checks["claims"].get("empty"):
+            disclose.append("claims and contrast: the HTML has no text blocks they can read (an image-only page, "
+                            "or text inside images), so neither checked anything; check the text by hand")
+        if "contrast" in unverified and not checks["contrast"].get("empty"):
             disclose.append(f"contrast: {checks['contrast']['unverified']} pair(s) UNVERIFIED — see the "
                             f"[unknown] findings; verify those pairs by hand or rewrite them in hex/rgb/hsl "
                             f"with an opaque background fallback")
@@ -86,6 +94,12 @@ def run(html: str, pdf: str | None = None, pages: int | None = None, exact: bool
         "checks": checks,
         "summary": lines,
     }
+
+
+def _has_markup(path: str) -> bool:
+    """Whether the file holds any HTML element tag at all (a Markdown or plain-text file holds none)."""
+    text = Path(path).read_text(encoding="utf-8", errors="replace")
+    return re.search(r"<(?:!doctype\s+html|[a-zA-Z][a-zA-Z0-9-]*)(?:\s|/?>)", text, re.IGNORECASE) is not None
 
 
 def safe_console() -> None:

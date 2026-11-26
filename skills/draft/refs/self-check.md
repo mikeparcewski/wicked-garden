@@ -44,8 +44,8 @@ wicked-garden run scripts/draft/notes_check.py notes.json
 |---------|------|------|
 | `PASS` | 0 | every floor met; every pair evaluated; page count verified (or `--no-pages`) |
 | `FAIL` | 1 | any `contrast`/`size` or claims finding, or pages over (or ≠ with `--exact`) the budget — a structural estimate that already exceeds the budget is a FAIL too |
-| `UNVERIFIED` | 3 | nothing failed, but something could not be evaluated: no PDF and no renderer (page count = structural estimate), and/or `[unknown]` contrast pairs (unsupported colour function, image-only background, an unevaluable transform) |
-| error | 2 | unreadable input / usage (including a `--pdf` path that does not exist), or an input with no HTML text blocks: a Markdown or plain-text file is not checked by these floors, so it is never a `PASS` |
+| `UNVERIFIED` | 3 | nothing failed, but something could not be evaluated: no PDF and no renderer (page count = structural estimate), and/or `[unknown]` contrast pairs (unsupported colour function, image-only background, an unevaluable transform), and/or HTML with no text blocks the claims and contrast floors can read (an image-only page) |
+| error | 2 | unreadable input / usage (including a `--pdf` path that does not exist), or a file with no HTML markup at all: a Markdown or plain-text file is not checked by these floors, so it is never a `PASS` |
 
 The two "done" states are `PASS` and `UNVERIFIED`-with-disclosure. `FAIL` is fixed in the
 DOCUMENT and re-run; never by loosening the flags, never by `zoom`/`scale`. `UNVERIFIED` is never

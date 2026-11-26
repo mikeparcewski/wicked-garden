@@ -2269,36 +2269,140 @@ ENTRY_NOTE = """
   async function load() {"""
 
 
-def _note_editor(pack: Path, *, saves_on_enter: bool) -> None:
-    """An entry field beside a marked type=button Save. With ``saves_on_enter`` the field also saves on Enter, the
-    shape of garden#1591's editor. (Its <form> route does not reach the product: the host's frame is
+def _note_editor(pack: Path, extra: str = "", *, form: str = '<input type="text" id="note" aria-label="Note">') -> None:
+    """An entry field beside a marked type=button Save, with ``extra`` script wired after it (a key or change handler).
+    garden#1591's editor saved from a <form> submit. That route does not reach the product: the host's frame is
     sandbox="allow-scripts", with no allow-forms, so the browser blocks an implicit submission before any submit
-    handler runs. A key handler that saves is not blocked, and is what the check catches.)"""
+    handler runs. A key handler that saves is not blocked, and it is what the check catches."""
     assert scaffold(pack, "--permissions", "artifact.read,artifact.write,ui.fullscreen").returncode == 0
     entry = pack / FIXTURE_ENTRY
-    wiring = "document.getElementById('save').addEventListener('click', () => saveNote());"
-    if saves_on_enter:
-        wiring += ("\n  document.getElementById('note').addEventListener('keydown', (e) => "
-                   "{ if (e.key === 'Enter') { e.preventDefault(); saveNote(); } });")
+    wiring = "document.getElementById('save').addEventListener('click', () => saveNote());" + extra
     entry.write_text(entry.read_text()
-                     .replace('<button type="button" id="full">',
-                              '<input type="text" id="note" aria-label="Note"> ' + SAVE_BUTTON + ' <button type="button" id="full">', 1)
+                     .replace('<button type="button" id="full">', form + ' ' + SAVE_BUTTON + ' <button type="button" id="full">', 1)
                      .replace("\n  async function load() {", ENTRY_NOTE.replace("SAVE_WIRING", wiring), 1))
     assert run("pin.py", str(pack)).returncode == 0
 
 
+ON_ENTER = "\n  document.getElementById('note').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); %s } });"
+
+
 @pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
-def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path):
-    submits, plain = tmp_path / "submits", tmp_path / "plain"
-    _note_editor(submits, saves_on_enter=True)
-    cases = _cases(submits)
-    typing = cases["5-typing"]
-    assert typing["ok"] is False and typing["enter"]["fields"] == 1 and typing["enter"]["writes"] >= 1, typing
-    assert "Enter in its own text field" in typing["error"], typing
-    # The same field and Save with no Enter handler: Enter lands nothing, and case 7 still saves through Save
-    # (the field case 5 filled was put back empty, so case 7 fills it again).
-    _note_editor(plain, saves_on_enter=False)
-    cases = _cases(plain)
-    assert cases["5-typing"]["ok"] is True and cases["5-typing"]["enter"] == {"fields": 1, "writes": 0, "head_moves": 0}, cases
-    assert cases["6-forwarding"]["ok"] is True, cases["6-forwarding"]
-    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 1, cases["7-edit"]
+@pytest.mark.parametrize("name, extra, form, saves", [
+    ("saves-on-enter", ON_ENTER % "saveNote();", None, True),
+    # A save scheduled a second after the key is still the key's.
+    ("saves-later", ON_ENTER % "setTimeout(saveNote, 1000);", None, True),
+    # It saves on Enter only when its required textarea is filled too: the check fills every empty field first.
+    ("saves-when-complete", ON_ENTER % "if (document.getElementById('body').value) saveNote();",
+     '<input type="text" id="note" aria-label="Note"> <textarea id="body" required aria-label="Body"></textarea>', True),
+    # It saves on change (Enter is not the cause): the check commits and settles that save before any Enter.
+    ("saves-on-change", "\n  document.getElementById('note').addEventListener('change', () => saveNote());", None, False),
+    ("plain", "", None, False),
+])
+def test_case_5_enter_in_its_own_field_never_saves_1591(tmp_path, name, extra, form, saves):
+    pack = tmp_path / name
+    _note_editor(pack, extra, **({"form": form} if form else {}))
+    cases = _cases(pack)
+    enter = cases["5-typing"]["enter"]
+    if saves:
+        assert cases["5-typing"]["ok"] is False and enter["ok"] is False and enter["writes"] >= 1, cases["5-typing"]
+        assert "Enter in its own text field" in enter["error"], enter
+    else:
+        assert cases["5-typing"]["ok"] is True and enter == {"fields": 1, "writes": 0, "head_moves": 0, "ok": True}, cases
+        # Its own instance: case 7 on the first instance still finds the field empty, fills it and saves once.
+        if name == "plain":
+            assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 1, cases["7-edit"]
+
+
+class _Clock:
+    t = 0.0
+
+    def monotonic(self):
+        return self.t
+
+
+class _EnterPage:
+    """The page calls enter_never_saves makes, without a browser: a host log of the editor's messages and a head."""
+
+    def __init__(self, mod, clock):
+        self.mod, self.clock, self.log, self.head, self.later = mod, clock, [], 1, []
+
+    def write(self):
+        self.log.append({"kind": "in", "type": "version.write"})
+        self.head += 1
+
+    def evaluate(self, js):
+        return self.log if js == self.mod.LOG else self.head
+
+    def wait_for_timeout(self, ms):
+        self.clock.t += ms / 1000
+        for due, fn in [x for x in self.later if x[0] <= self.clock.t]:
+            self.later.remove((due, fn))
+            fn()
+
+
+class _EnterField:
+    def __init__(self, mod, page, tag="INPUT", *, on_enter=None, on_commit=None, gone=False):
+        self.mod, self.page, self.tag, self.value = mod, page, tag, ""
+        self.on_enter, self.on_commit, self.gone, self.pressed = on_enter, on_commit, gone, 0
+
+    def is_visible(self):
+        return True
+
+    def is_editable(self):
+        return True
+
+    def input_value(self, timeout):
+        return self.value
+
+    def fill(self, value, timeout):
+        self.value = value
+
+    def evaluate(self, js, arg=None):
+        if js == self.mod.FIELD_VALUE:
+            return arg
+        if js == self.mod.COMMIT:
+            return self.on_commit and self.on_commit()
+        assert js == self.mod.ONE_LINE_FIELD
+        return self.tag == "INPUT"
+
+    def focus(self):
+        if self.gone:
+            raise RuntimeError("Element is not attached to the DOM")
+
+    def press(self, key, timeout):
+        assert key == "Enter"
+        self.pressed += 1
+        if self.on_enter:
+            self.on_enter()
+
+
+class _EnterFrame:
+    def __init__(self, mod, fields):
+        self.mod, self.fields = mod, fields
+
+    def locator(self, selector):
+        handles = self.fields if selector == self.mod.EDIT_FIELDS else []
+        return type("L", (), {"element_handles": lambda _self: handles})()
+
+
+def test_enter_check_charges_the_key_and_never_its_preparation_1591(monkeypatch):
+    mod = _conformance_module()
+    clock = _Clock()
+    monkeypatch.setattr(mod, "time", clock)
+    # A change/blur autosave during preparation is settled first, never charged to Enter; a textarea is filled
+    # (a required one cannot hide the save) but Enter is not pressed in it.
+    page = _EnterPage(mod, clock)
+    field, body = _EnterField(mod, page, on_commit=page.write), _EnterField(mod, page, "TEXTAREA")
+    out = mod.enter_never_saves(page, _EnterFrame(mod, [field, body]))
+    assert out == {"fields": 1, "writes": 0, "head_moves": 0, "ok": True}, out
+    assert body.value == mod.EDIT_SENTENCE and body.pressed == 0 and field.pressed == 1 and page.head == 2
+    # A save that lands a second after the key is the key's.
+    page = _EnterPage(mod, clock)
+    late = _EnterField(mod, page, on_enter=lambda: page.later.append((clock.t + 1.0, page.write)))
+    out = mod.enter_never_saves(page, _EnterFrame(mod, [late]))
+    assert out["ok"] is False and out["writes"] == 1 and out["head_moves"] == 1, out
+    # A field removed since it was found is skipped, not mistaken for another one.
+    page = _EnterPage(mod, clock)
+    gone, kept = _EnterField(mod, page, gone=True), _EnterField(mod, page, on_enter=page.write)
+    out = mod.enter_never_saves(page, _EnterFrame(mod, [gone, kept]))
+    assert out["gone"] == 1 and out["fields"] == 1 and out["writes"] == 1 and kept.pressed == 1, out
