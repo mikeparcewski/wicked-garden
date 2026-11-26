@@ -170,8 +170,8 @@ export const DOMAINS: Domain[] = [
     id: "domain",
     name: "domain modeling",
     hue: "creation",
-    blurb: "Mine the code's real requirements — testable business rules with confidence + provenance on estate's graph, mapped page by page to the minimum. A placeholder is shown, never counted.",
-    cmds: ["domain", "domain-extractor", "domain-coverage", "domain-modeler"],
+    blurb: "Extract the code's business rules as checked statements, each tied to the lines it rests on, and build the domain model on estate's graph. What is not yet checked is shown as open, with what to look at.",
+    cmds: ["domain"],
     try: "wicked-garden-domain",
   },
   {

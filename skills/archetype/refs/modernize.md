@@ -93,18 +93,14 @@ Discover it the usual way — and consider
 
 **Domain-model extraction (the Domain-Brain path).** When the estate is graphed
 in **wicked-estate** and the goal is a shared, gate-able domain model — not just
-a local rule list — drive the **`wicked-garden-domain`** router instead. It
-STEERS three fork workers that emit a document conforming to
-`@wicked/domain-model-schema@1.0.0` (vendored at
-`skills/domain/vendor/domain-model.schema.json`): **domain-extractor**
-(business rules with confidence + provenance → estate `requirement`
-annotations), **domain-modeler** (cluster → domain, invokes
-`wicked-core domain-graph` — which reads the annotated estate store and builds the
-requirements graph itself, coverage-gated fail-closed), **domain-coverage**
-(pre-build threat model). Estate annotations + SymbolId strings are what cross repo
-lines; core builds + coverage-gates the requirements graph, crew governs the run.
-Garden clears no gate here — it is advisory steering; the coverage terminal is
-core's fail-closed build. See `skills/domain/SKILL.md`.
+a local rule list — run the **Extract domain model** job (wicked-crew's
+`domain-extraction` preset, described by **`wicked-garden-domain`**) instead. Its
+`domain-run` step writes checked statements, rule groups, follow-ups and targets onto
+the estate nodes; its `domain-graph` step has wicked-core build the domain model
+(schema 1.2.0, vendored at `skills/domain/vendor/domain-model.schema.json`) from
+them. Each statement cites the lines it rests on and says whether it is Checked,
+open, confirmed or stale; a person settles the open ones. Garden clears no gate here.
+See `skills/domain/SKILL.md`.
 
 ### blueprint
 
