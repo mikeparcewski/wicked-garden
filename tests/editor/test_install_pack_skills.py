@@ -661,3 +661,85 @@ def test_uninstall_after_an_unanswered_update_removes_both_copies_ids(tmp_path, 
     assert code == 0 and deleted == ["/api/v1/editors/acme-terms", "/api/v1/editors/acme-terms-two"], deleted
     assert out["registry"] == {"acme-terms-two": "absent", "acme-terms": "removed"}
     assert not (root / "acme-terms").exists()
+
+
+# garden#1576: crew answers 200 `installed: true` and names what it could not finish. These answers copy the shape
+# crew's installPack returns (wicked-crew packages/crew/src/editors/pack-install.ts, the return of installPack:
+# skills, presets, skillsError, withdrawn, installed, updated, editors, check, conformance) and the route's
+# grantError (packages/crew/src/editors/routes.ts, POST /editors), with crew's own message texts
+# (packages/crew/src/editors/pack-extras.ts, writeSkills).
+CREW_CHECK = {"ok": True, "findings": []}
+CREW_EDITORS = [{"id": "acme-terms", "version": "0.1.0"}]
+# A skill row is the bare directory name and the installed key (pack-extras.ts planExtras: `{ name: dir, key }`).
+SKILLS_HELD = [{"name": "acme-terms", "key": "wicked-garden-acme-terms"},
+               {"name": "acme-terms-checker", "key": "wicked-garden-acme-terms-checker"}]
+PUBLISH_FAILED = ("installed, but the skills root could not be published (a broken skill elsewhere), so workers do "
+                  "not get the pack’s skills; fix that and install the pack again")
+
+
+def _crew_answer(**extra) -> tuple[int, dict]:
+    return 200, {"presets": ["acme-terms-review"], **extra, "installed": True, "updated": False,
+                 "editors": CREW_EDITORS, "check": CREW_CHECK, "conformance": {"ok": True}}
+
+
+def _install_answered(sample: Path, root: Path, answer: tuple[int, dict]) -> tuple[subprocess.CompletedProcess, dict]:
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = answer
+        done = _run("--dir", str(sample), "--install-root", str(root), "--json", env={"WICKED_CREW_URL": d.origin})
+    return done, json.loads(done.stdout.strip().splitlines()[-1])
+
+
+def test_a_skills_error_from_crew_is_a_partial_install_not_ok(tmp_path, sample):
+    # A blocked publish: crew wrote the skills (switched off) and still lists them (pack-extras.ts writeSkills).
+    root = tmp_path / "root"
+    done, out = _install_answered(sample, root, _crew_answer(skills=SKILLS_HELD, skillsError=PUBLISH_FAILED))
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert out["ok"] is False and out["outcome"] == "partial"
+    assert out["skillsError"] == PUBLISH_FAILED and out["error"] == PUBLISH_FAILED
+    assert out["skills"] == SKILLS_HELD and out["presets"] == ["acme-terms-review"]
+    # The editors ARE installed: the record, the current copy, no pending marker (the outcome is known).
+    record = json.loads((root / "acme-terms" / "installed.json").read_text(encoding="utf-8"))
+    assert record["key"] == "acme-terms" and record["editors"] == CREW_EDITORS
+    assert (root / "acme-terms" / "current" / "wicked-pack.json").exists()
+    assert not (root / "acme-terms" / "pending.json").exists()
+
+
+@pytest.mark.parametrize("extra, partial_error", [
+    ({"skillsError": PUBLISH_FAILED, "withdrawn": {"skills": [], "presets": [], "error": "disk full"}},
+     PUBLISH_FAILED + "; disk full"),
+    ({"withdrawn": {"skills": ["wicked-garden-acme-old"], "presets": []}}, None),  # a withdrawal that worked
+    ({"skillsError": ""}, None),
+    ({"skillsError": "  "}, None),
+    ({"withdrawn": ["not", "an", "object"]}, None),
+])
+def test_what_crew_says_decides_partial_exactly(tmp_path, sample, extra, partial_error):
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, **extra))
+    assert done.returncode == (1 if partial_error else 0), done.stdout + done.stderr
+    assert out.get("error") == partial_error and out["ok"] is (partial_error is None)
+    for k, v in extra.items():
+        assert out[k] == v
+
+
+def test_a_clean_install_prints_the_skills_and_presets_crew_installed(tmp_path, sample):
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert out["ok"] is True and "outcome" not in out
+    assert out["skills"] == SKILLS_HELD and out["presets"] == ["acme-terms-review"]
+
+
+def test_a_failed_withdrawal_is_partial_too(tmp_path, sample):
+    # A key is listed as withdrawn only when switching it off worked (pack-extras.ts withdrawPackExtras).
+    withdrawn = {"skills": [], "presets": [],
+                 "error": "the skill wicked-garden-acme-old could not be switched off (disk full)"}
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, withdrawn=withdrawn))
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert out["ok"] is False and out["outcome"] == "partial" and withdrawn["error"] in out["error"]
+    assert out["withdrawn"] == withdrawn
+
+
+def test_a_grant_error_is_printed_and_stays_ok(tmp_path, sample):
+    # crew's route text (routes.ts POST /editors); the editor works, its mcp.session asks instead.
+    grant = "installed, but the install consent's grants were not written (it asks), and its earlier grants were not withdrawn: EACCES"
+    done, out = _install_answered(sample, tmp_path / "root", _crew_answer(skills=SKILLS_HELD, grantError=grant))
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert out["ok"] is True and out["grantError"] == grant and "outcome" not in out

@@ -337,8 +337,10 @@ def test_the_help_table_lists_it():
 
 def test_the_changelog_names_it():
     changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
-    unreleased = changelog.split("## [Unreleased]", 1)[1].split("\n## [", 1)[0]
-    assert NAME in unreleased
+    # Under [Unreleased] until a release cut moves the entry under its version heading; it stays there
+    # once later releases stack on top, so any section from [Unreleased] down counts (not the preamble).
+    sections = re.split(r"^## \[", changelog, flags=re.M)[1:]
+    assert any(NAME in section for section in sections)
 
 
 # --- round 2 (coord) folds -------------------------------------------------------------------

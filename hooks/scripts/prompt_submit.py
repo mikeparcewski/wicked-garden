@@ -4,7 +4,7 @@ UserPromptSubmit hook — wicked-garden pull-model context assembly.
 
 v6 replaced the v5 push-model orchestrator (deleted in #428) with a pull-model
 architecture. The hook is now responsible only for session-level concerns:
-  - Setup gate (hard-block / onboarding directive)
+  - Setup gate (JSON block decision / onboarding directive)
   - Facilitator re-evaluation directive (v6 Gate 3, #428)
   - Turn counter increment
   - HOT fast-exit on continuation tokens
@@ -565,12 +565,34 @@ _GUARD_PASS_PREFIXES = (
 )
 
 
+def _setup_complete_on_disk() -> bool:
+    """config.json says setup_complete — the single source of truth.
+
+    Any unreadable, undecodable or non-object config counts as not set up.
+    It must never raise: an exception exits non-zero, and hooks.json's
+    `python3 || python || py -3` chain turns that into 127, which lets the
+    prompt through (garden#1580).
+    """
+    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
+    try:
+        if not config_path.exists():
+            return False
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):  # JSONDecodeError and UnicodeDecodeError are ValueErrors
+        return False
+    return isinstance(config, dict) and bool(config.get("setup_complete", False))
+
+
 def _check_setup_gate(prompt: str) -> str | None:
     """Check if wicked-garden setup is needed.
 
-    Returns None if setup is complete (config.json exists with setup_complete=true).
-    Calls sys.exit(2) if config is missing or incomplete — this hard-blocks
-    the prompt and feeds the error message back to the model.
+    Returns None if setup is complete (config.json exists with setup_complete=true),
+    or the block reason if config is missing or incomplete. main() prints the
+    reason as a UserPromptSubmit `decision: block` on stdout and exits 0, which
+    holds the prompt the same way exit 2 does. It must not exit 2: hooks.json
+    runs `python3 … || python … || py -3 …`, so a non-zero exit runs the next
+    interpreter, and on a python3-only host that turns 2 into 127, a
+    non-blocking error (garden#1580).
 
     Always checks config.json on disk — no session state caching.
     """
@@ -593,15 +615,7 @@ def _check_setup_gate(prompt: str) -> str | None:
         from _session import SessionState
         state = SessionState.load()
         if state.setup_in_progress:
-            config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
-            config_done = False
-            try:
-                if config_path.exists():
-                    cfg = json.loads(config_path.read_text())
-                    config_done = cfg.get("setup_complete", False)
-            except (json.JSONDecodeError, OSError):
-                pass
-            if config_done:
+            if _setup_complete_on_disk():
                 # Config already complete — flag is stale, clear it
                 state.update(setup_in_progress=False)
             else:
@@ -610,23 +624,11 @@ def _check_setup_gate(prompt: str) -> str | None:
     except Exception:
         pass
 
-    # Check config.json on disk — the single source of truth for setup status.
-    config_path = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
-    config_ok = False
-    try:
-        if config_path.exists():
-            config = json.loads(config_path.read_text())
-            config_ok = config.get("setup_complete", False)
-    except (json.JSONDecodeError, OSError):
-        pass
-
-    if not config_ok:
-        print(
+    if not _setup_complete_on_disk():
+        return (
             "wicked-garden requires setup before first use.\n"
-            "Invoke the wicked-garden-core skill's setup action (say: \"wicked-garden setup\").",
-            file=sys.stderr,
+            "Invoke the wicked-garden-core skill's setup action (say: \"wicked-garden setup\")."
         )
-        sys.exit(2)
 
     return None
 
@@ -635,7 +637,7 @@ def _check_context_gate(prompt: str) -> None:
     """Warn if the context backend (wicked-estate) is not reachable.
 
     If unreachable, prints a note to stderr — this feeds back to the model
-    via the hook error channel but does NOT hard-block (sys.exit(2)). The
+    via the hook error channel but does NOT block the prompt. The
     estate probe is cached per session/TTL so this stays cheap per prompt.
     Silent when WICKED_CONTEXT_BACKEND=off (designed silence).
 
@@ -928,9 +930,12 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Setup gate — hard-block (sys.exit(2)) if no config.
-    # MUST run before HOT continuations so setup can never be bypassed.
-    _check_setup_gate(prompt)
+    # Setup gate — block the prompt (JSON `decision: block`, exit 0) if no
+    # config. MUST run before HOT continuations so setup can never be bypassed.
+    setup_block = _check_setup_gate(prompt)
+    if setup_block:
+        print(json.dumps({"decision": "block", "reason": setup_block}))
+        return
 
     # Context gate — soft directive if the context backend (wicked-estate)
     # is not reachable.

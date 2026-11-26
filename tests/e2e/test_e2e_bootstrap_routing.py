@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import unittest
+import uuid
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -116,10 +117,16 @@ class HookSmokeEndToEndTests(unittest.TestCase):
     first version of this test)."""
 
     def _run(self, prompt: str, home_dir: str) -> subprocess.CompletedProcess:
+        # One fresh session per call, and HOME/USERPROFILE/TMP all inside the
+        # temp home, so neither a developer's config nor an earlier session's
+        # setup_in_progress flag can steer the gate.
+        sid = f"e2e-smoke-{uuid.uuid4().hex}"
         payload = json.dumps({"hook_event_name": "UserPromptSubmit",
                               "prompt": prompt, "cwd": str(_REPO),
-                              "session_id": "e2e-smoke"})
-        env = {**_ENV, "HOME": home_dir}
+                              "session_id": sid})
+        env = {**_ENV, "HOME": home_dir, "USERPROFILE": home_dir,
+               "TMPDIR": home_dir, "TEMP": home_dir, "TMP": home_dir,
+               "CLAUDE_SESSION_ID": sid}
         return subprocess.run([sys.executable, str(_INVOKE), "prompt_submit"],
                               input=payload, capture_output=True, text=True,
                               env=env, cwd=str(_REPO), timeout=30)
@@ -144,18 +151,25 @@ class HookSmokeEndToEndTests(unittest.TestCase):
 
     def test_unconfigured_project_setup_gate_blocks_and_cannot_be_bypassed(self):
         # The contract that broke the first version of this test: an
-        # unconfigured project HARD-BLOCKS (exit 2) — setup cannot be bypassed,
-        # even by a continuation token. That is correct, controlled behavior
-        # (not a crash), and it must hold deterministically.
+        # unconfigured project BLOCKS — setup cannot be bypassed, even by a
+        # continuation token. That is correct, controlled behavior (not a
+        # crash), and it must hold deterministically. The block is a JSON
+        # `decision: block` with exit 0, never exit 2: hooks.json's
+        # `python3 || python || py -3` chain turns a non-zero exit into 127
+        # on a python3-only host (garden#1580).
         home = unconfigured_home()
         try:
             for p in ["implement a feature", "yes"]:
                 proc = self._run(p, home.name)
                 self.assertFalse(has_python_traceback(proc.stderr),
                                  f"prompt={p!r} crashed: {proc.stderr}")
-                self.assertEqual(proc.returncode, 2,
-                                 f"setup gate must hard-block unconfigured; "
+                self.assertEqual(proc.returncode, 0,
+                                 f"setup gate signals through JSON; "
                                  f"prompt={p!r} rc={proc.returncode}")
+                out = json.loads(proc.stdout)  # the block is the whole stdout
+                self.assertEqual(out.get("decision"), "block",
+                                 f"setup gate must block unconfigured; "
+                                 f"prompt={p!r} out={proc.stdout!r}")
         finally:
             home.cleanup()
 
