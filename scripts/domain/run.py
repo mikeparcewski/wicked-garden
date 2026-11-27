@@ -7,7 +7,9 @@ through ``wicked-core model-call`` (``model_calls.py``).
 Before any call the run takes what the store already holds (``store.py``): a target whose batch is unchanged is
 carried with zero calls, one whose code moved but whose cited text is unchanged is re-validated, anything else is
 extracted again; the prose is reused when its input is unchanged. An unchanged re-run therefore makes no model call
-and writes the same model.
+and writes the same model. A target an earlier pipeline version stated, on unchanged code and with no ruling, is
+stated again after the store (garden#1613, ``refresh``): the store takes all of them, in a second write, or none, and a
+refused set is not stated again until the version moves.
 
 Usage: run.py --db <estate.db> --repo-root <tree> --scope <scope.json> [--out <dir>]
 ``--out`` defaults to a new ``.wicked/domain/runs/<UTC time>-<random>`` per run (a re-run in the same directory reuses its
@@ -146,7 +148,7 @@ def plan_reuse(repo, S, C, prior):
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
-    ruled = dict(confirmed={}, targets={}, rejected=[], live=0, earlier={})
+    ruled = dict(confirmed={}, targets={}, rejected=[], live=0, earlier={}, refreshable=[], refused=set())
     ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
         rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
@@ -193,6 +195,10 @@ def plan_reuse(repo, S, C, prior):
             # stated by an earlier version of the stating pipeline (or before versions were kept): carried as it is,
             # its record keeps that version, and the run says so (garden#1601: a fresh store states it again)
             ruled["earlier"][t["id"]] = rec.get("pipeline")
+            if rec.get("refresh_refused") == store.STATING:
+                ruled["refused"].add(t["id"])  # garden#1613: refused at this version, so not stated again until it moves
+            elif d == "carry" and not _held(prior, rec):
+                ruled["refreshable"].append(t["id"])  # unchanged code and no ruling: stated again after the store
         if d == "extract":
             # what a person confirmed stands, as it is and under its id, beside what the writer states again; the
             # writer is told so (extract.person_section), and those lines count as stated (extract.check_target)
@@ -331,8 +337,9 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     n = {d: sum(1 for v in decision.values() if v == d) for d in ("carry", "revalidate", "extract")}
     say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract")
     if ruled["earlier"]:
-        say(log, f"reuse · {len(ruled['earlier'])} targets were stated by an earlier pipeline version; a fresh store "
-                 f"states them with this one")
+        say(log, f"reuse · {len(ruled['earlier'])} targets were stated by an earlier pipeline version"
+            + (f" · {len(ruled['refreshable'])} are stated again after the store" if ruled["refreshable"] else "")
+            + (f" · {len(ruled['refused'])} were refused at this version and stay as stored" if ruled["refused"] else ""))
     if ruled["confirmed"] or ruled["targets"] or ruled["rejected"] or ruled["stale"]:
         say(log, f"rulings · {len(ruled['confirmed'])} statements and {len(ruled['targets'])} targets confirmed · "
                  f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
@@ -355,6 +362,201 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
         calls.accept_answers()
     else:
         R = dict(statements=A["statements"], not_rules=A["not_rules"], targets=A["targets"])
+    m = _assemble(repo, S, C, R, ruled, ruled["earlier"], prior, scope_in, root, out_dir, calls_dir, log)
+    if m["lost"]:
+        ruled["stale"] += m["lost"]
+    report = write(db, m["rows"])
+    calls.drop_carry()
+    # garden#1613 (DES-1613): the targets an earlier pipeline version stated are stated again after the store, and the
+    # store takes them only when none is worse
+    fresh, adopted = refresh(repo, S, C, R, ruled, prior, m, scope_in, root, db, out_dir, log, write)
+    if adopted:
+        m, R, report = adopted
+    live, groups, fu, unplaced = m["live"], m["groups"], m["fu"], m["unplaced"]
+    confirmed, confirmed_t = m["confirmed"], m["confirmed_t"]
+    withheld = sum(len(g.get("withheld") or []) for g in groups)
+    is_open = lambda s: s["status"] == "open" and s.get("id") not in confirmed  # noqa: E731
+    is_accounted = lambda t: not (R["targets"].get(t) or {}).get("unaccounted") or t in confirmed_t  # noqa: E731
+    # a person's confirm settles what it names: the counts say so
+    accounted = sum(1 for t in S["targets"] if is_accounted(t["id"]))
+    summary = dict(targets=len(S["targets"]), accounted=accounted, checked=sum(s["status"] == "Checked" for s in live),
+                   open=sum(is_open(s) for s in live), confirmed=len(confirmed), rulings_stale=ruled["stale"],
+                   rejected_again=[r["target"] for r in again], groups=len(groups), withheld=withheld,
+                   followups=len(fu), reuse=n, prose_reused=m["prose_reused"], prose_counts=m["pcounts"],
+                   uncited=m["uncited"], earlier_pipeline=dict(targets=len(ruled["earlier"]) - fresh["adopted"], groups=sum(
+                       1 for p in m["pmeta"].get("pipeline_of", {}).values() if p != store.PROSE)),
+                   refresh={k: fresh[k] for k in ("eligible", "adopted", "refused", "reasons")},
+                   model_calls=made_calls(calls_dir) + fresh["model_calls"], unplaced=unplaced, store=report,
+                   scope_hash=S["scope_hash"], wall_s=round(time.time() - t0, 1))
+    lib.jdump(summary, os.path.join(out_dir, "summary.json"))
+    say(log, f"stored · {summary['checked']} checked statements · {len(fu)} follow-ups · {accounted} of "
+             f"{len(S['targets'])} targets accounted · {summary['model_calls']} model calls"
+        + (f" · {len(unplaced)} not stored (no estate node for their file)" if unplaced else ""))
+    return summary, R, groups, fu
+
+
+REFRESH_CODES = ("m_fail", "noresult", "refused_not_rule", "unaccounted", "fewer_answers", "fewer_checked",
+                 "call_failed", "phase_failed", "write_failed")
+
+
+SPAN_CAP = 10000  # the most lines one range counts for (a model range such as [1, 10**12] is cut, never expanded)
+
+
+def _span(sts, nrs):
+    """The (file, line) pairs an answer covers: each statement's anchor and each accepted not-rule (a refused one
+    covers nothing), the way extract.check_target counts a target's accounted lines."""
+    out = set()
+
+    def add(f, a, b):
+        out.update((f, i) for i in range(a, min(b, a + SPAN_CAP - 1) + 1))
+    for s in sts:
+        an = s.get("anchor") or {}
+        ln = an.get("lines")
+        if isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) and not isinstance(x, bool) for x in ln):
+            add(an.get("file"), min(ln), max(ln))
+    for x in nrs:
+        p = lookup.pref(x.get("lines")) if x.get("status") == "accepted" else None
+        if p:
+            add(*p)
+    return out
+
+
+def worse(tid, old, new):
+    """Why target ``tid`` as the refresh stated it (``new``, a checked result) is worse than as stored (``old``): one
+    of :data:`REFRESH_CODES`, or ``None``. DES-1601's rule, line by line: nothing left failing the M checks or
+    unchecked; no line the stored answer covered left uncovered (a refused not-rule covers none, ``refused_not_rule``
+    when one stands there); no newly unaccounted target; no fewer answers; and no line a Checked statement covered
+    left without one, nor fewer Checked statements."""
+    def of(R):
+        return ([s for s in R["statements"] if s.get("target") == tid and s.get("status") in ("Checked", "open")],
+                [x for x in R["not_rules"] if x.get("target") == tid], (R.get("targets") or {}).get(tid) or {})
+    (o, onr, ost), (n, nnr, nst) = of(old), of(new)
+    if any(s.get("m_fail") for s in n):
+        return "m_fail"
+    if not all(_settled(s) for s in n):
+        return "noresult"
+    lost = bool(_span(o, onr) - _span(n, nnr))
+    fewer = len(n) + sum(x.get("status") == "accepted" for x in nnr) < len(o) + sum(
+        x.get("status") == "accepted" for x in onr)
+    if (lost or fewer) and any(x.get("status") == "refused" for x in nnr):
+        return "refused_not_rule"
+    if lost or nst.get("unaccounted") and not ost.get("unaccounted"):
+        return "unaccounted"
+    if fewer:
+        return "fewer_answers"
+    checked = lambda sts: [s for s in sts if s["status"] == "Checked"]  # noqa: E731
+    if _span(checked(o), []) - _span(checked(n), []) or len(checked(n)) < len(checked(o)):
+        return "fewer_checked"
+    return None
+
+
+def stored_after(prior, rows):
+    """The store as a run's write left it, built from the rows it wrote (DES-1613: never read back): ``store.rows_for``
+    retires every prior record of :data:`store.TYPES` it does not write, so those types hold the rows it wrote."""
+    after = dict(prior, **{t: {} for t in store.TYPES}, _symbols=dict(prior.get("_symbols") or {}))
+    for r in rows:
+        if r.get("type") not in store.TYPES:
+            continue
+        v = json.loads(r["value"])
+        after["_symbols"][r["key"]] = r["symbol"]
+        if not (isinstance(v, dict) and v.get("status") == store.RETIRED):
+            after[r["type"]][r["key"].split(":", 1)[1]] = v
+    return after
+
+
+def unanswered(calls_dir):
+    """The calls of ``calls_dir`` whose latest send did not answer (its calls ledger; an unreadable ledger is one). A
+    stage may go on past such a call (a checker chunk, a repair, a prose check), so the refresh asks the ledger."""
+    try:
+        with open(os.path.join(calls_dir, "ledger.jsonl")) as fh:
+            last = {(r.get("step"), r.get("id")): r.get("ok") for r in (json.loads(ln) for ln in fh if ln.strip())}
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError):
+        return 1
+    return sum(1 for ok in last.values() if not ok)
+
+
+def refresh(repo, S, C, R, ruled, prior, first, scope_in, root, db, out_dir, log, write):
+    """garden#1613 (DES-1613): after the run stored its model (``first``, from ``R``), the targets an earlier pipeline
+    version stated, on unchanged code and with no ruling (``ruled["refreshable"]``), are stated and checked again in
+    ``<out>/refresh`` (their own call cache; no carry). The store takes them all, with the prose rewritten where its
+    statements moved, in a second write, or none: then their records are stamped ``refresh_refused`` with this version
+    and the next runs make no refresh call until it moves. A call that did not answer (:func:`unanswered`), or a step or
+    write that fails, leaves the first write as it is, unstamped (the next run tries again). Returns (what it did, (model, R, store report) when adopted, else None)."""
+    elig = list(ruled["refreshable"])
+    out = dict(eligible=len(elig), adopted=0, refused=0, reasons=[], model_calls=0)
+    if not elig:
+        return out, None
+    mine = set(elig)
+    say(log, f"refresh · {len(elig)} targets stated by an earlier pipeline version are stated again with this one; the "
+             f"store takes them only if none is worse")
+    rdir = os.path.join(out_dir, "refresh")
+    rcalls = os.path.join(rdir, "calls")
+
+    def count():
+        try:
+            out["model_calls"] = made_calls(rcalls)
+        except (OSError, ValueError):
+            pass  # the count is a report; the store already holds the run's model
+
+    def failed(code):
+        out["reasons"] = [dict(target=None, code=code)]
+        count()
+        say(log, f"refresh · not adopted ({code}): the store keeps this run's model, and the next run tries again")
+        return out, None
+    m = R2 = None
+    try:
+        calls.configure(rcalls)
+        A = extract_some(repo, S, C, mine)
+        if any(s["status"] == "pending" for s in A["statements"]):
+            A = check.check_all(repo, S, C, A, os.path.join(rdir, "check"))
+        reasons = [dict(target=t, code=c) for t in elig for c in [worse(t, R, A)] if c]
+        if not reasons:
+            keep = lambda x: x.get("target") not in mine  # noqa: E731
+            R2 = dict(statements=[s for s in R["statements"] if keep(s)] + A["statements"],
+                      not_rules=[x for x in R["not_rules"] if keep(x)] + A["not_rules"],
+                      targets=dict({t: v for t, v in R["targets"].items() if t not in mine},
+                                   **{t: v for t, v in (A.get("targets") or {}).items() if t in mine}))
+            m = _assemble(repo, S, C, R2, ruled, {t: v for t, v in ruled["earlier"].items() if t not in mine},
+                          stored_after(prior, first["rows"]), scope_in, root, out_dir, os.path.join(rdir, "calls"),
+                          lambda _: None)
+            # prose reused whole means reused from the store before this run: a group the first write made is not
+            m.update(prose_reused=first["prose_reused"] and m["prose_reused"],
+                     pcounts=first["pcounts"] if m["prose_reused"] else m["pcounts"])
+    except calls.CallFailed:
+        return failed("call_failed")
+    except Exception:  # noqa: BLE001 - the first write stands whatever stopped the phase; the code says what
+        return failed("phase_failed")
+    if unanswered(rcalls):
+        return failed("call_failed")
+    count()
+    if reasons:
+        codes = sorted({r["code"] for r in reasons})
+        stamp = [dict(r, value=json.dumps(dict(json.loads(r["value"]), refresh_refused=store.STATING), sort_keys=True))
+                 for r in first["rows"] if r.get("type") == store.TARGET and r["key"].split(":", 1)[1] in mine]
+        try:
+            write(db, stamp)
+            then = "not stated again until the pipeline version moves"
+        except Exception:  # noqa: BLE001 - an unstamped record only means the next run tries again
+            then = "the refusal was not stored, so the next run tries again"
+        out.update(refused=len(elig), reasons=reasons)
+        say(log, f"refresh · not adopted: {len(reasons)} of {len(elig)} targets would be worse ({', '.join(codes)}); "
+                 f"kept as stored, and {then}")
+        return out, None
+    try:
+        report = write(db, m["rows"])
+    except Exception:  # noqa: BLE001 - the first write stands
+        return failed("write_failed")
+    out["adopted"] = len(elig)
+    say(log, f"refresh · adopted: {len(elig)} targets are stated with this pipeline version")
+    return out, (m, R2, report)
+
+
+def _assemble(repo, S, C, R, ruled, earlier, prior, scope_in, root, out_dir, calls_dir, log):
+    """The model a run stores from its checked result ``R``: the target records (``earlier``: the targets that keep the
+    version an earlier pipeline stated them with), the prose, the follow-ups and the rows of one write over ``prior``
+    (the store the write replaces). ``lost``: the confirms that no longer apply."""
     live = [s for s in R["statements"] if s.get("status") in ("Checked", "open")]
     spans = store._unit_spans(repo)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
@@ -364,8 +566,10 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
         tn = [x for x in R["not_rules"] if x.get("target") == t["id"]]
         rec = store.target_record(repo, t, call_of[t["id"]], sts, tn, R["targets"].get(t["id"]) or {}, spans, S["targets"])
         rec["anchor_symbol"] = t.get("anchor_symbol")
-        if t["id"] in ruled["earlier"]:
-            rec["pipeline"] = ruled["earlier"][t["id"]]
+        if t["id"] in earlier:
+            rec["pipeline"] = earlier[t["id"]]
+        if t["id"] in ruled["refused"]:
+            rec["refresh_refused"] = store.STATING
         records.append(rec)
     # a confirm applies (in core) while its target's hash is the one it was made on; a target that went back to the
     # writer for a sibling can come back with other pieces, and then the confirm it kept no longer applies: said
@@ -375,7 +579,6 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     confirmed_t = {i for i, h in ruled["targets"].items() if th_of.get(i) == h}
     lost = len(ruled["confirmed"]) - len(confirmed) + len(ruled["targets"]) - len(confirmed_t)
     if lost:
-        ruled["stale"] += lost
         say(log, f"rulings · {lost} confirmed no longer apply: the writer's new statements changed what their target cites")
     is_open = lambda s: s["status"] == "open" and s.get("id") not in confirmed  # noqa: E731
     is_accounted = lambda t: not (R["targets"].get(t) or {}).get("unaccounted") or t in confirmed_t  # noqa: E731
@@ -403,23 +606,9 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     own = store.run_row(repo, records, scope_in, S["scope_hash"], run_id, int(time.time()))
     if own is None:
         say(log, "the run's own record was not stored: no target of the scope has an estate node")
-    report = write(db, rows + ([own] if own else []))
-    calls.drop_carry()
-    # a person's confirm settles what it names: the counts say so
-    accounted = sum(1 for t in S["targets"] if is_accounted(t["id"]))
-    summary = dict(targets=len(S["targets"]), accounted=accounted, checked=sum(s["status"] == "Checked" for s in live),
-                   open=sum(is_open(s) for s in live), confirmed=len(confirmed), rulings_stale=ruled["stale"],
-                   rejected_again=[r["target"] for r in again], groups=len(groups), withheld=withheld,
-                   followups=len(fu), reuse=n, prose_reused=prose_reused, prose_counts=pcounts, uncited=uncited,
-                   earlier_pipeline=dict(targets=len(ruled["earlier"]), groups=sum(
-                       1 for p in pmeta.get("pipeline_of", {}).values() if p != store.PROSE)),
-                   model_calls=made_calls(calls_dir), unplaced=unplaced, store=report, scope_hash=S["scope_hash"],
-                   wall_s=round(time.time() - t0, 1))
-    lib.jdump(summary, os.path.join(out_dir, "summary.json"))
-    say(log, f"stored · {summary['checked']} checked statements · {len(fu)} follow-ups · {accounted} of "
-             f"{len(S['targets'])} targets accounted · {summary['model_calls']} model calls"
-        + (f" · {len(unplaced)} not stored (no estate node for their file)" if unplaced else ""))
-    return summary, R, groups, fu
+    return dict(live=live, records=records, confirmed=confirmed, confirmed_t=confirmed_t, lost=lost, groups=groups,
+                pmeta=pmeta, prose_reused=prose_reused, pcounts=pcounts, uncited=uncited, fu=fu, unplaced=unplaced,
+                rows=rows + ([own] if own else []))
 
 
 def main(argv=None):
