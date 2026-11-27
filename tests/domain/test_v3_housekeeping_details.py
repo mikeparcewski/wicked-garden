@@ -132,3 +132,14 @@ def test_areas_match_exactly_and_a_group_with_no_area_keeps_its_details(monkeypa
     gs = by_g(prose.prose_all(STATEMENTS[:3], "demo"))
     assert gs[2]["details"] == [] and [d["id"] for d in gs[3]["details"]] == ["g3.d1"]  # no area: not moved
     assert (gs[4]["area"], gs[4]["title"], [d["id"] for d in gs[4]["details"]]) == ("src/Parser.ts", "src/Parser.ts: file and error handling", ["g1.d1"])
+
+
+def test_a_made_housekeeping_group_is_numbered_after_a_malformed_one_too(monkeypatch):
+    # the writer's last group cannot be checked (no RULE); ``written`` holds it, so the made group comes after it
+    scripted(monkeypatch, [g(1, "B", "business", ("Positive amounts post.", ["S1"]),
+                             [("`OPEN-STATUS` `'00'` opens the file", ["S2"], "housekeeping")]),
+                           dict(g=2, title="bad", area="B", kind="housekeeping", rule=None, details=[])])
+    res = prose.prose_all(STATEMENTS[3:], "demo")
+    nums = [x["g"] for x in res["groups"]]
+    assert sorted(nums) == [1, 2, 3] and by_g(res)[3]["title"] == "B: file and error handling"
+    assert by_g(res)[2]["withheld"][0]["layer"] == "group"
