@@ -5,6 +5,7 @@ mini-cobol estate of ``test_v3_store.py``, run through the real ``run.run`` and 
 and its calls ledger); only the ``wicked-core model-call`` process is replaced (``test_v3_carry_calls.seat_process``)."""
 import json
 import os
+import sqlite3
 
 from domain import run, scope, store
 from tests.domain.test_v3_carry_calls import seat_process
@@ -17,9 +18,17 @@ BIG = "\x1b[31m" + "Z" * 10000
 
 
 class Seats(FakeSeats):
-    """FakeSeats; ``mode`` changes what the seats answer: ``unsupported`` (the checker refutes every claim),
-    ``silent`` (the writer's extract does not answer), ``mfail`` (the writer's statement fails the M checks, with a
-    10 kB claim text), ``reworded`` (the writer says the overtime claim in other words)."""
+    """FakeSeats; ``mode`` changes what the seats answer:
+
+    - ``overreach``: the checker flags every claim (union.FLAG), so it goes to repair and re-check;
+    - ``unverifiable``: the checker can confirm no claim (a settled verdict that is not Checked);
+    - ``blank``: the checker answers with no result for any statement (left unchecked);
+    - ``silent``: the writer's extract does not answer;
+    - ``mfail``: the writer's statement fails the M checks, with a 10 kB claim text;
+    - ``reworded``: the writer says the overtime claim in other words;
+    - ``refuse``: the writer answers READ-PARA with a not-rule over its own lines, which hold a decision (refused by
+      M7, extract.py:332-336);
+    - ``omit``: the writer leaves out every target with no statement (each answered by a not-rule before)."""
     mode = None
 
     def claude(self, step, cid, prompt, timeout=1500, role=None, **kw):
@@ -27,6 +36,15 @@ class Seats(FakeSeats):
             self.n += 1
             return "", 1
         out, rc = super().claude(step, cid, prompt, timeout, role, **kw)
+        if step == "extract" and self.mode in ("refuse", "omit"):
+            j = json.loads(out)
+            if self.mode == "omit":
+                j["targets"] = [t for t in j["targets"] if t["statements"]]
+            for t in j["targets"]:
+                if self.mode == "refuse" and t["statements"]:
+                    a, b = next(x["lines"] for x in self.S["targets"] if x["id"] == t["target"])
+                    t["statements"], t["not_rules"] = [], [dict(lines=f"{PROG}:{a}-{b}", reason="control-only")]
+            out = json.dumps(j)
         if step == "extract" and self.mode in ("mfail", "reworded"):
             j = json.loads(out)
             for t in j["targets"]:
@@ -41,10 +59,13 @@ class Seats(FakeSeats):
 
     def codex(self, step, cid, prompt, timeout=1500, role=None):
         out, rc = super().codex(step, cid, prompt, timeout, role)
-        if self.mode == "unsupported" and (step.startswith("check") or step.startswith("recheck")):
+        verdict = dict(overreach="OVERREACH", unverifiable="UNVERIFIABLE").get(self.mode)
+        if (step.startswith("check") or step.startswith("recheck")) and self.mode in ("overreach", "unverifiable", "blank"):
             j = json.loads(out)
+            if self.mode == "blank":
+                j["results"] = []
             for r in j["results"]:
-                r["claims"] = [dict(c, verdict="UNSUPPORTED", reason="not what the code says") for c in r["claims"]]
+                r["claims"] = [dict(c, verdict=verdict, reason="not what the code says") for c in r["claims"]]
             out = json.dumps(j)
         return out, rc
 
@@ -93,14 +114,14 @@ def test_a_full_refresh_is_adopted_and_the_next_run_reports_nothing_earlier_and_
 def test_a_refresh_that_states_less_is_refused_stamped_and_not_tried_again_until_the_version_moves(tmp_path, monkeypatch):
     repo, S, seats, scope_in = setup(tmp_path, monkeypatch)
     before = stored(repo.db)
-    seats.mode = "unsupported"
+    seats.mode = "unverifiable"
     summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run2")
     fr = summary["refresh"]
+    read = target_row(repo.db, "READ-PARA")["target"]
     assert calls > 0 and fr["adopted"] == 0 and fr["refused"] == fr["eligible"] > 0
-    # a refuted claim goes to repair and re-check: what is left is unchecked (noresult) or fewer Checked statements
-    codes = {r["code"] for r in fr["reasons"]}
-    assert codes and codes <= {"noresult", "fewer_checked"}, fr
-    assert any("refresh · not adopted" in ln and all(c in ln for c in codes) for ln in lines), lines
+    assert fr["reasons"] == [dict(target=read, code="fewer_checked")], fr
+    assert any("refresh · not adopted" in ln and "fewer_checked" in ln and "until the pipeline version moves" in ln
+               for ln in lines), lines
     after = stored(repo.db)
     assert after[store.RULE] == before[store.RULE] and after[store.GROUP] == before[store.GROUP]
     assert versions(repo.db) == {OLD}
@@ -233,6 +254,10 @@ def test_stored_after_is_the_store_the_first_write_left(tmp_path, monkeypatch):
     # shared/cached reads: the refresh plans its write over the first write's rows, in memory (never a read-back);
     # they must be exactly the store that write left, as store.load reads it
     repo, S, seats, scope_in = setup(tmp_path, monkeypatch)
+    # a record of no target of this scope: the first write retires it, so its rows hold a retired one
+    sym = target_row(repo.db, "READ-PARA")["anchor_symbol"]
+    fake_write(repo.db, [dict(op="annotate", symbol=sym, key=f"{store.FOLLOWUP}:gone", value=json.dumps(dict(kind="gone")),
+                              type=store.FOLLOWUP, author=store.AUTHOR, replace=True)])
     got = []
 
     def keep(db, rows):
@@ -244,6 +269,99 @@ def test_stored_after_is_the_store_the_first_write_left(tmp_path, monkeypatch):
         return fake_write(db, rows)
     run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lambda s: None, write=keep)
     before, rows, read_back = got[0]
+    assert any(r["key"] == f"{store.FOLLOWUP}:gone" and json.loads(r["value"]).get("status") == store.RETIRED for r in rows)
     after = run.stored_after(before, rows)
+    assert "gone" in before[store.FOLLOWUP] and "gone" not in after[store.FOLLOWUP]
     for t in store.TYPES:
         assert after[t] == read_back[t], t
+
+
+def _refused(tmp_path, monkeypatch, mode):
+    repo, S, seats, scope_in = setup(tmp_path, monkeypatch)
+    before = stored(repo.db)
+    seats.mode = mode
+    summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run2")
+    after = stored(repo.db)
+    assert after[store.RULE] == before[store.RULE] and versions(repo.db) == {OLD}, "nothing adopted"
+    return repo, summary["refresh"], seats
+
+
+def test_a_statement_the_checker_left_without_a_result_blocks_the_refresh(tmp_path, monkeypatch):
+    repo, fr, seats = _refused(tmp_path, monkeypatch, "blank")
+    assert fr["reasons"] == [dict(target=target_row(repo.db, "READ-PARA")["target"], code="noresult")], fr
+
+
+def test_a_refused_not_rule_in_place_of_a_statement_blocks_the_refresh(tmp_path, monkeypatch):
+    repo, fr, seats = _refused(tmp_path, monkeypatch, "refuse")
+    assert fr["reasons"] == [dict(target=target_row(repo.db, "READ-PARA")["target"], code="refused_not_rule")], fr
+
+
+def test_a_target_the_writer_leaves_out_is_newly_unaccounted_and_blocks_the_refresh(tmp_path, monkeypatch):
+    repo, fr, seats = _refused(tmp_path, monkeypatch, "omit")
+    assert fr["reasons"] and {r["code"] for r in fr["reasons"]} == {"unaccounted"}, fr
+    assert target_row(repo.db, "READ-PARA")["target"] not in {r["target"] for r in fr["reasons"]}
+
+
+def test_a_flagged_claim_goes_to_repair_in_the_refresh_and_what_is_left_is_judged(tmp_path, monkeypatch):
+    repo, fr, seats = _refused(tmp_path, monkeypatch, "overreach")
+    assert ("claude", "repair") in seats.sent, seats.sent
+    assert fr["refused"] > 0 and fr["reasons"] and {r["code"] for r in fr["reasons"]} <= set(run.REFRESH_CODES)
+
+
+def test_a_mixed_answer_that_trades_a_statement_for_a_refused_not_rule_is_worse_on_an_unaccounted_target():
+    # codex round 1: the target was already unaccounted, with a settled open statement (A) and an accepted not-rule
+    # (B); the refresh answers A with a refused not-rule and keeps B. Shapes: extract.py:420 (state), :431 (not-rule
+    # status), check.py:420 (status, status1)
+    t = "T"
+    old = dict(statements=[dict(target=t, id="T#0", status="open", status1="unverifiable", m_fail=[])],
+               not_rules=[dict(target=t, id="T#nr0", status="accepted")], targets={t: dict(unaccounted=True)})
+    new = dict(statements=[], not_rules=[dict(target=t, id="T#nr0", status="refused"),
+                                         dict(target=t, id="T#nr1", status="accepted")],
+               targets={t: dict(unaccounted=True)})
+    assert run.worse(t, old, new) == "refused_not_rule"
+    assert run.worse(t, old, old) is None
+
+
+def test_a_call_that_did_not_answer_inside_a_stage_is_a_failed_refresh_not_a_refusal(tmp_path, monkeypatch):
+    # codex round 1: the check goes on past a repair call that did not answer (check.py:334-335), leaving the flagged
+    # statement as it was; judged as it stands, that would be refused and stamped for the whole version. The refresh
+    # reads its calls ledger, so it neither stamps a refusal nor adopts
+    repo, S, seats, scope_in = setup(tmp_path, monkeypatch)
+    before = stored(repo.db)
+    seats.mode = "overreach"
+    seats.sent = seat_process(monkeypatch, seats, fail=lambda family, step: family == "claude" and step == "repair")
+    summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run2")
+    assert ("claude", "repair") in seats.sent
+    assert summary["refresh"]["reasons"] == [dict(target=None, code="call_failed")], summary["refresh"]
+    after = stored(repo.db)
+    assert after[store.RULE] == before[store.RULE] and after[store.GROUP] == before[store.GROUP]
+    assert {r.get("refresh_refused") for r in after[store.TARGET].values()} == {None}
+
+
+def test_a_failing_stamp_write_says_the_next_run_tries_again(tmp_path, monkeypatch):
+    repo, S, seats, scope_in = setup(tmp_path, monkeypatch)
+    writes = []
+
+    def stamp_fails(db, rows):
+        writes.append(rows)
+        if len(writes) == 2:
+            raise RuntimeError("wicked-estate write-batch failed (1)")
+        return fake_write(db, rows)
+    seats.mode = "unverifiable"
+    summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run2", write=stamp_fails)
+    assert summary["refresh"]["refused"] > 0
+    assert any("the refusal was not stored, so the next run tries again" in ln for ln in lines), lines
+    assert {r.get("refresh_refused") for r in store.load(repo.db)[store.TARGET].values()} == {None}
+    summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run3")
+    assert calls > 0 and summary["refresh"]["eligible"] > 0
+
+
+def test_a_refreshed_run_reports_prose_reused_only_from_the_store_before_it(tmp_path, monkeypatch):
+    # agy round 1: the second write reuses the groups the first write made; that is not reuse from the store
+    repo, S, seats, scope_in = setup(tmp_path, monkeypatch)
+    con = sqlite3.connect(repo.db)  # a store with no prose: the first write of the next run writes it
+    con.execute("delete from annotations where type = ?", (store.GROUP,))
+    con.commit()
+    con.close()
+    summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run2")
+    assert summary["refresh"]["adopted"] > 0 and summary["prose_reused"] is False, summary
