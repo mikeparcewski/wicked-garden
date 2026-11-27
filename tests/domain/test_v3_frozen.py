@@ -31,7 +31,7 @@ PROOF = {
     # garden#1599 (DES-1599, coord-approved): each DETAIL carries its own kind, the housekeeping list is spelled out, a business RULE cites only business statements; the proof froze 00ddf9bf9ccb.
     # garden#1545 (DES-1545-t18 B-min, coord-approved): every business sentence cites only business statements, a lookup, a re-read or a write of
     # values set elsewhere that only handles its status is housekeeping, and a mixed DETAIL is split in two (garden#1607); #1599 froze f9514b6ba567.
-    "prompts/prose.txt": "39946c5e2b915fd565bd06b1f66c7fc4037f50a6919fba21a54c6c80f6581be3",
+    "prompts/prose.txt": "a623587316824363b5282f375a04196ae23aae3aeb4532a10af92e24a9577070",
     "prompts/prose_check.txt": "391d74b3a88ca2bbeca6c13f331a088b8eed2e37a4c8ed8354c7ba7a889e8ce2",
     "prompts/prose_repair.txt": "1b2f5d4f5788a263a5d9d29fdad0fc3732446b50aee015de207c79edba06edaa",
 }
