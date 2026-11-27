@@ -28,7 +28,7 @@ import time
 import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/ on path
-from domain import batches, check, extract, followups, prose, scope, store  # noqa: E402
+from domain import batches, check, extract, followups, lookup, prose, scope, store  # noqa: E402
 from domain import graph as lib  # noqa: E402
 from domain import model_calls as calls  # noqa: E402
 from domain.render import render  # noqa: E402
@@ -180,6 +180,10 @@ def plan_reuse(repo, S, C, prior):
                     for k in RESET:
                         s.pop(k, None)
                     s.update(status="pending", m_fail=[], revalidated=True)
+                    # the program's copybooks may have changed outside the cited lines (a COPY line): its fields are
+                    # resolved again, so its "Uses:" row names what the code reads now (garden#1604)
+                    lookup.use_repo(repo)
+                    extract.cite_copybooks(s)
                 sts, nrs = moved, nmoved
         decision[t["id"]] = d
         if d == "extract":

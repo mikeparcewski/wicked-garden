@@ -226,6 +226,11 @@ def cite_copybooks(st):
     The host's line replaces one the model gave for such a field (garden#1604: the rendered text shows only entries the
     host resolved); a model entry for any other name stays as it is, unmarked. 0 model calls; a statement the M checks
     refused keeps whatever shape it has. Not COBOL: unchanged."""
+    # the host mark is the host's alone: whatever came in (a repair hands the model's context back, a model can write
+    # one) is cleared, and only a field resolved from the claims as they are now gets it back
+    for x in st.get("context") if isinstance(st.get("context"), list) else []:
+        if isinstance(x, dict):
+            x.pop("by", None)
     f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
     if not isinstance(f, str) or not is_cobol(f) or not isinstance(st.get("claims"), list):
         return st

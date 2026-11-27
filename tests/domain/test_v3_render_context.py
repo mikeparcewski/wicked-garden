@@ -5,7 +5,7 @@ through the real ``run.run`` with its scripted seats."""
 import os
 
 from domain import extract, graph, lookup, model_calls, render, run, scope, store
-from tests.domain.test_v3_store import PROG, FakeSeats, fake_write, make_repo, stored
+from tests.domain.test_v3_store import PROG, FakeSeats, edit, fake_write, make_repo, stored
 
 CPY = "app/cpy/PAYREC.cpy"
 
@@ -62,3 +62,34 @@ def test_a_repeated_entry_is_named_once_in_stored_order():
               context=[dict(symbol="B", at="c/X.cpy:2", by="host"), dict(symbol="A", at="c/X.cpy:1", by="host"),
                        dict(symbol="B", at="c/X.cpy:2", by="host")])
     assert render.render(st, "P").splitlines()[1] == "- Uses: `B` (c/X.cpy:2), `A` (c/X.cpy:1)"
+
+
+def test_a_host_mark_that_came_in_is_cleared_unless_the_claims_still_name_the_field(tmp_path):
+    # a repair hands the model's context back (check.py repair_one, then cite_copybooks again): a field its claims no
+    # longer name, or a mark the model wrote itself, is not shown
+    st = _resolved(tmp_path, [dict(symbol="PAY-RATE", at=f"{CPY}:4", by="host"), dict(symbol="WS-X", at="a.cpy:1", by="host")],
+                   "`PAY-HOURS` is added")
+    assert st["context"] == [dict(symbol="PAY-RATE", at=f"{CPY}:4"), dict(symbol="WS-X", at="a.cpy:1"),
+                             dict(symbol="PAY-HOURS", at=f"{CPY}:3", by="host")]
+    other = extract.cite_copybooks(dict(anchor=dict(file="a.ts", lines=[1, 2]), claims=[], context=[dict(symbol="x", at="a.ts:1", by="host")]))
+    assert other["context"] == [dict(symbol="x", at="a.ts:1")] and "Uses" not in render.render(other, "f")
+
+
+def test_a_changed_copy_line_outside_the_cited_lines_moves_the_row_to_the_new_copybook(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats, prompts = FakeSeats(S), []
+    monkeypatch.setattr(model_calls, "claude", lambda step, cid, prompt, *a, **k: prompts.append((step, prompt)) or seats.claude(step, cid, prompt, *a, **k))
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", description="payroll")
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "r1"), write=fake_write)
+    with open(os.path.join(repo.root, CPY)) as fh, open(os.path.join(repo.root, "app/cpy/PAYNEW.cpy"), "w") as out:
+        out.write(fh.read())
+    edit(repo, PROG, lambda L: [b"       COPY PAYNEW." if ln.strip() == b"COPY PAYREC." else ln for ln in L])
+    prompts[:] = []
+    second, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "r2"), write=fake_write)
+    assert second["reuse"]["revalidate"] >= 1, second["reuse"]
+    rule = next(v for v in stored(repo.db)[store.RULE].values() if v["contract"]["anchor"]["file"] == PROG)
+    row = "- Uses: `PAY-HOURS` (app/cpy/PAYNEW.cpy:3), `PAY-AMOUNT` (app/cpy/PAYNEW.cpy:5), `PAY-RATE` (app/cpy/PAYNEW.cpy:4)"
+    assert rule["statement"].splitlines()[1] == row, rule["statement"]
+    assert any(step == "prose" and row in p for step, p in prompts)
