@@ -143,7 +143,7 @@ def plan_reuse(repo, S, C, prior):
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
-    ruled = dict(confirmed={}, targets={}, rejected=[], live=0, upgraded=0, held={}, fallback={})
+    ruled = dict(confirmed={}, targets={}, rejected=[], live=0, earlier={})
     ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
         rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
@@ -162,17 +162,6 @@ def plan_reuse(repo, S, C, prior):
             # the writer gave the target no answer at all: asked again. One it answered with a refused not-rule stands
             # on unchanged code (0 calls), with its follow-up for the user to settle; so does one a person confirmed.
             d = "extract"
-        if rec and rec.get("pipeline") != store.STATING and d != "extract" and not rejected:
-            # stored by another version of the stating pipeline (or before versions were kept): stated again, so an
-            # upgrade's change reaches unchanged code (garden#1601). Not while a person's confirm holds the target:
-            # a confirm binds the target's hash, which a new statement can change, so it stays as stored (and said).
-            if confirmed or target_confirmed:
-                ruled["held"][t["id"]] = rec.get("pipeline")  # its record keeps the old version: said every run
-            else:
-                if d == "carry" and rec["target"] == t["id"]:
-                    ruled["fallback"][t["id"]] = rec  # kept as stored if the writer's new answer falls short
-                d = "extract"
-                ruled["upgraded"] += 1
         if rejected:
             d = "extract"  # a person said a statement is wrong: the writer states the lines again, with their note
             t["rejected"] = rejected
@@ -193,6 +182,10 @@ def plan_reuse(repo, S, C, prior):
                     s.update(status="pending", m_fail=[], revalidated=True)
                 sts, nrs = moved, nmoved
         decision[t["id"]] = d
+        if d != "extract" and rec.get("pipeline") != store.STATING:
+            # stated by an earlier version of the stating pipeline (or before versions were kept): carried as it is,
+            # its record keeps that version, and the run says so (garden#1601: a fresh store states it again)
+            ruled["earlier"][t["id"]] = rec.get("pipeline")
         if d == "extract":
             # what a person confirmed stands, as it is and under its id, beside what the writer states again; the
             # writer is told so (extract.person_section), and those lines count as stated (extract.check_target)
@@ -224,27 +217,6 @@ def plan_reuse(repo, S, C, prior):
     return decision, carried, pending, not_rules, states, ruled
 
 
-def keep_on_failed_refresh(A, fallback, C, carried, not_rules):
-    """A target re-extracted only because the pipeline changed (``fallback``: its prior record, on unchanged code) keeps
-    the stored record when the new answer leaves lines unaccounted and either the stored one did not or the new one
-    states nothing at all (no statement, no not-rule): its statements and not-rules go back in place of the new ones
-    (garden#1601). So an upgrade never makes a target worse accounted, and a writer that fails never empties one.
-    Returns {target id: the stored record's pipeline version}."""
-    call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
-    kept = {}
-    for tid, rec in fallback.items():
-        said = any(s.get("target") == tid for s in A["statements"]) or any(x.get("target") == tid for x in A["not_rules"])
-        if not (A["targets"].get(tid) or {}).get("unaccounted") or (rec.get("state") or {}).get("unaccounted") and said:
-            continue
-        A["statements"] = [s for s in A["statements"] if s.get("target") != tid]
-        A["not_rules"] = [x for x in A["not_rules"] if x.get("target") != tid]
-        carried.extend(dict(s, target=tid, call=call_of[tid]["id"]) for s in rec["_statements"])
-        not_rules.extend(dict(x, target=tid) for x in rec.get("not_rules") or [])
-        A["targets"][tid] = dict(rec.get("state") or {}, call=call_of[tid]["id"])
-        kept[tid] = rec.get("pipeline")
-    return kept
-
-
 def extract_some(repo, S, C, tids):
     """``extract.extract_all`` on the targets in ``tids`` only; calls with none of them are not made."""
     cs = [dict(c, targets=[x for x in c["targets"] if x in tids]) for c in C["calls"]]
@@ -256,19 +228,17 @@ def extract_some(repo, S, C, tids):
 
 def prose_for(statements, desc, desc_key, prior):
     """The run's rule groups (DES §5): a stored group is reused, with 0 calls, while every statement it rests on reads
-    the same, the run's description is the same (``desc_key``: the scope's own, never the checkout's folder name) and the
-    prose pipeline is the same version (``store.PROSE``);
+    the same and the run's description is the same (``desc_key``: the scope's own, never the checkout's folder name);
     the statements no reused group rests on are written again (``prose.prose_all``). Returns (groups, meta, reused
     whole, counts, uncited): ``meta`` is what the store keeps to decide the next run's reuse."""
     rows = prose.rows_of(statements)
     text_of = {r["id"]: store.sha(r["text"].encode()) for r in rows}
-    meta = dict(text_of=text_of, desc=desc_key, pipeline=store.PROSE)
+    # the prose pipeline's version: a group written now carries it, a reused group keeps its own (garden#1601)
+    meta = dict(text_of=text_of, desc=desc_key, pipeline=store.PROSE, pipeline_of={})
     if not rows:
         return [], meta, False, {}, []
     reused, covered, left_out = [], set(), set()
-    # a group the prose pipeline of another version wrote is written again (garden#1601)
-    mine = [v for v in prior[store.GROUP].values() if isinstance(v, dict) and v.get("desc") == desc_key
-            and v.get("pipeline") == store.PROSE]
+    mine = [v for v in prior[store.GROUP].values() if isinstance(v, dict) and v.get("desc") == desc_key]
     ok = [bool(v.get("inputs")) and all(text_of.get(i) == h for i, h in v["inputs"].items()) for v in mine]
     # a group that shares a statement with a group written again is written again too (garden#1599: a business
     # group and the housekeeping group its details moved to rest on the same statement), so the writer sees every
@@ -284,6 +254,7 @@ def prose_for(statements, desc, desc_key, prior):
         if k:
             reused.append(v["group"])
             covered |= set(v["inputs"])
+            meta["pipeline_of"][v["group"].get("g")] = v.get("pipeline")
         unc = v.get("uncited")
         left_out |= {i for i, h in (unc if isinstance(unc, dict) else {}).items() if text_of.get(i) == h}
     todo = {i for i in text_of if i not in covered and i not in left_out}
@@ -329,21 +300,15 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     prior = store.load_symbols(db, store.load(db))
     decision, carried, pending, nrs, states, ruled = plan_reuse(repo, S, C, prior)
     n = {d: sum(1 for v in decision.values() if v == d) for d in ("carry", "revalidate", "extract")}
-    say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract" + (
-        f" ({ruled['upgraded']} stored by an earlier version of the pipeline)" if ruled["upgraded"] else ""))
-    if ruled["held"]:
-        say(log, f"reuse · {len(ruled['held'])} targets stored by an earlier version of the pipeline kept as they are: a "
-                 f"person's confirm holds them")
+    say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract")
+    if ruled["earlier"]:
+        say(log, f"reuse · {len(ruled['earlier'])} targets were stated by an earlier pipeline version; a fresh store "
+                 f"states them with this one")
     if ruled["confirmed"] or ruled["targets"] or ruled["rejected"] or ruled["stale"]:
         say(log, f"rulings · {len(ruled['confirmed'])} statements and {len(ruled['targets'])} targets confirmed · "
                  f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
                  f"(the code or the statement changed)")
     A = extract_some(repo, S, C, {t for t, d in decision.items() if d == "extract"})
-    kept_old = keep_on_failed_refresh(A, ruled["fallback"], C, carried, nrs)
-    old_version = dict(ruled["held"], **kept_old)
-    if kept_old:
-        say(log, f"reuse · {len(kept_old)} targets the new pipeline left unaccounted kept as stored; the next run "
-                 f"tries again")
     # a rejected statement the writer stated again, word for word: said, so a re-run is not paid for blind
     again = [r for r in ruled["rejected"] if any(s.get("target") == r["target"] and store.statement_key(s) == r["key"]
                                                   for s in A["statements"])]
@@ -368,8 +333,8 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         tn = [x for x in R["not_rules"] if x.get("target") == t["id"]]
         rec = store.target_record(repo, t, call_of[t["id"]], sts, tn, R["targets"].get(t["id"]) or {}, spans, S["targets"])
         rec["anchor_symbol"] = t.get("anchor_symbol")
-        if t["id"] in old_version:
-            rec["pipeline"] = old_version[t["id"]]  # still the old version: the next run tries again (or says so)
+        if t["id"] in ruled["earlier"]:
+            rec["pipeline"] = ruled["earlier"][t["id"]]
         records.append(rec)
     # a confirm applies (in core) while its target's hash is the one it was made on; a target that went back to the
     # writer for a sibling can come back with other pieces, and then the confirm it kept no longer applies: said
@@ -407,6 +372,8 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
                    open=sum(is_open(s) for s in live), confirmed=len(confirmed), rulings_stale=ruled["stale"],
                    rejected_again=[r["target"] for r in again], groups=len(groups), withheld=withheld,
                    followups=len(fu), reuse=n, prose_reused=prose_reused, prose_counts=pcounts, uncited=uncited,
+                   earlier_pipeline=dict(targets=len(ruled["earlier"]), groups=sum(
+                       1 for p in pmeta.get("pipeline_of", {}).values() if p != store.PROSE)),
                    model_calls=made_calls(calls_dir), unplaced=unplaced, store=report, scope_hash=S["scope_hash"],
                    wall_s=round(time.time() - t0, 1))
     lib.jdump(summary, os.path.join(out_dir, "summary.json"))

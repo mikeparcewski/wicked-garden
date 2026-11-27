@@ -609,7 +609,7 @@ def test_only_the_groups_whose_statements_changed_are_written_again(monkeypatch)
     groups, meta, whole, _, uncited = run.prose_for(STATEMENTS, "repo", "", prior)
     assert asked == [(["b#0"], 1)] and whole is False and uncited == []
     assert [g["g"] for g in groups] == [1, 2] and groups[0] is g1 and groups[1]["rule"]["cites"] == ["b#0"]
-    assert meta == dict(text_of=text_of, desc="", pipeline=store.PROSE)
+    assert meta == dict(text_of=text_of, desc="", pipeline=store.PROSE, pipeline_of={1: store.PROSE})
 
 
 def _prose_seats(monkeypatch, answers):

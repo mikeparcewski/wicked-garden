@@ -51,9 +51,9 @@ PROSE_FILES = ("prompts/prose.txt", "prompts/prose_check.txt", "prompts/prose_re
 
 def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SHA256SUMS")):
     """The versions of the pipeline that states (extract, check, repair, R, cards, contract) and that writes the prose,
-    from the frozen hashes in ``SHA256SUMS`` (tests/domain/test_v3_frozen.py ties them to the files). A stored record
-    made under another version is made again (garden#1601): an upgrade that changes what is stated reaches a store
-    kept across it."""
+    from the frozen hashes in ``SHA256SUMS`` (tests/domain/test_v3_frozen.py ties them to the files). Each stored target
+    and rule group carries the version that made it, and a run says how many were made by an earlier one
+    (garden#1601); a fresh store makes them again."""
     with open(sums) as fh:
         lines = sorted(" ".join(ln.split()) for ln in fh if ln.strip())
     def v(sel):
@@ -425,7 +425,8 @@ def rows_for(repo, result, records, groups, prose_meta, followup_rows, prior, re
             # statements went back to the writer in the same run, so its notice is this run's alone
             whole = any(isinstance(x, dict) and x.get("layer") == "group" for x in g.get("withheld") or [])
             add(sym, GROUP, name, dict(group=g, desc=(prose_meta or {}).get("desc"),
-                                       pipeline=(prose_meta or {}).get("pipeline"),
+                                       pipeline=((prose_meta or {}).get("pipeline_of") or {}).get(
+                                           g.get("g"), (prose_meta or {}).get("pipeline")),
                                        inputs={} if whole else {i: text_of.get(i) for i in _group_ids(g)},
                                        uncited={i: text_of.get(i) for i in uncited}))
             written[GROUP].add(name)
