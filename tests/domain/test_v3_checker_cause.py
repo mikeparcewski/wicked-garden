@@ -48,7 +48,7 @@ def test_a_check_pass_that_never_answers_is_tried_twice_and_the_stop_names_the_e
     checks = [x for x in sent if x[0] == "codex"]
     for step in {s for _, s, _ in checks}:  # the two checkers' passes run side by side (check.check_all)
         mine = [c for _, s, c in checks if s == step]
-        assert len(mine) == 2 * len(set(mine)), f"every call of {step} was sent twice, no more"
+        assert all(mine.count(c) == 2 for c in mine), f"every call of {step} was sent twice, no more"
     step = next(s for _, s, _ in checks if s in str(e.value))
     n = len({c for _, s, c in checks if s == step})
     assert str(e.value) == (f"the checker answered none of the {n} {step} calls (codex, tried twice: {n} x exit 1; "
@@ -72,3 +72,52 @@ def test_a_prose_check_that_never_answers_names_the_cause_too(tmp_path, monkeypa
         prose.check(sents, {"S1": dict(text="`PAY-HOURS > 40`")}, "prose-check")
     assert str(e.value) == ("the checker answered none of the 1 prose-check calls (codex, tried twice: 1 x exit 0 with "
                             "an empty answer; the client wrote no error); nothing was stored")
+
+
+def _pass(tmp_path, monkeypatch, answers):
+    """A checker pass of ``len(answers)`` calls through the real ``model_calls.call``; ``answers[k]`` is the list of
+    (exit code, text, stderr) the client gives call ``c<k>`` on each send."""
+    model_calls.configure(str(tmp_path / "calls"))
+    monkeypatch.setattr(model_calls, "RETRY_WAIT_S", 0)
+    sent = []
+
+    def fake_run(cmd, **kw):
+        v = lambda k: cmd[cmd.index(k) + 1]  # noqa: E731
+        cid = os.path.basename(v("--in"))[:-len(".prompt.txt")]
+        sent.append(cid)
+        rc, text, err = answers[int(cid[1:])][min(sent.count(cid), len(answers[int(cid[1:])])) - 1]
+        if text is not None:
+            with open(v("--out"), "w") as fh:
+                fh.write(text)
+        return types.SimpleNamespace(returncode=rc, stderr=err)
+    monkeypatch.setattr(model_calls, "core_bin", lambda: "wicked-core")
+    monkeypatch.setattr(model_calls, "subprocess", types.SimpleNamespace(run=fake_run, TimeoutExpired=TimeoutError))
+    one = lambda k: (k,) + model_calls.codex("check-a", f"c{k}", f"prompt {k}")  # noqa: E731
+    return sent, lambda: model_calls.checker_pass("check-a", len(answers), one, 2)
+
+
+def test_a_pass_where_one_call_answered_resends_nothing(tmp_path, monkeypatch):
+    # round 1 on garden#1621: only a fully silent pass is sent again; a failed call among answered ones stays open
+    sent, run_pass = _pass(tmp_path, monkeypatch, [[(0, "{}", "")], [(1, None, "boom\n"), (0, "{}", "")]])
+    assert run_pass() == [(0, True), (1, False)]
+    assert sorted(sent) == ["c0", "c1"]
+
+
+def test_a_blank_answer_is_asked_again_never_replayed_from_the_cache(tmp_path, monkeypatch):
+    # round 1 on garden#1621: a whitespace answer was kept as the call's output, so the resend replayed it
+    sent, run_pass = _pass(tmp_path, monkeypatch, [[(0, " \n", ""), (0, '{"results": []}', "")]])
+    assert run_pass() == [(0, True)]
+    assert sent == ["c0", "c0"]
+
+
+def test_the_stop_says_only_what_the_ledger_holds_of_the_latest_attempt(tmp_path, monkeypatch):
+    # round 1 on garden#1621: an exit-0 call's stderr is not in the ledger, nor the head of a long line, nor an
+    # earlier attempt's error
+    long_line = "SECRET-HEAD " + "x" * 400 + " tail-of-the-line"
+    sent, run_pass = _pass(tmp_path, monkeypatch, [[(1, None, "first attempt error\n"), (0, None, "exit-0 diagnostic\n")],
+                                                   [(1, None, long_line + "\n"), (1, None, long_line + "\n")]])
+    with pytest.raises(model_calls.CallFailed) as e:
+        run_pass()
+    msg = str(e.value)
+    assert "SECRET-HEAD" not in msg and "exit-0 diagnostic" not in msg and "first attempt error" not in msg
+    assert msg.endswith("x tail-of-the-line'); nothing was stored") and "1 x exit 0 with an empty answer, 1 x exit 1" in msg

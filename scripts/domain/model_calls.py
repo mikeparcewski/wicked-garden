@@ -103,7 +103,8 @@ def _cached(base, prompt):
     """Same call id + byte-identical prompt + a completed output -> reuse it (a re-run, not a new call)."""
     try:
         if _read(base + ".prompt.txt") == prompt and os.path.getsize(base + ".out.txt") > 0:
-            return _read(base + ".out.txt")
+            text = _read(base + ".out.txt")
+            return text if text.strip() else None  # a blank answer is no answer (garden#1617): asked again
     except OSError:
         return None
     return None
@@ -134,20 +135,29 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
     wall = time.time() - t0
     text = _read(out) if rc == 0 and os.path.exists(out) else ""
     if os.path.exists(out):
-        os.replace(out, base + ".out.txt") if text else os.remove(out)
+        os.replace(out, base + ".out.txt") if text.strip() else os.remove(out)
     if err:
         _write(base + ".stderr.txt", err[-5000:])
-    _log(step, cid, role, family, wall, rc == 0 and bool(text), "" if rc == 0 else err[-300:])
+    _log(step, cid, role, family, wall, answered(text, rc), "" if rc == 0 else err[-300:])
     return text, rc
 
 
-def _last_error(step, cid):
-    """The last non-empty line the client wrote to stderr for this call, at most 200 characters, or ''."""
+def _last_error(step, n):
+    """The last error the calls ledger holds for calls ``c0..c<n-1>`` of ``step``: the last non-empty line of the
+    latest such row's note, its last 200 characters, or ''. Only what the ledger already holds (a failed call's last
+    300 characters of stderr) is said, and only the latest attempt's row is read, never an earlier attempt's."""
+    ids = {f"c{k}" for k in range(n)}
     try:
-        lines = [x.strip() for x in _read(_paths(step, cid)[1] + ".stderr.txt").splitlines() if x.strip()]
-    except OSError:
+        with open(os.path.join(_calls(), "ledger.jsonl")) as fh:
+            rows = [json.loads(ln) for ln in fh if ln.strip()]
+    except (OSError, ValueError):
         return ""
-    return lines[-1][:200] if lines else ""
+    latest = [r for r in rows if r.get("step") == step and r.get("id") in ids][-n:]  # the last send of each call
+    for r in reversed(latest):
+        lines = [x.strip() for x in str(r.get("note") or "").splitlines() if x.strip()] if not r.get("ok") else []
+        if lines:
+            return lines[-1][-200:]
+    return ""
 
 
 def checker_pass(step, n, one, workers):
@@ -165,7 +175,7 @@ def checker_pass(step, n, one, workers):
             time.sleep(RETRY_WAIT_S)
     codes = collections.Counter(rc for _, _, rc in got)
     exits = ", ".join(f"{c} x exit {rc}" + (" with an empty answer" if rc == 0 else "") for rc, c in sorted(codes.items()))
-    last = next((e for e in (_last_error(step, f"c{k}") for k in reversed(range(n))) if e), "")
+    last = _last_error(step, n)
     raise CallFailed(f"the checker answered none of the {n} {step} calls ({CHECKER}, tried twice: {exits}"
                      + (f"; last error: {last!r}" if last else "; the client wrote no error") + "); nothing was stored")
 
