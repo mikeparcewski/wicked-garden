@@ -244,27 +244,52 @@ def cite_copybooks(st):
         if isinstance(x, dict) and isinstance(x.get("symbol"), str):
             placed.setdefault(x["symbol"].strip().upper(), []).append(x)
     done = set()
-    in_program = lambda n: (defs.define(n, [f]) or ("",))[0] == f  # noqa: E731
-    books = defs.copybooks(f)
     for c in st["claims"]:
         if not isinstance(c, dict) or not isinstance(c.get("text"), str):
             continue
         for span in re.findall(r"`([^`]+)`", c["text"]):
             for name in defs.COBID.findall(re.sub(r"'[^']*'|\"[^\"]*\"", " ", span).upper()):
-                if name in done or name in COBKW or in_program(name):
+                if name in done or name in COBKW:
                     continue
                 done.add(name)
-                hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
-                decl = [(cp, k) for cp in books for k, s in enumerate(defs.flines(cp), 1) if len(s) > 7 and s[6] not in "*/"
-                        and (defs.level(s) or (0, ""))[1] == name]
-                if len(hits) == 1 and len(decl) == 1:  # one definition in all its copybooks: its own line
-                    at = f"{decl[0][0]}:{decl[0][1]}"
+                at = declaring_line(f, name)
+                if at:
                     for x in placed.get(name) or []:
-                        x.update(at=at, by="host")
+                        x.update(symbol=name, at=at, by="host")
                     if name not in placed:
                         ctx.append(dict(symbol=name, at=at, by="host"))
     st["context"] = ctx
     return st
+
+
+def declaring_line(f, name):
+    """``copybook:line`` of the one line that declares COBOL field ``name`` among program ``f``'s copybooks as they
+    resolve now (an 88's own line), or ``None``: the program defines it itself, or its copybooks define it twice."""
+    if name in COBKW or (defs.define(name, [f]) or ("",))[0] == f:
+        return None
+    books = defs.copybooks(f)
+    hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
+    decl = [(cp, k) for cp in books for k, s in enumerate(defs.flines(cp), 1) if len(s) > 7 and s[6] not in "*/"
+            and (defs.level(s) or (0, ""))[1] == name]
+    return f"{decl[0][0]}:{decl[0][1]}" if len(hits) == 1 and len(decl) == 1 else None
+
+
+def shown(st):
+    """``st`` as its text shows it (garden#1604): a copy whose host-marked context entries are kept only while the
+    program's copybooks, as they resolve now, still declare that field on that line. A carried statement's stored
+    context can predate a copybook the code now resolves to elsewhere; its contract is not changed, only what is shown."""
+    f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
+    ctx = st.get("context")
+    if not isinstance(ctx, list) or not any(isinstance(x, dict) and x.get("by") == "host" for x in ctx):
+        return st
+    ok = isinstance(f, str) and is_cobol(f)
+    out = []
+    for x in ctx:
+        if isinstance(x, dict) and x.get("by") == "host" and not (
+                ok and isinstance(x.get("symbol"), str) and declaring_line(f, x["symbol"].strip().upper()) == x.get("at")):
+            x = {k: v for k, v in x.items() if k != "by"}
+        out.append(x)
+    return dict(st, context=out)
 
 
 def check_target(repo, tout, t, call):

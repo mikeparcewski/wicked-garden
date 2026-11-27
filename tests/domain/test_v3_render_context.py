@@ -93,3 +93,34 @@ def test_a_changed_copy_line_outside_the_cited_lines_moves_the_row_to_the_new_co
     row = "- Uses: `PAY-HOURS` (app/cpy/PAYNEW.cpy:3), `PAY-AMOUNT` (app/cpy/PAYNEW.cpy:5), `PAY-RATE` (app/cpy/PAYNEW.cpy:4)"
     assert rule["statement"].splitlines()[1] == row, rule["statement"]
     assert any(step == "prose" and row in p for step, p in prompts)
+
+
+def test_a_carried_statement_never_shows_a_copybook_line_the_code_no_longer_resolves_to(tmp_path, monkeypatch):
+    # COPY PAYREC first resolves by name to alternate/PAYREC.cpy (defs.copybook_path); then app/cpy/PAYREC.cpy, next to
+    # the program, appears with the same text. No cited line changed, so READ-PARA is carried: its stored context still
+    # says alternate/, which the text must no longer show
+    repo = make_repo(tmp_path, "mini-cobol")
+    os.makedirs(os.path.join(repo.root, "alternate"))
+    os.rename(os.path.join(repo.root, CPY), os.path.join(repo.root, "alternate/PAYREC.cpy"))
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats, prompts = FakeSeats(S), []
+    monkeypatch.setattr(model_calls, "claude", lambda step, cid, prompt, *a, **k: prompts.append((step, prompt)) or seats.claude(step, cid, prompt, *a, **k))
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", description="payroll")
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "r1"), write=fake_write)
+    rule = next(v for v in stored(repo.db)[store.RULE].values() if v["contract"]["anchor"]["file"] == PROG)
+    assert "(alternate/PAYREC.cpy:3)" in rule["statement"], rule["statement"]
+    with open(os.path.join(repo.root, "alternate/PAYREC.cpy")) as fh, open(os.path.join(repo.root, CPY), "w") as out:
+        out.write(fh.read())
+    prompts[:] = []
+    second, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "r2"), write=fake_write)
+    assert second["reuse"]["extract"] == 0 and second["reuse"]["revalidate"] == 0, second["reuse"]
+    after = next(v for v in stored(repo.db)[store.RULE].values() if v["contract"]["anchor"]["file"] == PROG)
+    assert "alternate/" not in after["statement"] and "Uses" not in after["statement"], after["statement"]
+    assert after["contract"]["context"] == rule["contract"]["context"]  # what is stored (and keyed) is unchanged
+    assert not any("alternate/" in p for step, p in prompts if step == "prose")
+
+
+def test_a_field_written_in_two_cases_is_named_once(tmp_path):
+    st = _resolved(tmp_path, [dict(symbol="pay-hours"), dict(symbol="PAY-HOURS", at="x.cpy:1")], "`PAY-HOURS` is added")
+    assert render.render(st, "P").splitlines()[1] == f"- Uses: `PAY-HOURS` ({CPY}:3)"

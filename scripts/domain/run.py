@@ -347,13 +347,16 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         say(log, f"{c['id']} · checked {sum(s['status'] == 'Checked' for s in mine)}/{len(mine)} · "
                  f"{sum(is_open(s) for s in mine)} open · {ok}/{len(c['targets'])} targets accounted")
     desc = scope_in.get("description") or os.path.basename(os.path.abspath(root))
-    groups, pmeta, prose_reused, pcounts, uncited = prose_for(live, desc, scope_in.get("description") or "", prior)
+    # the text shows a copybook line only while the code still resolves the field there (extract.shown, garden#1604)
+    lookup.use_repo(repo)
+    groups, pmeta, prose_reused, pcounts, uncited = prose_for([extract.shown(s) for s in live], desc,
+                                                              scope_in.get("description") or "", prior)
     withheld = sum(len(g.get("withheld") or []) for g in groups)
     say(log, f"prose · {len(groups)} groups · {withheld} withheld" + (f" · {len(uncited)} statements in no group" if uncited else "")
         + (" · reused" if prose_reused else ""))
     fu = followups.followups(repo, S, R)
     rows, unplaced = store.rows_for(repo, dict(statements=live), records, groups, pmeta, fu, prior,
-                                    lambda s: render(s, s.get("name")), uncited=uncited)
+                                    lambda s: render(extract.shown(s), s.get("name")), uncited=uncited)
     run_id = os.environ.get("WICKED_RUN_ID") or os.path.basename(os.path.normpath(out_dir))
     own = store.run_row(repo, records, scope_in, S["scope_hash"], run_id, int(time.time()))
     if own is None:
