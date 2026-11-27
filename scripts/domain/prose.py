@@ -243,6 +243,34 @@ def file_housekeeping(groups, hk, top):
     return moved
 
 
+def _held(groups):
+    """Every statement a group's sentences cite, shown or withheld."""
+    return {c for g in groups for x in ([g["rule"]] if g.get("rule") else []) + list(g.get("details") or [])
+            + list(g.get("withheld") or []) for c in x.get("cites") or []}
+
+
+def keep_dropped(out_groups, bad, fixed, by, also=()):
+    """garden#1618: a repair may cite fewer statements than the sentence it repairs. A statement it dropped that no
+    other sentence, shown or withheld, cites is kept as a withheld record (the sentence as written, with the reason)
+    beside the repaired sentence, so every Checked statement stays in a group (garden#1549) and none leaves the model
+    unseen. A withheld record makes no requirement. Returns the number of records kept."""
+    held = _held(out_groups) | set(also)
+    home = {x["id"]: g for g in out_groups for x in ([g["rule"]] if g.get("rule") else []) + list(g.get("details") or [])}
+    kept = 0
+    for s in bad:
+        f = fixed.get(s["id"])
+        if not f or f["withheld"] or s["id"] not in home:
+            continue
+        lost = [c for c in dict.fromkeys(s["cites"]) if c in by and c not in held]
+        if lost:
+            home[s["id"]]["withheld"].append(dict(id=f"{s['id']}~dropped", layer=s["layer"], text=s["text"],
+                                                   reason=f"the repair dropped {', '.join(lost)}, which no other sentence cites",
+                                                   cites=lost))
+            held |= set(lost)
+            kept += 1
+    return kept
+
+
 def prose_all(statements, desc, start=0):
     """The run's rule groups: {rows, groups, uncited, counts}. Each sentence carries ``fate``: as written, repaired
     or withheld (then ``reason``) and the checker's ``verdict``; a group whose RULE is withheld has ``rule: None`` and
@@ -327,6 +355,7 @@ def prose_all(statements, desc, start=0):
                 og["details"].append(row)
         out_groups.append(og)
     moved = file_housekeeping(out_groups, hk, max([start] + [g["g"] for g in written]))
+    kept = keep_dropped(out_groups, bad, fixed, by, {c for g in malformed for c in _tried(g, by)})
     for g in malformed:
         why = shape_fail(g)
         out_groups.append(dict(g=g["g"], title=g["title"] if isinstance(g.get("title"), str) else None, area=g.get("area"),
@@ -335,6 +364,13 @@ def prose_all(statements, desc, start=0):
                                                                      reason=f"M1 shape: {why}", cites=_tried(g, by))]))
         fates["withheld"] += 1
     out_groups.sort(key=lambda g: g["g"])
+    # the final state (garden#1618): the statements no shown or withheld sentence cites. A statement only a
+    # malformed group's notice cites is in a group; it is not uncited, so the next run (which never reuses that
+    # group, store.rows_for) writes it again instead of carrying it as left out
+    held = _held(out_groups)
+    uncited = sorted((r["sid"] for r in rows if r["sid"] not in held), key=lambda x: int(x[1:]))
+    if kept:
+        fates["kept_dropped"] = kept
     return dict(rows=rows, groups=out_groups, uncited=uncited,
                 counts=dict(groups=len(out_groups), sentences=len(sents), m_failed=len(mfail),
                             check_flagged=sum(1 for s in sents if (v1.get(s["id"]) or {}).get("verdict") != "SUPPORTED"),
