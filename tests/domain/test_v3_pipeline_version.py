@@ -92,8 +92,8 @@ def test_a_host_bump_moves_only_the_stating_version_and_host_zero_keeps_the_vers
     # garden#1610: identity. HOST 0 is the version every store made before HOST existed carries; each bump is a new one.
     sums = tmp_path / "SHA256SUMS"
     sums.write_text(LEGACY_SUMS)
-    assert store.pipeline_versions(str(sums), host=0) == LEGACY
-    ids = [store.pipeline_versions(str(sums), host=h) for h in (0, 1, 2)]
+    assert store.pipeline_versions(str(sums), host=0, prose_host=0) == LEGACY
+    ids = [store.pipeline_versions(str(sums), host=h, prose_host=0) for h in (0, 1, 2)]
     assert len({v[0] for v in ids}) == 3 and {v[1] for v in ids} == {LEGACY[1]}, "a host bump never moves the prose version"
     assert store.pipeline_versions(SUMS) == store.pipeline_versions(SUMS, host=store.HOST) == NOW
     for bad in (-1, "1", True, 1.0):
@@ -124,3 +124,54 @@ def test_a_store_the_previous_host_code_stated_is_reported_after_a_host_bump(tmp
     assert any(f"{n} targets were stated by an earlier pipeline version" in ln for ln in lines), lines
     assert summary["refresh"]["eligible"] == n and summary["refresh"]["adopted"] == n and seats.n > 0
     assert summary["earlier_pipeline"] == dict(targets=0, groups=0)
+
+
+def test_a_prose_host_bump_moves_only_the_prose_version_and_zero_keeps_the_versions_stores_already_carry(tmp_path):
+    # garden#1625: the prose half of garden#1610
+    sums = tmp_path / "SHA256SUMS"
+    sums.write_text(LEGACY_SUMS)
+    assert store.pipeline_versions(str(sums), host=0, prose_host=0) == LEGACY
+    got = [store.pipeline_versions(str(sums), host=0, prose_host=k) for k in (0, 1, 2)]
+    assert len({p for _, p in got}) == 3 and {s for s, _ in got} == {LEGACY[0]}
+    # round 1 on garden#1628: these oracles hold whatever the shipped counters are (a real bump sets them above 0)
+    assert store.pipeline_versions(str(sums), host=1, prose_host=1)[0] == store.pipeline_versions(str(sums), host=1)[0]
+    assert store.pipeline_versions(SUMS) == store.pipeline_versions(SUMS, prose_host=store.PROSE_HOST) == NOW
+    for bad in (-1, "1", True, 1.0):
+        with pytest.raises(ValueError, match="PROSE_HOST"):
+            store.pipeline_versions(str(sums), prose_host=bad)
+
+
+def test_groups_the_previous_prose_host_code_wrote_are_reported_after_a_prose_host_bump(tmp_path, monkeypatch):
+    # garden#1625: a stale read. Main kept a group the old prose.py wrote as current; after a bump the run says an
+    # earlier prose version wrote it (reused as before, DES-1601), and the targets are not reported
+    before = store.pipeline_versions(SUMS, prose_host=store.PROSE_HOST)
+    bumped = store.pipeline_versions(SUMS, prose_host=store.PROSE_HOST + 1)
+    assert bumped[0] == before[0] and bumped[1] != before[1]
+    monkeypatch.setattr(store, "PROSE_HOST", store.PROSE_HOST + 1)
+    assert store.pipeline_versions(SUMS) == bumped
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = FakeSeats(S)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    monkeypatch.setattr(store, "PROSE", before[1])
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    monkeypatch.setattr(store, "PROSE", bumped[1])
+    seats.n = 0
+    summary, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lambda s: None, write=fake_write)
+    groups = stored(repo.db)[store.GROUP]
+    assert groups and summary["earlier_pipeline"] == dict(targets=0, groups=len(groups)) and seats.n == 0
+    assert {g["pipeline"] for g in groups.values()} == {before[1]}
+
+
+def test_the_version_oracles_hold_with_both_counters_shipped_above_zero(tmp_path, monkeypatch):
+    # round 1 on garden#1628: a real bump ships HOST or PROSE_HOST above 0; the oracles name both counters explicitly
+    sums = tmp_path / "SHA256SUMS"
+    sums.write_text(LEGACY_SUMS)
+    monkeypatch.setattr(store, "HOST", 3)
+    monkeypatch.setattr(store, "PROSE_HOST", 3)
+    assert store.pipeline_versions(str(sums), host=0, prose_host=0) == LEGACY
+    shipped = store.pipeline_versions(str(sums))
+    assert shipped[0] != LEGACY[0] and shipped[1] != LEGACY[1]
+    assert shipped == store.pipeline_versions(str(sums), host=3, prose_host=3)

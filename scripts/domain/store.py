@@ -56,17 +56,29 @@ HOST = 0
 HOST_FILES = ("batches.py", "check.py", "cobol_ctx.py", "cobol_flow.py", "defs.py", "extract.py", "graph.py", "lookup.py",
               "model_calls.py", "r_stage.py", "reach.py", "render.py", "run.py", "scope.py", "scope_config.json",
               "store.py", "union.py")
+# garden#1625: the same for the prose. The host code that decides what the prose says (the grouping, the housekeeping
+# move, the repair guards, what a sentence may cite) is no frozen file; a change to it that alters the prose bumps
+# PROSE_HOST, which moves the prose version. tests/domain/test_v3_frozen.py pins these files.
+PROSE_HOST = 0
+PROSE_HOST_FILES = ("prose.py",)
 
 
-def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SHA256SUMS"), host=None):
+def _counter(name, n):
+    if not isinstance(n, int) or isinstance(n, bool) or n < 0:
+        raise ValueError(f"store.{name} must be an integer 0 or above, not {n!r}")
+    return n
+
+
+def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SHA256SUMS"), host=None,
+                      prose_host=None):
     """The versions of the pipeline that states (extract, check, repair, R, cards, contract) and that writes the prose,
     from the frozen hashes in ``SHA256SUMS`` (tests/domain/test_v3_frozen.py ties them to the files). Each stored target
     and rule group carries the version that made it, and a run says how many were made by an earlier one
-    (garden#1601); a fresh store makes them again. :data:`HOST` above 0 moves the stating version too (garden#1610); at
-    0 the version is the frozen files' alone, so the stores made before HOST existed keep theirs."""
-    host = HOST if host is None else host
-    if not isinstance(host, int) or isinstance(host, bool) or host < 0:
-        raise ValueError(f"store.HOST must be an integer 0 or above, not {host!r}")
+    (garden#1601); a fresh store makes them again. :data:`HOST` above 0 moves the stating version too (garden#1610),
+    and :data:`PROSE_HOST` above 0 the prose version (garden#1625); at 0 each version is the frozen files' alone, so the
+    stores made before the counters existed keep theirs."""
+    host = _counter("HOST", HOST if host is None else host)
+    prose_host = _counter("PROSE_HOST", PROSE_HOST if prose_host is None else prose_host)
     with open(sums) as fh:
         lines = sorted(" ".join(ln.split()) for ln in fh if ln.strip())
     def v(sel):
@@ -74,7 +86,10 @@ def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__
     stating = v(lambda f: f not in PROSE_FILES)
     if host > 0:
         stating = sha(f"{stating}\0host {host}".encode())[:16]
-    return stating, v(lambda f: f in PROSE_FILES)
+    prose = v(lambda f: f in PROSE_FILES)
+    if prose_host > 0:
+        prose = sha(f"{prose}\0prose host {prose_host}".encode())[:16]
+    return stating, prose
 
 
 def sha(b):
