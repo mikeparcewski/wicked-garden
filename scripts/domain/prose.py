@@ -82,7 +82,8 @@ def _has(blob, tok):
 def _m4(span, blob):
     """The M4 tokens of one code span that no cited statement carries. A token the writer marked as a part of a name
     (garden#1631: ``-X`` for the names ending in ``-X``, ``ACUP-NEW-`` for the names starting with ``ACUP-NEW-``) passes
-    when a cited name carries it as that part: the marked side is the name's own hyphen, the other side the name's end."""
+    when a cited name carries it as that part: the marked side is the name's own hyphen, the other side the name's end
+    (or the number's: ``-1`` is not ``-1.5``). As before, any token also passes when a cited text has it whole."""
     out = []
     for m in _TOKEN.finditer(span):
         raw = m.group(0)
@@ -94,7 +95,7 @@ def _m4(span, blob):
             trail = raw.endswith("-")
             if lead or trail:
                 left = "-" if lead else r"(?<![\w$-])"
-                right = "-" if trail else r"(?![\w$-])"
+                right = "-" if trail else r"(?![\w$-])(?!\.\d)"  # a name's end, never inside a number such as -1.5
                 if re.search(left + re.escape(tok) + right, blob):
                     continue
         out.append(tok)

@@ -84,7 +84,7 @@ HOST_PIN = {
 # guards, what a sentence may cite), bump store.PROSE_HOST; if not, re-pin and leave it.
 PROSE_HOST_AT = 1
 PROSE_HOST_PIN = {
-    "prose.py": "c502fffa4a1c046d54c9b8bf6f07d13e13ece71961f574ab616a3a58e4284e28",
+    "prose.py": "c003eb92cad9bdab5c975d44b650f602ffbf4ad86ea2606393981673a4c24739",
 }
 # round 1 on garden#1628: the host files above that the prose also runs through (every package module prose.py
 # imports, and run.prose_for), each pinned once in HOST_PIN. A change to one is judged for both counters.

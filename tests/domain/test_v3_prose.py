@@ -71,6 +71,11 @@ def test_m4_still_fails_a_part_no_cited_name_carries_on_its_marked_side():
     # an unmarked part is a name, and still needs the whole name
     assert fails("`ACUP-NEW` and `X`") == ["M4 `ACUP-NEW` is in no cited statement", "M4 `X` is in no cited statement"]
     assert fails("the `-Z` field") == ["M4 `Z` is in no cited statement"]
+    # R-B on garden#1634: a negative number is matched whole, never as a part of a longer one
+    by3 = {"S1": dict(text="moves `-1.5` to `BALANCE`")}
+    fails3 = lambda t: prose.sentence_fails(dict(text=t, cites=["S1"]), "detail", by3)  # noqa: E731
+    assert fails3("sets `BALANCE` to `-1`") == ["M4 `1` is in no cited statement"]
+    assert fails3("sets `BALANCE` to `-1.5`") == []
     # a quoted literal is matched as written, never as a part
     assert fails("`'-N'`") == ["M4 `'-N'` is in no cited statement"]
 
