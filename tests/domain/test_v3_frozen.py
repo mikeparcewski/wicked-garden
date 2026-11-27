@@ -3,6 +3,7 @@
 ``PROOF`` below and ``scripts/domain/SHA256SUMS`` hold the hashes the proof froze (``proof-v3/FROZEN.sha256`` and its ``frozen/``
 tree) and the prose calibration's three prompts (DES-j6-build §6: ``prose_v2`` as ``prose.txt``, check v2, repair). A change to any of these files is a change to the calibrated pipeline, so it changes this list on purpose.
 """
+import ast
 import hashlib
 import os
 
@@ -80,12 +81,14 @@ HOST_PIN = {
 }
 # garden#1625: the host code that decides what the prose says, pinned with the store.PROSE_HOST it was last judged
 # under. The same rule: if the change alters what the prose says (the grouping, the housekeeping move, the repair
-# guards, what a sentence may cite), bump store.PROSE_HOST; if not, re-pin and leave it. A change to run.prose_for that
-# alters the prose bumps PROSE_HOST too (run.py is pinned above for what it states).
+# guards, what a sentence may cite), bump store.PROSE_HOST; if not, re-pin and leave it.
 PROSE_HOST_AT = 0
 PROSE_HOST_PIN = {
     "prose.py": "c1e166ffb0ba542bf5d6178243cfe652d68485b788ea17afec24cdd88348f2c3",
 }
+# round 1 on garden#1628: the host files above that the prose also runs through (every package module prose.py
+# imports, and run.prose_for), each pinned once in HOST_PIN. A change to one is judged for both counters.
+PROSE_SHARED = {"model_calls.py", "render.py", "run.py"}
 # every other file of the package, and why it neither states nor writes the prose: a new module must be put in a list
 NOT_STATING = {
     "__init__.py": "the package marker",
@@ -103,20 +106,37 @@ def test_a_changed_host_stating_check_is_judged_for_a_host_bump():
     from domain import store
     assert set(HOST_PIN) == set(store.HOST_FILES)
     on_disk = {f for f in os.listdir(HERE) if f.endswith(".py") or f == "scope_config.json"}
+    lists = (set(HOST_PIN), set(PROSE_HOST_PIN), set(NOT_STATING))
+    twice = {f for f in on_disk if sum(f in x for x in lists) > 1}
+    assert not twice, f"judged in more than one list: {sorted(twice)}"
     assert on_disk == set(HOST_PIN) | set(PROSE_HOST_PIN) | set(NOT_STATING), (
         f"not judged: {sorted(on_disk - set(HOST_PIN) - set(PROSE_HOST_PIN) - set(NOT_STATING))}; put each in "
         "store.HOST_FILES (and HOST_PIN), store.PROSE_HOST_FILES (and PROSE_HOST_PIN) or NOT_STATING with its reason")
     changed = {rel: _lf_sha(os.path.join(HERE, rel)) for rel, digest in HOST_PIN.items()
                if _lf_sha(os.path.join(HERE, rel)) != digest}
+    shared = sorted(set(changed) & PROSE_SHARED)
     assert not changed and store.HOST == HOST_AT, (
         f"host stating code changed: {changed}; store.HOST is {store.HOST}, HOST_AT {HOST_AT}. If the change alters what "
-        "a run states, bump store.HOST (garden#1610); either way, set HOST_AT to it and re-pin HOST_PIN here")
+        "a run states, bump store.HOST (garden#1610); either way, set HOST_AT to it and re-pin HOST_PIN here"
+        + (f". The prose runs through {shared} too: if the change alters what the prose says, bump store.PROSE_HOST "
+           "and set PROSE_HOST_AT to it (garden#1625)" if shared else ""))
 
 
 def test_a_changed_host_prose_check_is_judged_for_a_prose_host_bump():
     from domain import store
     assert set(PROSE_HOST_PIN) == set(store.PROSE_HOST_FILES)
-    assert not set(PROSE_HOST_PIN) & (set(HOST_PIN) | set(NOT_STATING)), "a file is judged in one list"
+    assert PROSE_SHARED <= set(HOST_PIN)
+    imported = set()
+    for rel in PROSE_HOST_PIN:
+        with open(os.path.join(HERE, rel), encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module == "domain":
+                imported |= {f"{a.name}.py" for a in node.names}
+            elif isinstance(node, ast.ImportFrom) and (node.module or "").startswith("domain."):
+                imported.add(node.module.split(".", 1)[1].split(".")[0] + ".py")
+    assert imported <= PROSE_SHARED | set(PROSE_HOST_PIN), (
+        f"the prose runs through {sorted(imported - PROSE_SHARED - set(PROSE_HOST_PIN))}: add it to PROSE_SHARED")
     changed = {rel: _lf_sha(os.path.join(HERE, rel)) for rel, digest in PROSE_HOST_PIN.items()
                if _lf_sha(os.path.join(HERE, rel)) != digest}
     assert not changed and store.PROSE_HOST == PROSE_HOST_AT, (
