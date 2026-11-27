@@ -119,3 +119,41 @@ def test_a_store_the_previous_host_code_stated_is_reported_after_a_host_bump(tmp
     n = len(S["targets"])
     assert summary["earlier_pipeline"] == dict(targets=n, groups=0) and seats.n == 0
     assert any("stated by an earlier pipeline version" in ln for ln in lines), lines
+
+
+def test_a_prose_host_bump_moves_only_the_prose_version_and_zero_keeps_the_versions_stores_already_carry(tmp_path):
+    # garden#1625: the prose half of garden#1610
+    sums = tmp_path / "SHA256SUMS"
+    sums.write_text(LEGACY_SUMS)
+    assert store.pipeline_versions(str(sums), host=0, prose_host=0) == LEGACY
+    got = [store.pipeline_versions(str(sums), host=0, prose_host=k) for k in (0, 1, 2)]
+    assert len({p for _, p in got}) == 3 and {s for s, _ in got} == {LEGACY[0]}
+    assert store.pipeline_versions(str(sums), host=1, prose_host=1)[0] == store.pipeline_versions(str(sums), host=1)[0]
+    assert store.pipeline_versions(SUMS) == store.pipeline_versions(SUMS, prose_host=store.PROSE_HOST) == NOW
+    for bad in (-1, "1", True, 1.0):
+        with pytest.raises(ValueError, match="PROSE_HOST"):
+            store.pipeline_versions(str(sums), prose_host=bad)
+
+
+def test_groups_the_previous_prose_host_code_wrote_are_reported_after_a_prose_host_bump(tmp_path, monkeypatch):
+    # garden#1625: a stale read. Main kept a group the old prose.py wrote as current; after a bump the run says an
+    # earlier prose version wrote it (reused as before, DES-1601), and the targets are not reported
+    before = store.pipeline_versions(SUMS, prose_host=store.PROSE_HOST)
+    bumped = store.pipeline_versions(SUMS, prose_host=store.PROSE_HOST + 1)
+    assert bumped[0] == before[0] and bumped[1] != before[1]
+    monkeypatch.setattr(store, "PROSE_HOST", store.PROSE_HOST + 1)
+    assert store.pipeline_versions(SUMS) == bumped
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = FakeSeats(S)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    monkeypatch.setattr(store, "PROSE", before[1])
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    monkeypatch.setattr(store, "PROSE", bumped[1])
+    seats.n = 0
+    summary, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lambda s: None, write=fake_write)
+    groups = stored(repo.db)[store.GROUP]
+    assert groups and summary["earlier_pipeline"] == dict(targets=0, groups=len(groups)) and seats.n == 0
+    assert {g["pipeline"] for g in groups.values()} == {before[1]}

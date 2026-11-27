@@ -75,14 +75,21 @@ HOST_PIN = {
     "run.py": "5d275efe7293018d01c8bafcf2a9109a5c0a75ce96ac69621ec42fb0bbacd58c",
     "scope.py": "95c476e1c154fad7f7bd03b7cc4f1f81c60772ab44930d60a1fd1b86f282bc42",
     "scope_config.json": "6dfd5940bb3750adf4a3f1742b57571bb66b52a809ce2fbc7031e95a198f8c49",
-    "store.py": "c08fbff42059b5044c710b4e7793767a1b29e5d8d0b3115d51674d051f8971f5",
+    "store.py": "658075f85f9c23fb27b83d5cb5b1291f728ad1e5533a399240ae579ec8fe4cd2",
     "union.py": "c1a4e4efb3d7492868cb55321b0c9d901f7cb3e1fcffc02e8fdb57bbc2a60230",
 }
-# every other file of the package, and why it does not state: a new module must be put in one list or the other
+# garden#1625: the host code that decides what the prose says, pinned with the store.PROSE_HOST it was last judged
+# under. The same rule: if the change alters what the prose says (the grouping, the housekeeping move, the repair
+# guards, what a sentence may cite), bump store.PROSE_HOST; if not, re-pin and leave it. A change to run.prose_for that
+# alters the prose bumps PROSE_HOST too (run.py is pinned above for what it states).
+PROSE_HOST_AT = 0
+PROSE_HOST_PIN = {
+    "prose.py": "c1e166ffb0ba542bf5d6178243cfe652d68485b788ea17afec24cdd88348f2c3",
+}
+# every other file of the package, and why it neither states nor writes the prose: a new module must be put in a list
 NOT_STATING = {
     "__init__.py": "the package marker",
     "followups.py": "the follow-up list, made again from the stored model on every run",
-    "prose.py": "the prose, a model of its own (store.PROSE; DES-j6-build section 6)",
     "validate_domain_model.py": "the schema check of the exported model",
 }
 
@@ -96,14 +103,26 @@ def test_a_changed_host_stating_check_is_judged_for_a_host_bump():
     from domain import store
     assert set(HOST_PIN) == set(store.HOST_FILES)
     on_disk = {f for f in os.listdir(HERE) if f.endswith(".py") or f == "scope_config.json"}
-    assert on_disk == set(HOST_PIN) | set(NOT_STATING), (
-        f"not judged: {sorted(on_disk - set(HOST_PIN) - set(NOT_STATING))}; put each in store.HOST_FILES (and HOST_PIN) "
-        "or in NOT_STATING with its reason")
+    assert on_disk == set(HOST_PIN) | set(PROSE_HOST_PIN) | set(NOT_STATING), (
+        f"not judged: {sorted(on_disk - set(HOST_PIN) - set(PROSE_HOST_PIN) - set(NOT_STATING))}; put each in "
+        "store.HOST_FILES (and HOST_PIN), store.PROSE_HOST_FILES (and PROSE_HOST_PIN) or NOT_STATING with its reason")
     changed = {rel: _lf_sha(os.path.join(HERE, rel)) for rel, digest in HOST_PIN.items()
                if _lf_sha(os.path.join(HERE, rel)) != digest}
     assert not changed and store.HOST == HOST_AT, (
         f"host stating code changed: {changed}; store.HOST is {store.HOST}, HOST_AT {HOST_AT}. If the change alters what "
         "a run states, bump store.HOST (garden#1610); either way, set HOST_AT to it and re-pin HOST_PIN here")
+
+
+def test_a_changed_host_prose_check_is_judged_for_a_prose_host_bump():
+    from domain import store
+    assert set(PROSE_HOST_PIN) == set(store.PROSE_HOST_FILES)
+    assert not set(PROSE_HOST_PIN) & (set(HOST_PIN) | set(NOT_STATING)), "a file is judged in one list"
+    changed = {rel: _lf_sha(os.path.join(HERE, rel)) for rel, digest in PROSE_HOST_PIN.items()
+               if _lf_sha(os.path.join(HERE, rel)) != digest}
+    assert not changed and store.PROSE_HOST == PROSE_HOST_AT, (
+        f"host prose code changed: {changed}; store.PROSE_HOST is {store.PROSE_HOST}, PROSE_HOST_AT {PROSE_HOST_AT}. If "
+        "the change alters what the prose says, bump store.PROSE_HOST (garden#1625); either way, set PROSE_HOST_AT to it "
+        "and re-pin PROSE_HOST_PIN here")
 
 
 def test_a_crlf_checkout_of_an_unchanged_host_file_matches_its_pin(tmp_path):
