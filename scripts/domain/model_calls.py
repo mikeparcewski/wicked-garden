@@ -10,6 +10,7 @@ container through the gateway). What the proof set per call is carried through i
 ``model-call --max-output-tokens``. The proof's ``tools``, ``cwd`` and ``env`` arguments are not: the engine's
 tool-free posture and the seat's own home replace them. Stdlib only.
 """
+import hashlib
 import json
 import os
 import re
@@ -22,7 +23,8 @@ WRITER_MAX_OUTPUT = 64000  # the proof's CLAUDE_CODE_MAX_OUTPUT_TOKENS on extrac
 FAMILY = {"claude": "anthropic", "codex": "openai"}
 CORE_ENV = "WICKED_CORE_BIN"
 ENGINE_CORE_ENV = "WICKED_CORE_EXE"
-_state = {"calls": None}
+_state = {"calls": None, "carry": None}
+CARRIED = "cache hit: carried from an earlier attempt"
 
 
 class CallFailed(RuntimeError):
@@ -39,6 +41,29 @@ def configure(calls_dir):
     """Where this run keeps its calls (``<run out>/calls``)."""
     os.makedirs(calls_dir, exist_ok=True)
     _state["calls"] = calls_dir
+
+
+def carry_to(carry_dir):
+    """garden#1614: where this run keeps the answers a later attempt of the same scope may reuse
+    (``<runs>/.carry/<scope hash>``), or None. Each attempt has its own calls directory, so without this a retry after
+    a failed check pays for every writer call again."""
+    if carry_dir:
+        os.makedirs(carry_dir, exist_ok=True)
+    _state["carry"] = carry_dir
+
+
+def drop_carry():
+    """A run that stored its model keeps no carry: only a failed attempt leaves its answers behind."""
+    d, _state["carry"] = _state["carry"], None
+    if d and os.path.isdir(d):
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def _carry_path(family, step, prompt):
+    d = _state["carry"]
+    if not d:
+        return None
+    return os.path.join(d, hashlib.sha256(f"{family}\0{step}\0{prompt}".encode()).hexdigest() + ".out.txt")
 
 
 def core_bin():
@@ -117,6 +142,16 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
         _log(step, cid, role, family, 0, True, "cache hit: reused the completed call")
         return c, 0
     _write(base + ".prompt.txt", prompt)
+    carried = _carry_path(family, step, prompt)
+    try:
+        c = _read(carried) if carried else None
+    except OSError:
+        c = None
+    if c and c.strip():
+        # the same step and byte-identical prompt answered in an earlier, failed attempt of this scope
+        _write(base + ".out.txt", c)
+        _log(step, cid, role, family, 0, True, CARRIED)
+        return c, 0
     out = base + ".out.tmp"
     t0 = time.time()
     try:
@@ -132,6 +167,13 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
     text = _read(out) if rc == 0 and os.path.exists(out) else ""
     if os.path.exists(out):
         os.replace(out, base + ".out.txt") if text else os.remove(out)
+    if text and carried:
+        tmp = f"{carried}.{os.getpid()}.tmp"
+        try:
+            _write(tmp, text)
+            os.replace(tmp, carried)
+        except OSError:
+            pass  # a carry is a saving, never a reason to fail the call
     if err:
         _write(base + ".stderr.txt", err[-5000:])
     _log(step, cid, role, family, wall, rc == 0 and bool(text), "" if rc == 0 else err[-300:])
