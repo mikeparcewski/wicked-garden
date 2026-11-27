@@ -18,7 +18,9 @@ Group the statements into business rules. For each group write one plain-languag
      - CICS and IMS mechanics: PSB scheduling, IMS status handling, SYNCPOINT, file dispatching.
    - Housekeeping goes in ONE group per program or module, with kind "housekeeping". Every other group has kind "business". A group whose RULE would be housekeeping is a housekeeping group.
    - Each DETAIL sentence has its own kind: "housekeeping" when what it says is housekeeping as above, else "business". A housekeeping DETAIL may sit in a business group (it is filed later with its program's housekeeping); never leave it out.
-   - A business group's RULE sentence cites only statements whose behaviour is business, not housekeeping.
+   - A DETAIL that states a business step together with its housekeeping (a file-status gate, an abend, an error message, a CICS or IMS call) is two DETAILs: a "business" one with the business step, and a "housekeeping" one with the mechanics.
+   - A statement is business when its own claims decide or compute something about the business data, or read the job's business input (for example its date range parameters). A statement whose claims only read, write or rewrite a file or record and then accept the status, display an error or abend is housekeeping, even when a business sentence names what it does ("the rate is read again"). Cite the statement that performs that routine instead, and leave the routine's own statement to the housekeeping group.
+   - Every business sentence (a business group's RULE, and each DETAIL of kind "business") cites only business statements.
    - Order: business groups first, in the order the program runs them; housekeeping last.
    - Every statement id must be cited by at least one sentence. A statement may be cited by more than one group.
 
