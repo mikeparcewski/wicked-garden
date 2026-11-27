@@ -220,10 +220,12 @@ def is_rule(st, repo=None):
 
 def cite_copybooks(st):
     """garden#1548: every field a claim names in backticks (outside a quoted literal) that exactly one of its program's
-    copybooks defines goes in the statement's ``context`` with the copybook line (``app/cpy/CVACT01Y.cpy:7``), so the
-    statement says which copybook it reads. A name the program defines itself, or its copybooks define twice, is left out
-    (the claim's qualification is not resolved here). 0 model calls; a field the model already placed keeps its entry;
-    a statement the M checks refused keeps whatever shape it has. Not COBOL: unchanged."""
+    copybooks defines goes in the statement's ``context`` with the line that declares it (``app/cpy/CVACT01Y.cpy:7``; an
+    88's own line, not its parent's) and ``by: "host"``, so the statement says which copybook it reads. A name the
+    program defines itself, or its copybooks define twice, is left out (the claim's qualification is not resolved here).
+    The host's line replaces one the model gave for such a field (garden#1604: the rendered text shows only entries the
+    host resolved); a model entry for any other name stays as it is, unmarked. 0 model calls; a statement the M checks
+    refused keeps whatever shape it has. Not COBOL: unchanged."""
     f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
     if not isinstance(f, str) or not is_cobol(f) or not isinstance(st.get("claims"), list):
         return st
@@ -232,9 +234,11 @@ def cite_copybooks(st):
         ctx = []
     if not isinstance(ctx, list):
         return st
-    # a field the model placed with a reference keeps it; one it named with no reference gets the copybook line
-    have = {x.get("symbol") for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and isinstance(x.get("at"), str) and x["at"]}
-    bare = {x["symbol"]: x for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and x["symbol"] not in have}
+    placed = {}
+    for x in ctx:
+        if isinstance(x, dict) and isinstance(x.get("symbol"), str):
+            placed.setdefault(x["symbol"].strip().upper(), []).append(x)
+    done = set()
     in_program = lambda n: (defs.define(n, [f]) or ("",))[0] == f  # noqa: E731
     books = defs.copybooks(f)
     for c in st["claims"]:
@@ -242,17 +246,18 @@ def cite_copybooks(st):
             continue
         for span in re.findall(r"`([^`]+)`", c["text"]):
             for name in defs.COBID.findall(re.sub(r"'[^']*'|\"[^\"]*\"", " ", span).upper()):
-                if name in have or name in COBKW or in_program(name):
+                if name in done or name in COBKW or in_program(name):
                     continue
+                done.add(name)
                 hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
-                many = sum(1 for cp in books for s in defs.flines(cp) if len(s) > 7 and s[6] not in "*/"
-                           and (defs.level(s) or (0, ""))[1] == name)
-                if len(hits) == 1 and many == 1:  # one definition in all its copybooks
-                    if name in bare:
-                        bare[name]["at"] = f"{hits[0][0]}:{hits[0][1]}"
-                    else:
-                        ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
-                    have.add(name)
+                decl = [(cp, k) for cp in books for k, s in enumerate(defs.flines(cp), 1) if len(s) > 7 and s[6] not in "*/"
+                        and (defs.level(s) or (0, ""))[1] == name]
+                if len(hits) == 1 and len(decl) == 1:  # one definition in all its copybooks: its own line
+                    at = f"{decl[0][0]}:{decl[0][1]}"
+                    for x in placed.get(name) or []:
+                        x.update(at=at, by="host")
+                    if name not in placed:
+                        ctx.append(dict(symbol=name, at=at, by="host"))
     st["context"] = ctx
     return st
 

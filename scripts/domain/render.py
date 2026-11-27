@@ -1,7 +1,8 @@
 """Frozen renderer (DES-j6-v2 §2 S4, §3 claim contract v2): the model never writes prose. Claims render in execution
 order (by first cited line); each effect / else / value sits under its OWN `when` / `unless`, never under another
 claim's. A condition no effect refers to renders as a plain "Tests:" line, so nothing the table states is dropped. The
-statement's ``context`` (the definitions it relies on, with their lines) renders as one "Uses:" row under "Runs:"."""
+statement's ``context`` entries the host resolved (copybook fields with their lines) render as one "Uses:" row under
+"Runs:"."""
 import os
 import re
 
@@ -41,11 +42,13 @@ def render(st, name=None):
         used.update(c.get("when") or [])
         used.update(c.get("unless") or [])
     rows = [f"Runs: {name or a.get('symbol_id') or '?'} ({f}:{ln[0]}-{ln[1]})"]
-    # the definitions the statement relies on (its ``context``: a copybook field's line, garden#1548), so the text a
-    # person reads names the copybook it uses, not only its cited lines (garden#1604)
+    # the copybook fields the statement uses, each with the line that declares it, as the host resolved them
+    # (extract.cite_copybooks marks those ``by: "host"``; a model's own context entry is never shown as fact), so the
+    # text a person reads names the copybook it uses, not only its cited lines (garden#1604)
     uses = []
     for x in st.get("context") if isinstance(st.get("context"), list) else []:
-        if isinstance(x, dict) and isinstance(x.get("symbol"), str) and isinstance(x.get("at"), str) and x["at"].strip():
+        if isinstance(x, dict) and x.get("by") == "host" and isinstance(x.get("symbol"), str) and x["symbol"].strip() \
+                and isinstance(x.get("at"), str) and x["at"].strip():
             u = f"`{x['symbol'].strip()}` ({x['at'].strip()})"
             if u not in uses:
                 uses.append(u)
