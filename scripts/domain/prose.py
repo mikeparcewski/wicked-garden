@@ -7,7 +7,8 @@ The writer never sees the code: its input is the Checked rule statements as the 
 names) and 0-4 DETAIL sentences, every sentence citing the statements it rests on. Then:
 
 - mechanical checks: shape; every cite exists; every Checked statement is cited; no code span in a RULE (M5);
-  every identifier and literal token of a backtick span in a DETAIL appears in a cited statement (M4, token level);
+  every identifier and literal token of a backtick span in a DETAIL appears in a cited statement (M4, token level;
+  a hyphen-marked part such as ``-X`` or ``ACUP-NEW-`` as that part of a cited name);
 - the prose check (Codex, at most 40 sentences per call): SUPPORTED / OVERREACH (SCOPE, QUANTIFIER, VALUE,
   INVENTED) / WRONG; a sentence that says more than its statements is an overreach;
 - one Claude Code repair for every sentence that failed either, with its objection; the repairs are checked the same
@@ -72,15 +73,32 @@ def packs(rows):
 _TOKEN = re.compile(r"'[^']*'|\"[^\"]*\"|[\w$][\w$-]*(?:\.\d+)?")  # a COBOL name may start with digits
 
 
-def _tokens(span):
-    """The identifier and literal tokens of a code span (``isCouncilSize(v)`` -> ``isCouncilSize``, ``v``)."""
-    return [t.rstrip("-") for t in _TOKEN.findall(span) if t.strip("'\"")]
-
-
 def _has(blob, tok):
     if tok[:1] in "'\"":
         return tok in blob
     return re.search(rf"(?<![\w$-]){re.escape(tok)}(?![\w$-])", blob) is not None
+
+
+def _m4(span, blob):
+    """The M4 tokens of one code span that no cited statement carries. A token the writer marked as a part of a name
+    (garden#1631: ``-X`` for the names ending in ``-X``, ``ACUP-NEW-`` for the names starting with ``ACUP-NEW-``) passes
+    when a cited name carries it as that part: the marked side is the name's own hyphen, the other side the name's end."""
+    out = []
+    for m in _TOKEN.finditer(span):
+        raw = m.group(0)
+        tok = raw.rstrip("-")
+        if not tok.strip("'\"") or _has(blob, tok):
+            continue
+        if tok[:1] not in "'\"":
+            lead = m.start() > 0 and span[m.start() - 1] == "-"
+            trail = raw.endswith("-")
+            if lead or trail:
+                left = "-" if lead else r"(?<![\w$-])"
+                right = "-" if trail else r"(?![\w$-])"
+                if re.search(left + re.escape(tok) + right, blob):
+                    continue
+        out.append(tok)
+    return out
 
 
 def sentence_fails(s, layer, by):
@@ -93,7 +111,7 @@ def sentence_fails(s, layer, by):
     spans = re.findall(r"`([^`]+)`", s.get("text") or "")
     if layer == "rule":
         return [f"M5 a RULE sentence has code: {', '.join(spans)}"] if spans else []
-    return [f"M4 `{t}` is in no cited statement" for sp in spans for t in _tokens(sp) if not _has(blob, t)]
+    return [f"M4 `{t}` is in no cited statement" for sp in spans for t in _m4(sp, blob)]
 
 
 def mcheck(groups, rows):

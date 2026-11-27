@@ -76,15 +76,15 @@ HOST_PIN = {
     "run.py": "0ed8b9ed8be99877b3fd953cf8799ac617715f478750e3e8c76d007eba77d462",
     "scope.py": "95c476e1c154fad7f7bd03b7cc4f1f81c60772ab44930d60a1fd1b86f282bc42",
     "scope_config.json": "6dfd5940bb3750adf4a3f1742b57571bb66b52a809ce2fbc7031e95a198f8c49",
-    "store.py": "658075f85f9c23fb27b83d5cb5b1291f728ad1e5533a399240ae579ec8fe4cd2",
+    "store.py": "56ef34b99183e1dcb3ff1884c4d9c3193621a44bb40c38a332d8579f4c0c6c20",
     "union.py": "c1a4e4efb3d7492868cb55321b0c9d901f7cb3e1fcffc02e8fdb57bbc2a60230",
 }
 # garden#1625: the host code that decides what the prose says, pinned with the store.PROSE_HOST it was last judged
 # under. The same rule: if the change alters what the prose says (the grouping, the housekeeping move, the repair
 # guards, what a sentence may cite), bump store.PROSE_HOST; if not, re-pin and leave it.
-PROSE_HOST_AT = 0
+PROSE_HOST_AT = 1
 PROSE_HOST_PIN = {
-    "prose.py": "c1e166ffb0ba542bf5d6178243cfe652d68485b788ea17afec24cdd88348f2c3",
+    "prose.py": "c502fffa4a1c046d54c9b8bf6f07d13e13ece71961f574ab616a3a58e4284e28",
 }
 # round 1 on garden#1628: the host files above that the prose also runs through (every package module prose.py
 # imports, and run.prose_for), each pinned once in HOST_PIN. A change to one is judged for both counters.

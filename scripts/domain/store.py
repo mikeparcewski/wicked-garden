@@ -59,7 +59,7 @@ HOST_FILES = ("batches.py", "check.py", "cobol_ctx.py", "cobol_flow.py", "defs.p
 # garden#1625: the same for the prose. The host code that decides what the prose says (the grouping, the housekeeping
 # move, the repair guards, what a sentence may cite) is no frozen file; a change to it that alters the prose bumps
 # PROSE_HOST, which moves the prose version. tests/domain/test_v3_frozen.py pins these files.
-PROSE_HOST = 0
+PROSE_HOST = 1  # garden#1631: M4 accepts a hyphen-marked part of a cited name
 PROSE_HOST_FILES = ("prose.py",)
 
 

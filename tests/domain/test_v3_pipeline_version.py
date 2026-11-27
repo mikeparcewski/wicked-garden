@@ -175,3 +175,12 @@ def test_the_version_oracles_hold_with_both_counters_shipped_above_zero(tmp_path
     shipped = store.pipeline_versions(str(sums))
     assert shipped[0] != LEGACY[0] and shipped[1] != LEGACY[1]
     assert shipped == store.pipeline_versions(str(sums), host=3, prose_host=3)
+
+
+def test_the_m4_part_rule_moves_the_prose_version_only(tmp_path):
+    # garden#1631: prose.py's M4 now passes a hyphen-marked part of a cited name, which changes which sentences are
+    # shown; store.PROSE_HOST is 1, so groups the old prose.py wrote are reported as an earlier prose version
+    assert store.PROSE_HOST == 1
+    assert store.pipeline_versions(SUMS, prose_host=1) == (store.STATING, store.PROSE)
+    assert store.pipeline_versions(SUMS, prose_host=0)[1] != store.PROSE
+    assert store.pipeline_versions(SUMS, prose_host=0)[0] == store.STATING
