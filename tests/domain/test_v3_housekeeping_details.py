@@ -96,10 +96,10 @@ def test_the_run_stores_every_statement_cited_and_the_moved_one_counts_for_its_n
 
 
 def stored(groups, statements, desc):
-    """The prior a run would read back: each group as store.rows_for writes it (store.py:410-412, ``dict(group=g,
-    desc=..., inputs={i: text_of.get(i) for i in _group_ids(g)}, uncited=...)``), keyed as store.load returns them."""
+    """The prior a run would read back: each group as store.rows_for writes it (store.py:427-430, ``dict(group=g,
+    desc=..., pipeline=..., inputs={i: text_of.get(i) for i in _group_ids(g)}, uncited=...)``), keyed as store.load returns them."""
     text_of = {r["id"]: store.sha(r["text"].encode()) for r in prose.rows_of(statements)}
-    return {store.GROUP: {f"g{g['g']}": dict(group=g, desc=desc, inputs={i: text_of.get(i) for i in store._group_ids(g)}, uncited={})
+    return {store.GROUP: {f"g{g['g']}": dict(group=g, desc=desc, pipeline=store.PROSE, inputs={i: text_of.get(i) for i in store._group_ids(g)}, uncited={})
                           for g in groups}}
 
 
