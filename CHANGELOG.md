@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [12.69.2] — 2026-11-27
+
+Release on the train-18 cut 3a7d52ef, carrying 10 PRs since 12.69.1: #1605, #1608, #1611, #1612, #1615, #1619, #1620, #1622, #1621, #1624. The entries were written from each PR's changelog entry.
+
+### Fixed
+
+- Domain prose: each detail sentence carries its own kind, and the host files housekeeping details (file status, error text, screen, messaging and job mechanics) under the area's housekeeping group, so business rules read as business (garden#1599, #1608).
+- Domain: every stored target and rule group records the version of the frozen prompts and cards that made it. A run over a store made by an earlier version reports how many ("N targets were stated by an earlier pipeline version"; `earlier_pipeline` in the summary), and a fresh store states them with the current version (garden#1601, #1611).
+- Domain: a statement's text names each copybook field it uses with the line that declares it, as the host resolved it, in one "Uses:" row under "Runs:". An 88-level name is cited at its own line (garden#1604, #1612).
+- Domain prose: every business sentence cites only business statements. A routine that only reads (or writes values set elsewhere) and handles its status is housekeeping, cited through the statement that performs it; a detail mixing a business step with its mechanics is split; and a repair cannot add a housekeeping-only statement to a business sentence. So the Requirements tab no longer lists those routines (garden#1545, #1607, #1615).
+- Domain prose: a statement a repair drops, and no other sentence cites, stays in its group as a withheld record, and the run's "statements in no group" reports the final state (garden#1618, #1619).
+- Domain run: a retry after a failed attempt reuses that attempt's writer answers (byte-identical prompts for the same scope) instead of reading every chunk again, and asks the checker again; the log says how many (garden#1614, #1620).
+- Domain prose: the prose writer files a clock-only reply, how a message is assembled and the order of performed routines as housekeeping (garden#1616, #1622).
+- Domain run: a checker pass in which no call answered is sent once more after 30 s; if it is still silent, the stop names the exit codes and the client's last error (garden#1617, #1621).
+- Domain run: a host-check change that alters what is stated moves the stating version (`store.HOST`), so a store stated by the old checks is reported as made by an earlier pipeline version (garden#1610, #1624).
+
+### CI
+
+- The selftest pins wicked-ci main aea26cb9, so U04/U06 answer the stand-in choice (wicked-ci#97, #1605).
+
 ## [12.69.1] - 2026-11-27
 
 Release on the train-17 cut 177d1fa5, carrying 3 PRs since 12.69.0: #1596, #1598, #1603. The entries were written from each PR's changelog entry (the PR title where it had none).

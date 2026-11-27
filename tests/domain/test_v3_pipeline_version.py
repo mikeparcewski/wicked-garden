@@ -1,6 +1,7 @@
 """garden#1601 (DES-1601, coord option (b)): each stored target and rule group carries the version of the pipeline that
-made it; a run over a store made by an earlier version carries it as today and says how many targets and groups an
-earlier version made (a fresh store makes them again). Fixtures: the mini-cobol estate of ``test_v3_store.py``, run
+made it; a run over a store made by an earlier version carries it and says how many targets and groups an earlier
+version made. garden#1613 (DES-1613): after the store, those targets are stated again and adopted when none is worse
+(``test_v3_refresh.py``). Fixtures: the mini-cobol estate of ``test_v3_store.py``, run
 through the real ``run.run`` with its scripted seats."""
 import os
 
@@ -35,15 +36,18 @@ def _runs(tmp_path, monkeypatch, first, more=1):
 
 
 @pytest.mark.parametrize("old", [None, "0" * 16])  # a store from before versions were kept; one from another version
-def test_a_store_an_earlier_stating_pipeline_made_is_carried_and_the_run_says_so_every_time(tmp_path, monkeypatch, old):
+def test_a_store_an_earlier_stating_pipeline_made_is_carried_said_and_refreshed_once(tmp_path, monkeypatch, old):
     S, out = _runs(tmp_path, monkeypatch, dict(STATING=old), more=2)
     n = len(S["targets"])
-    for calls, lines, summary, model in out:
-        assert calls == 0 and summary["reuse"] == dict(carry=n, revalidate=0, extract=0), summary
-        assert summary["earlier_pipeline"] == dict(targets=n, groups=0)
-        assert any(f"{n} targets were stated by an earlier pipeline version; a fresh store states them with this one" in ln
-                   for ln in lines), lines
-        assert {r.get("pipeline") for r in model[store.TARGET].values()} == {old}  # kept: the next run says it again
+    (calls, lines, summary, model), (calls2, lines2, summary2, model2) = out
+    assert summary["reuse"] == dict(carry=n, revalidate=0, extract=0), summary
+    assert any(f"{n} targets were stated by an earlier pipeline version · {n} are stated again after the store" in ln
+               for ln in lines), lines
+    # garden#1613: the refresh states them again and the store takes them (the scripted seats answer as before)
+    assert calls > 0 and summary["refresh"]["adopted"] == n and summary["earlier_pipeline"] == dict(targets=0, groups=0)
+    assert {r.get("pipeline") for r in model[store.TARGET].values()} == {store.STATING}
+    assert calls2 == 0 and summary2["refresh"]["eligible"] == 0 and summary2["earlier_pipeline"] == dict(targets=0, groups=0)
+    assert not any("earlier pipeline version" in ln for ln in lines2), lines2
 
 
 def test_groups_an_earlier_prose_pipeline_wrote_are_reused_and_counted(tmp_path, monkeypatch):
@@ -99,8 +103,8 @@ def test_a_host_bump_moves_only_the_stating_version_and_host_zero_keeps_the_vers
 
 def test_a_store_the_previous_host_code_stated_is_reported_after_a_host_bump(tmp_path, monkeypatch):
     # garden#1610: a stale read. The store was stated under the current HOST; a host-only upgrade bumps it, and the run
-    # says its targets were stated by an earlier pipeline version (main kept the old extraction as current). Groups
-    # carry the prose version (run.py prose_for), which a host bump does not move: 0 groups are reported.
+    # says its targets were stated by an earlier pipeline version (main kept the old extraction as current); garden#1613
+    # then states them again. Groups carry the prose version (run.py prose_for), which a host bump does not move.
     before = store.pipeline_versions(SUMS, host=store.HOST)
     bumped = store.pipeline_versions(SUMS, host=store.HOST + 1)
     monkeypatch.setattr(store, "HOST", store.HOST + 1)
@@ -117,8 +121,9 @@ def test_a_store_the_previous_host_code_stated_is_reported_after_a_host_bump(tmp
     seats.n, lines = 0, []
     summary, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
     n = len(S["targets"])
-    assert summary["earlier_pipeline"] == dict(targets=n, groups=0) and seats.n == 0
-    assert any("stated by an earlier pipeline version" in ln for ln in lines), lines
+    assert any(f"{n} targets were stated by an earlier pipeline version" in ln for ln in lines), lines
+    assert summary["refresh"]["eligible"] == n and summary["refresh"]["adopted"] == n and seats.n > 0
+    assert summary["earlier_pipeline"] == dict(targets=0, groups=0)
 
 
 def test_a_prose_host_bump_moves_only_the_prose_version_and_zero_keeps_the_versions_stores_already_carry(tmp_path):
