@@ -1,6 +1,7 @@
 """Frozen renderer (DES-j6-v2 §2 S4, §3 claim contract v2): the model never writes prose. Claims render in execution
 order (by first cited line); each effect / else / value sits under its OWN `when` / `unless`, never under another
-claim's. A condition no effect refers to renders as a plain "Tests:" line, so nothing the table states is dropped."""
+claim's. A condition no effect refers to renders as a plain "Tests:" line, so nothing the table states is dropped. The
+statement's ``context`` (the definitions it relies on, with their lines) renders as one "Uses:" row under "Runs:"."""
 import os
 import re
 
@@ -40,6 +41,16 @@ def render(st, name=None):
         used.update(c.get("when") or [])
         used.update(c.get("unless") or [])
     rows = [f"Runs: {name or a.get('symbol_id') or '?'} ({f}:{ln[0]}-{ln[1]})"]
+    # the definitions the statement relies on (its ``context``: a copybook field's line, garden#1548), so the text a
+    # person reads names the copybook it uses, not only its cited lines (garden#1604)
+    uses = []
+    for x in st.get("context") if isinstance(st.get("context"), list) else []:
+        if isinstance(x, dict) and isinstance(x.get("symbol"), str) and isinstance(x.get("at"), str) and x["at"].strip():
+            u = f"`{x['symbol'].strip()}` ({x['at'].strip()})"
+            if u not in uses:
+                uses.append(u)
+    if uses:
+        rows.append("- Uses: " + ", ".join(uses))
     for c in order:
         t = c.get("type")
         cite = _cite(c, f)
