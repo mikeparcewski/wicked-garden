@@ -24,7 +24,7 @@ WRITER_MAX_OUTPUT = 64000  # the proof's CLAUDE_CODE_MAX_OUTPUT_TOKENS on extrac
 FAMILY = {"claude": "anthropic", "codex": "openai"}
 CORE_ENV = "WICKED_CORE_BIN"
 ENGINE_CORE_ENV = "WICKED_CORE_EXE"
-_state = {"calls": None, "carry": None, "answers": []}
+_state = {"calls": None, "carry": None, "answers": [], "accepted": 0}
 CARRIED = "cache hit: carried from an earlier attempt"
 
 
@@ -41,7 +41,7 @@ def answered(text, rc):
 def configure(calls_dir):
     """Where this run keeps its calls (``<run out>/calls``)."""
     os.makedirs(calls_dir, exist_ok=True)
-    _state.update(calls=calls_dir, carry=None, answers=[])
+    _state.update(calls=calls_dir, carry=None, answers=[], accepted=0)
 
 
 def carry_from(carry_dir):
@@ -55,10 +55,17 @@ def _carry_key(family, step, prompt, max_output_tokens):
     return hashlib.sha256(f"{family}\0{step}\0{max_output_tokens or ''}\0{prompt}".encode()).hexdigest() + ".out.txt"
 
 
+def accept_answers():
+    """The run finished a stage (extract, check, prose) with every writer answer it got so far: those may be carried.
+    An answer of a stage the attempt failed in is not (it may be the reason it failed: a writer answer the stage could
+    not use would fail every retry the same way)."""
+    _state["accepted"] = len(_state["answers"])
+
+
 def publish_carry():
-    """A failed attempt leaves its writer's answers for the next attempt of the same scope; returns how many. The
-    checker's are never carried: the retry asks the checker again (the issue's case is a checker that went silent).
-    Best effort: a carry is a saving, never a reason to fail."""
+    """A failed attempt leaves the writer answers of the stages it finished for the next attempt of the same scope;
+    returns how many. The checker's are never carried: the retry asks the checker again (the issue's case is a checker
+    that went silent). Best effort: a carry is a saving, never a reason to fail."""
     d, kept = _state["carry"], 0
     if not d:
         return 0
@@ -66,7 +73,7 @@ def publish_carry():
         os.makedirs(d, exist_ok=True)
     except OSError:
         return 0
-    for key, text in _state["answers"]:
+    for key, text in _state["answers"][:_state["accepted"]]:
         fd, tmp = None, None
         try:
             fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")

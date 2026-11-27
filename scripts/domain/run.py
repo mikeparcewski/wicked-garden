@@ -338,6 +338,7 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
                  f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
                  f"(the code or the statement changed)")
     A = extract_some(repo, S, C, {t for t, d in decision.items() if d == "extract"})
+    calls.accept_answers()  # garden#1614: a stage's writer answers are carried only once the stage finished
     # a rejected statement the writer stated again, word for word: said, so a re-run is not paid for blind
     again = [r for r in ruled["rejected"] if any(s.get("target") == r["target"] and store.statement_key(s) == r["key"]
                                                   for s in A["statements"])]
@@ -351,6 +352,7 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     A["targets"] = dict(states, **A["targets"])
     if any(s["status"] == "pending" for s in A["statements"]):
         R = check.check_all(repo, S, C, A, os.path.join(out_dir, "check"))
+        calls.accept_answers()
     else:
         R = dict(statements=A["statements"], not_rules=A["not_rules"], targets=A["targets"])
     live = [s for s in R["statements"] if s.get("status") in ("Checked", "open")]
@@ -387,6 +389,7 @@ def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     lookup.use_repo(repo)
     groups, pmeta, prose_reused, pcounts, uncited = prose_for([extract.shown(s) for s in live], desc,
                                                               scope_in.get("description") or "", prior)
+    calls.accept_answers()
     withheld = sum(len(g.get("withheld") or []) for g in groups)
     n_carried = carried_calls(calls_dir)
     if n_carried:

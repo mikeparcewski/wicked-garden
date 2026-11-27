@@ -54,9 +54,9 @@ def test_a_retry_after_a_failed_check_reuses_the_writers_answers_and_a_stored_ru
     assert ("claude", "extract") not in sent, "the writer's extract answer came from the failed attempt"
     assert any(f == "codex" and s.startswith("check") for f, s in sent), "the checker is asked again"
     assert summary["checked"] > 0 and summary["model_calls"] == len(sent)
-    assert os.listdir(runs / "a2" / "calls" / "extract") and all(
-        (runs / "a2" / "calls" / "extract" / f).stat().st_size > 0 for f in os.listdir(runs / "a2" / "calls" / "extract")
-        if f.endswith(".out.txt")), "a carried answer is kept in the attempt's own calls as evidence"
+    outs = [f for f in os.listdir(runs / "a2" / "calls" / "extract") if f.endswith(".out.txt")]
+    assert outs and all((runs / "a2" / "calls" / "extract" / f).stat().st_size > 0 for f in outs), \
+        "a carried answer is kept in the attempt's own calls as evidence"
     notes = (runs / "a2" / "calls" / "ledger.jsonl").read_text()
     n = notes.count("cache hit: carried from an earlier attempt")
     assert n == sum(1 for f, _ in first if f == "claude") and f"reuse · {n} writer answers from the failed attempt" in said, said
@@ -109,6 +109,8 @@ def test_the_carry_misses_on_another_prompt_step_family_or_output_cap_and_on_an_
     sent = seat_process(monkeypatch, seats)
     model_calls.claude("extract", "c0", "P", max_output_tokens=64000)
     model_calls.codex("check-a", "c0", "P")
+    assert model_calls.publish_carry() == 0, "nothing of a stage the attempt did not finish is carried"
+    model_calls.accept_answers()
     assert model_calls.publish_carry() == 1, "only the writer's answer is carried"
     model_calls.configure(str(tmp_path / "a2" / "calls"))
     model_calls.carry_from(str(carry))
@@ -142,3 +144,18 @@ def test_a_carried_answer_is_never_used_for_changed_code(tmp_path, monkeypatch):
     run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(runs / "a2"), write=fake_write)
     assert ("claude", "extract") in sent, "the changed code is asked about again"
     assert not (runs / ".carry").exists(), "the stored run drops the earlier scope's carry too"
+
+
+def test_a_writer_answer_the_failed_stage_could_not_use_is_asked_again(tmp_path, monkeypatch):
+    # codex-check round 2 on garden#1620 (W12): a malformed extract answer failed the attempt inside the extract stage;
+    # carried, it would fail every retry with 0 calls. Only the answers of a stage the attempt finished are carried.
+    repo = make_repo(tmp_path, "mini-cobol")
+    good = FakeSeats(scope.build_scope(repo, "PAYCALC1"))
+    bad = types.SimpleNamespace(claude=lambda step, cid, p, **k: ('{"targets": 1}', 0), codex=good.codex)
+    runs = tmp_path / "runs"
+    seat_process(monkeypatch, bad)
+    with pytest.raises(Exception):
+        run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(runs / "a1"), write=fake_write)
+    sent = seat_process(monkeypatch, good)
+    summary, *_ = run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(runs / "a2"), write=fake_write)
+    assert ("claude", "extract") in sent and summary["checked"] == 1
