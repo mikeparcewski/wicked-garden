@@ -77,3 +77,45 @@ def test_a_prose_file_moves_only_the_prose_version_and_any_other_only_the_statin
     assert stating == NOW[0] and prose != NOW[1]
     stating, prose = bumped("cards/cobol.md")
     assert stating != NOW[0] and prose == NOW[1]
+
+
+# a manifest whose versions main computed before HOST existed (garden#1601's algorithm): HOST 0 must keep them
+LEGACY_SUMS = "a" * 64 + "  prompts/extract.txt\n" + "b" * 64 + "  cards/cobol.md\n" + "c" * 64 + "  prompts/prose.txt\n"
+LEGACY = ("dc58274e6a2d4d1e", "030e0e3b449a5cae")
+
+
+def test_a_host_bump_moves_only_the_stating_version_and_host_zero_keeps_the_versions_stores_already_carry(tmp_path):
+    # garden#1610: identity. HOST 0 is the version every store made before HOST existed carries; each bump is a new one.
+    sums = tmp_path / "SHA256SUMS"
+    sums.write_text(LEGACY_SUMS)
+    assert store.pipeline_versions(str(sums), host=0) == LEGACY
+    ids = [store.pipeline_versions(str(sums), host=h) for h in (0, 1, 2)]
+    assert len({v[0] for v in ids}) == 3 and {v[1] for v in ids} == {LEGACY[1]}, "a host bump never moves the prose version"
+    assert store.pipeline_versions(SUMS) == store.pipeline_versions(SUMS, host=store.HOST) == NOW
+    for bad in (-1, "1", True, 1.0):
+        with pytest.raises(ValueError):
+            store.pipeline_versions(str(sums), host=bad)
+
+
+def test_a_store_the_previous_host_code_stated_is_reported_after_a_host_bump(tmp_path, monkeypatch):
+    # garden#1610: a stale read. The store was stated under the current HOST; a host-only upgrade bumps it, and the run
+    # says its targets were stated by an earlier pipeline version (main kept the old extraction as current). Groups
+    # carry the prose version (run.py prose_for), which a host bump does not move: 0 groups are reported.
+    before = store.pipeline_versions(SUMS, host=store.HOST)
+    bumped = store.pipeline_versions(SUMS, host=store.HOST + 1)
+    monkeypatch.setattr(store, "HOST", store.HOST + 1)
+    assert store.pipeline_versions(SUMS) == bumped, "the version follows store.HOST (store.STATING is it at import)"
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = FakeSeats(S)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    monkeypatch.setattr(store, "STATING", before[0])
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    monkeypatch.setattr(store, "STATING", bumped[0])
+    seats.n, lines = 0, []
+    summary, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
+    n = len(S["targets"])
+    assert summary["earlier_pipeline"] == dict(targets=n, groups=0) and seats.n == 0
+    assert any("stated by an earlier pipeline version" in ln for ln in lines), lines
