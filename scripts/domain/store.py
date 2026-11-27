@@ -47,18 +47,29 @@ AUTHOR = "wicked-garden/domain-run"
 ESTATE_ENV = "WICKED_ESTATE_BIN"
 UNIT_KINDS = ("function", "method", "step", "module", "class", "constant", "variable", "interface", "type_alias")
 PROSE_FILES = ("prompts/prose.txt", "prompts/prose_check.txt", "prompts/prose_repair.txt")
+# garden#1610: the host's own stating checks (the M checks, graph.updates_records, extract.cite_copybooks, the batches,
+# the R context, the renderer) are no frozen file. A change to one that alters what is stated bumps HOST, which moves
+# the stating version as a changed prompt would; tests/domain/test_v3_frozen.py pins those files and names this rule.
+HOST = 0
+HOST_FILES = ("batches.py", "check.py", "cobol_ctx.py", "cobol_flow.py", "defs.py", "extract.py", "graph.py", "lookup.py",
+              "r_stage.py", "reach.py", "render.py", "union.py")
 
 
-def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SHA256SUMS")):
+def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SHA256SUMS"), host=None):
     """The versions of the pipeline that states (extract, check, repair, R, cards, contract) and that writes the prose,
     from the frozen hashes in ``SHA256SUMS`` (tests/domain/test_v3_frozen.py ties them to the files). Each stored target
     and rule group carries the version that made it, and a run says how many were made by an earlier one
-    (garden#1601); a fresh store makes them again."""
+    (garden#1601); a fresh store makes them again. :data:`HOST` above 0 moves the stating version too (garden#1610); at
+    0 the version is the frozen files' alone, so the stores made before HOST existed keep theirs."""
+    host = HOST if host is None else host
     with open(sums) as fh:
         lines = sorted(" ".join(ln.split()) for ln in fh if ln.strip())
     def v(sel):
         return sha("\n".join(ln for ln in lines if sel(ln.split()[1])).encode())[:16]
-    return v(lambda f: f not in PROSE_FILES), v(lambda f: f in PROSE_FILES)
+    stating = v(lambda f: f not in PROSE_FILES)
+    if host:
+        stating = sha(f"{stating}\0host {host}".encode())[:16]
+    return stating, v(lambda f: f in PROSE_FILES)
 
 
 def sha(b):

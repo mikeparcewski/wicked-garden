@@ -77,3 +77,34 @@ def test_a_prose_file_moves_only_the_prose_version_and_any_other_only_the_statin
     assert stating == NOW[0] and prose != NOW[1]
     stating, prose = bumped("cards/cobol.md")
     assert stating != NOW[0] and prose == NOW[1]
+
+
+def test_a_host_bump_moves_only_the_stating_version_and_host_zero_keeps_the_frozen_files_version():
+    # garden#1610: identity. HOST 0 is the version every store made before HOST existed carries; each bump is a new one.
+    frozen = store.pipeline_versions(SUMS, host=0)
+    assert frozen == NOW and store.HOST == 0
+    one, two = store.pipeline_versions(SUMS, host=1), store.pipeline_versions(SUMS, host=2)
+    assert len({frozen[0], one[0], two[0]}) == 3
+    assert frozen[1] == one[1] == two[1], "a host bump never moves the prose version"
+
+
+def test_a_store_the_previous_host_checks_stated_is_reported_after_a_host_bump(tmp_path, monkeypatch):
+    # garden#1610: a stale read. The store was stated under HOST 0; a host-only upgrade bumps HOST, and the run says
+    # its targets were stated by an earlier pipeline version (main kept the old extraction as current).
+    bumped = store.pipeline_versions(SUMS, host=1)
+    monkeypatch.setattr(store, "HOST", 1)
+    assert store.pipeline_versions(SUMS) == bumped, "the version is computed from store.HOST (store.STATING at import)"
+    monkeypatch.setattr(store, "HOST", 0)
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = FakeSeats(S)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    monkeypatch.setattr(store, "STATING", bumped[0])
+    seats.n, lines = 0, []
+    summary, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
+    n = len(S["targets"])
+    assert summary["earlier_pipeline"] == dict(targets=n, groups=0) and seats.n == 0
+    assert any("stated by an earlier pipeline version" in ln for ln in lines), lines

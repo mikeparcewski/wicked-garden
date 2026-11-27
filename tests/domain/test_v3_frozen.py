@@ -50,3 +50,37 @@ def test_every_prompt_the_pipeline_reads_is_listed():
     on_disk = {f"prompts/{f}" for f in os.listdir(os.path.join(HERE, "prompts"))}
     on_disk |= {f"cards/{f}" for f in os.listdir(os.path.join(HERE, "cards"))}
     assert on_disk | {"contract.json"} == listed
+
+
+# garden#1610: the host's own stating checks, pinned with the store.HOST they were last judged under. A change to one of
+# these files fails below until it is re-pinned. The rule: if the change alters what a run states (an M check, what a
+# prompt shows, what counts as accounted, the rendered text), bump store.HOST in the same change, so a store the old
+# checks stated says it was made by an earlier pipeline version (garden#1601); if it does not, re-pin and leave HOST.
+HOST_AT = 0
+HOST_PIN = {
+    "batches.py": "ef00e51c60fc7d2fbebcfba8795a936417b8ed028e2b83a60b73ef74073e3671",
+    "check.py": "21a7f21aa6c2cd47e4180ff9d8ad4ff106124315c5638e5b2ddc3b9006b39487",
+    "cobol_ctx.py": "7c7619ffae25d6283a2f73b55916a72e279e32df3e9a0397978d7690a7e01631",
+    "cobol_flow.py": "ef4c5c187d5d2e085c6e6b624d87416a51411d69326acce3e2a357ff550f6ac7",
+    "defs.py": "f75d02b1a6dbd5e2d4407e41362737be86669ea3b0ca5855dd95c78cfca8a492",
+    "extract.py": "279a4fd54fc2f41d0f3510297f785c9fbf16b8dc3c858b669ecb599c31a2c673",
+    "graph.py": "160cea90d5b5a9ab12b2c45e9a855b930a1245b4447d5a2275bdee3324b17383",
+    "lookup.py": "5e74882951afc4ccdb33a67b91d49231ead539a6f9758efaf159bad2c09742bf",
+    "r_stage.py": "f3ab2028650c236e99002fa5a5547eb40cac8105fdae5336c867c2ba8879689b",
+    "reach.py": "52861ef241e965193704c9bf9f39674e3c362df937b6a1deb46df7223e8d7ab8",
+    "render.py": "17335e132b454b675b55f2ba0630a4da50d1e4f19443cf2d4a02ed924cf7b310",
+    "union.py": "c1a4e4efb3d7492868cb55321b0c9d901f7cb3e1fcffc02e8fdb57bbc2a60230",
+}
+
+
+def test_a_changed_host_stating_check_is_judged_for_a_host_bump():
+    from domain import store
+    assert set(HOST_PIN) == set(store.HOST_FILES)
+    assert store.HOST == HOST_AT, "store.HOST moved: set HOST_AT to it and re-pin HOST_PIN in the same change"
+    changed = []
+    for rel, digest in HOST_PIN.items():
+        with open(os.path.join(HERE, rel), "rb") as fh:
+            if hashlib.sha256(fh.read()).hexdigest() != digest:
+                changed.append(rel)
+    assert not changed, (f"host stating checks changed: {changed}. If the change alters what a run states, bump "
+                         "store.HOST (garden#1610); either way, re-pin HOST_PIN (and HOST_AT) here")
