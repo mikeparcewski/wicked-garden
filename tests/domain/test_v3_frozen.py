@@ -27,7 +27,8 @@ PROOF = {
     "cards/generic.md": "f1d2d08d5059d2cc1d1af53460d299f900e5b757aa225bd030a80d1a09e9c763",
     # garden#1548 (DES-1548, coord-approved): the derived kind counts a record update; statements carry concerns; the proof froze 6657f142ea3d.
     "contract.json": "8a2be4460ac7305495d5a8d5f2c9f25a9f2a296e1317ca2f6adbcf23ba3baea4",
-    "prompts/prose.txt": "00ddf9bf9ccb5d81bcb5ba8a7ec41e5fbd616a1823454b510a87a81105ad9e2d",
+    # garden#1599 (DES-1599, coord-approved): each DETAIL carries its own kind, the housekeeping list is spelled out, a business RULE cites only business statements; the proof froze 00ddf9bf9ccb.
+    "prompts/prose.txt": "f9514b6ba5670aae1670e47d071fc288df608e072cc84cee2838253c5d2b0626",
     "prompts/prose_check.txt": "391d74b3a88ca2bbeca6c13f331a088b8eed2e37a4c8ed8354c7ba7a889e8ce2",
     "prompts/prose_repair.txt": "1b2f5d4f5788a263a5d9d29fdad0fc3732446b50aee015de207c79edba06edaa",
 }

@@ -22,6 +22,7 @@ Exit: 0 done, 2 the store write failed, 3 refused before any call, 4 a writer ca
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -232,21 +233,34 @@ def prose_for(statements, desc, desc_key, prior):
     if not rows:
         return [], meta, False, {}, []
     reused, covered, left_out = [], set(), set()
-    for v in prior[store.GROUP].values():
-        if not isinstance(v, dict) or v.get("desc") != desc_key:
-            continue
-        inp = v.get("inputs") or {}
-        if inp and all(text_of.get(i) == h for i, h in inp.items()):
+    mine = [v for v in prior[store.GROUP].values() if isinstance(v, dict) and v.get("desc") == desc_key]
+    ok = [bool(v.get("inputs")) and all(text_of.get(i) == h for i, h in v["inputs"].items()) for v in mine]
+    # a group that shares a statement with a group written again is written again too (garden#1599: a business
+    # group and the housekeeping group its details moved to rest on the same statement), so the writer sees every
+    # statement of the rule it rewrites
+    again = True
+    while again:
+        dirty = {i for v, k in zip(mine, ok) if not k for i in (v.get("inputs") or {}) if i in text_of}
+        again = False
+        for n, v in enumerate(mine):
+            if ok[n] and dirty & set(v["inputs"]):
+                ok[n], again = False, True
+    for v, k in zip(mine, ok):
+        if k:
             reused.append(v["group"])
-            covered |= set(inp)
+            covered |= set(v["inputs"])
         unc = v.get("uncited")
         left_out |= {i for i, h in (unc if isinstance(unc, dict) else {}).items() if text_of.get(i) == h}
     todo = {i for i in text_of if i not in covered and i not in left_out}
     reused.sort(key=lambda g: g.get("g") or 0)
     if not todo:
         return reused, meta, True, {}, sorted(left_out)
-    res = prose.prose_all([s for s in statements if s.get("id") in todo], desc,
-                          start=max([0] + [g.get("g") or 0 for g in reused]))
+    # new groups are numbered after every reused group and after every group number a reused sentence id still
+    # carries: a detail moved to a housekeeping group keeps its business group's id (garden#1599)
+    nums = [g.get("g") or 0 for g in reused] + [
+        int(m.group(1)) for g in reused for x in [g.get("rule")] + (g.get("details") or []) + (g.get("withheld") or [])
+        if isinstance(x, dict) for m in [re.match(r"g(\d+)\.", str(x.get("id") or ""))] if m]
+    res = prose.prose_all([s for s in statements if s.get("id") in todo], desc, start=max([0] + nums))
     sid = {r["sid"]: r["id"] for r in res["rows"]}
     for g in res["groups"]:
         for x in ([g["rule"]] if g.get("rule") else []) + g.get("details", []) + g.get("withheld", []):

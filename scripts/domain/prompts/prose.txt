@@ -7,7 +7,18 @@ Group the statements into business rules. For each group write one plain-languag
 
 1. Groups.
    - A group is one business rule or one coherent behaviour, for example "Interest is computed per category balance", "A transaction is rejected when it fails validation" or "A run needs QE acceptance". A group may merge statements from several routines when they describe one rule.
-   - File open, read, write and close status handling, abend routines, type guards and similar technical steps go in ONE group per program or module, with kind "housekeeping". Every other group has kind "business".
+   - Business is what decides or computes something about the business data: accounts, cards, customers, transactions, authorizations, interest, fees, posting, the result of validating an entered value (including the message that tells the user the value is invalid), report content, and the job's business inputs and outputs.
+   - Housekeeping is everything else around it, for example:
+     - files and databases: open, read, write and close and their status checks, file-status acceptance lists (which status codes count as success), a keyed read and the found / not-found / end-of-data flags it sets, the error value set when a read or rewrite fails;
+     - errors and diagnostics: error and abend message display (including the message text), abend routines, debug DISPLAYs of records, record counters;
+     - screens: map sends and receives, paging and browse positioning, saved browse keys and page counters, cursor placement, field protection and colours, function-key mapping and the message for an unsupported key, clearing or resetting screen fields, session or COMMAREA setup and resets, which screen or program runs next;
+     - messaging: queue open, get and put, message and correlation ids, reply formats and buffer sizes;
+     - control flow that only performs other paragraphs, and a routine that does nothing (a stub);
+     - jobs: which program a step runs, step and procedure names, library bindings (CNTLLIB, STEPLIB), and dataset attributes (DISP, DCB, SPACE);
+     - CICS and IMS mechanics: PSB scheduling, IMS status handling, SYNCPOINT, file dispatching.
+   - Housekeeping goes in ONE group per program or module, with kind "housekeeping". Every other group has kind "business". A group whose RULE would be housekeeping is a housekeeping group.
+   - Each DETAIL sentence has its own kind: "housekeeping" when what it says is housekeeping as above, else "business". A housekeeping DETAIL may sit in a business group (it is filed later with its program's housekeeping); never leave it out.
+   - A business group's RULE sentence cites only statements whose behaviour is business, not housekeeping.
    - Order: business groups first, in the order the program runs them; housekeeping last.
    - Every statement id must be cited by at least one sentence. A statement may be cited by more than one group.
 
@@ -33,7 +44,7 @@ OUTPUT
 JSON only, no prose before or after, exactly this shape:
 {"groups": [{"g": 1, "title": "<= 8 words, business language", "area": "<program, job or module the group is about>", "kind": "business|housekeeping",
              "rule": {"text": "...", "cites": ["S3", "S7"]},
-             "details": [{"text": "...", "cites": ["S3"]}]}]}
+             "details": [{"text": "...", "cites": ["S3"], "kind": "business|housekeeping"}]}]}
 
 STATEMENTS
 {{STATEMENTS}}
