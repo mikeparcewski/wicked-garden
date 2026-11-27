@@ -65,3 +65,63 @@ def test_a_prose_file_moves_only_the_prose_version_and_any_other_only_the_statin
     assert stating == store.STATING and prose != store.PROSE
     stating, prose = bumped("cards/cobol.md")
     assert stating != store.STATING and prose == store.PROSE
+
+
+def test_a_refresh_the_writer_leaves_unaccounted_keeps_the_stored_record_and_is_tried_again(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = FakeSeats(S)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    monkeypatch.setattr(store, "STATING", "0" * 16)
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    before = stored(repo.db)
+    monkeypatch.setattr(store, "STATING", pipeline_now)
+    # the upgraded writer answers nothing usable (and its M repair neither)
+    monkeypatch.setattr(model_calls, "claude", lambda step, *a, **k: ("{}", 0) if step != "prose" else seats.claude(step, *a, **k))
+    lines = []
+    second, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), log=lines.append, write=fake_write)
+    after = stored(repo.db)
+    n = len(S["targets"])
+    ok = {r["target"] for r in before[store.TARGET].values() if not (r.get("state") or {}).get("unaccounted")}
+    assert 0 < len(ok) < n  # the scripted writer leaves one target unaccounted from the start: it is not kept
+    assert any(f"{len(ok)} targets the new pipeline left unaccounted kept as stored" in ln for ln in lines), lines
+    assert {k: (v["status"], v["contract"]["claims"]) for k, v in after[store.RULE].items()} == \
+        {k: (v["status"], v["contract"]["claims"]) for k, v in before[store.RULE].items()}
+    assert {r["target"]: r["pipeline"] for r in after[store.TARGET].values()} == {
+        r["target"]: "0" * 16 if r["target"] in ok else store.STATING for r in before[store.TARGET].values()}
+    assert {r["target"] for r in after[store.TARGET].values() if not (r.get("state") or {}).get("unaccounted")} == ok
+    # the next run, with a writer that answers, states them under the current version
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    third, *_ = run.run(repo.root, repo.db, scope_in, str(tmp_path / "run3"), write=fake_write)
+    assert third["reuse"]["extract"] == n and {r["pipeline"] for r in stored(repo.db)[store.TARGET].values()} == {store.STATING}
+
+
+def test_a_target_a_person_confirmed_stays_as_stored_and_says_so_every_run(tmp_path, monkeypatch):
+    from tests.domain.test_v3_rulings import RulingSeats, by_text, rule, target_row
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = RulingSeats(S)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    monkeypatch.setattr(store, "STATING", "0" * 16)
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    monkeypatch.setattr(store, "STATING", pipeline_now)
+    sid, bad = by_text(repo.db, "`PAY-AMOUNT` is set to zero")
+    read = target_row(repo.db, "READ-PARA")
+    rule(repo.db, "statement", sid, "confirm", read["anchor_symbol"],
+         statement_key=store.statement_key(bad["contract"]), target_hash=read["target_hash"])
+    for k in (2, 3):
+        seats.prompts, lines = [], []
+        run.run(repo.root, repo.db, scope_in, str(tmp_path / f"run{k}"), log=lines.append, write=fake_write)
+        assert not [p for st, p in seats.prompts if st == "extract" and f'"target": "{read["target"]}"' in p]
+        assert any("1 targets stored by an earlier version of the pipeline kept as they are: a person's confirm holds them"
+                   in ln for ln in lines), lines
+        now = target_row(repo.db, "READ-PARA")
+        assert now["pipeline"] == "0" * 16 and now["target_hash"] == read["target_hash"]
+        assert by_text(repo.db, "`PAY-AMOUNT` is set to zero")[1]["status"] == "open"
+
+
+pipeline_now = store.STATING
