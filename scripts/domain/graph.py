@@ -319,7 +319,12 @@ def has_decision(repo, f, lines):
 _NOT_A_RECORD = r"(?:OPERATOR|CONTAINER|CHANNEL|JOURNALNAME|COUNTER|DCOUNTER)\b"
 RECORD_UPDATE_COBOL = re.compile(r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)(?![A-Z0-9-])(?!\s+" + _NOT_A_RECORD + ")", re.I)
 _NOT_A_RECORD_NEXT = re.compile(r"^\s*" + _NOT_A_RECORD, re.I)
-_THRU_NEXT = re.compile(r"^\s*(?:THRU|THROUGH)\b", re.I)
+# DES-1603: a PERFORM is read as one statement, from its line to the next verb or period (5 lines at most). The
+# words that may follow its procedure names; anything else and the call is not read (main's behaviour).
+_COBOL_VERBS = frozenset("""ACCEPT ADD CALL CANCEL CLOSE COMPUTE CONTINUE DELETE DISPLAY DIVIDE ELSE END-EVALUATE END-IF
+    END-PERFORM END-READ END-SEARCH EVALUATE EXEC EXIT GO GOBACK IF INITIALIZE INSPECT MERGE MOVE MULTIPLY NEXT OPEN
+    PERFORM READ RELEASE RETURN REWRITE SEARCH SET SORT START STOP STRING SUBTRACT UNSTRING WHEN WRITE""".split())
+_PERFORM_TAIL = frozenset(("UNTIL", "VARYING", "WITH", "TEST")) | _COBOL_VERBS
 _PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:OF|IN)\s+([A-Z0-9][A-Z0-9-]*))?"
                             r"(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:OF|IN)\s+([A-Z0-9][A-Z0-9-]*))?)?", re.I)
 _PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\s*\.?\s*$", re.I)
@@ -351,6 +356,31 @@ def _next_code(L, i, cm):
         if c.strip():
             return c
     return ""
+
+
+def _perform_statement(L, i, cm):
+    """Line ``i``'s code, and when it holds a PERFORM, the lines after it up to the next verb or period (5 lines at
+    most), so a name, qualifier or THRU on a continuation line is read with its call."""
+    c = _cobol_code(L, i, cm)
+    if not re.search(r"\bPERFORM\b", c, re.I) or c.rstrip().endswith("."):
+        return c
+    for j in range(i + 1, min(len(L), i + 4) + 1):
+        n = _cobol_code(L, j, cm)
+        if not n.strip():
+            continue
+        if len(n) - len(n.lstrip()) <= 3 or n.split()[0].rstrip(".").upper() in _COBOL_VERBS:
+            break  # a header in area A, or the next statement
+        c = c.rstrip() + " " + n.strip()
+        if n.rstrip().endswith("."):
+            break
+    return c
+
+
+def _perform_tail_ok(rest):
+    """What follows a PERFORM's procedure names is nothing, a period, a TIMES / UNTIL / VARYING / WITH TEST clause,
+    or the next verb on the line."""
+    w = [x.rstrip(".").upper() for x in rest.split()]
+    return not w or rest.lstrip().startswith(".") or w[0] in _PERFORM_TAIL or (len(w) > 1 and w[1] == "TIMES")
 
 
 def _is_update(L, i, cm):
@@ -427,11 +457,10 @@ def updates_records(repo, f, lines):
         if _is_update(L, i, cm):
             out.append(i)
             continue
-        c = _cobol_code(L, i, cm)
-        nxt = _next_code(L, i, cm)
-        if re.search(r"\bPERFORM\s*$", c, re.I) or _THRU_NEXT.match(nxt):  # the call wraps onto the next line
-            c = c + " " + nxt
+        c = _perform_statement(L, i, cm)
         for m in _PERFORM_COBOL.finditer(c):
+            if not _perform_tail_ok(c[m.end():]):
+                continue  # not a PERFORM this reads: no update, as main
             up = [(g or "").upper() or None for g in m.groups()]
             ka = resolve(up[0], up[1], i)
             kb = resolve(up[2], up[3], i) if up[2] else ka

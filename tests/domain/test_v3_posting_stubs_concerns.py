@@ -461,3 +461,46 @@ def test_a_field_the_model_named_with_no_reference_gets_its_copybook_line(tmp_pa
     st = dict(anchor=dict(file=PROG, lines=[20, 29]), context=[dict(symbol="PAY-AMOUNT")],
               claims=[dict(i=0, type="effect", text="adds `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
     assert extract.cite_copybooks(st)["context"] == [dict(symbol="PAY-AMOUNT", at="app/cpy/PAYREC.cpy:5")]
+
+
+SPLIT = "app/cbl/QUAL2.cbl"
+_SPLIT = """       IDENTIFICATION DIVISION.
+       PROGRAM-ID. QUAL2.
+       PROCEDURE DIVISION.
+       OUTPUT-SEC SECTION.
+       OUT-A.
+           PERFORM SAVE-REC
+               OF CLEANUP-SEC
+           PERFORM SAVE-REC IN
+               CLEANUP-SEC
+           PERFORM SAVE-REC THRU
+               A-EXIT OF OUTPUT-SEC
+           PERFORM
+               SAVE-REC
+           PERFORM SAVE-REC
+               WS-COUNT TIMES
+           PERFORM SAVE-REC
+               WS-ODD-WORD
+           MOVE 1 TO WS-N.
+       SAVE-REC.
+           WRITE OUT-REC.
+       A-PARA.
+           MOVE 2 TO WS-N.
+       A-EXIT.
+           EXIT.
+       CLEANUP-SEC SECTION.
+       SAVE-REC.
+           CLOSE OUT-FILE.
+"""
+
+
+def test_a_perform_is_read_as_one_statement_across_its_lines(tmp_path):
+    repo = make_repo(tmp_path, "mini-cobol")
+    with open(os.path.join(repo.root, SPLIT), "w") as fh:
+        fh.write(_SPLIT)
+    got = graph.updates_records(repo, SPLIT, range(1, 28))
+    # 6-7 and 8-9: the qualifier on the next line names CLEANUP-SEC's SAVE-REC (a CLOSE), so not an update.
+    # 10-11: SAVE-REC THRU A-EXIT OF OUTPUT-SEC spans the WRITE at 20. 12-13: the name on the next line.
+    # 14-15: a TIMES clause on the next line. 16-17: a word that is no PERFORM clause, so the call is not read
+    # (fail closed, as main). 20: the WRITE itself.
+    assert got == [10, 12, 14, 20], got
