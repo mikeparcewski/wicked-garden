@@ -114,7 +114,8 @@ def mcheck(groups, rows):
 
 
 def sentences(groups):
-    return [dict(g=g["g"], title=g["title"], kind=g["kind"], **s) for g in groups if isinstance(g, dict) and isinstance(g.get("rule"), dict)
+    # the group's kind wins over a DETAIL's own (garden#1599), which file_housekeeping reads from the group
+    return [dict(s, g=g["g"], title=g["title"], kind=g["kind"]) for g in groups if isinstance(g, dict) and isinstance(g.get("rule"), dict)
             for s in [g["rule"]] + [d for d in g.get("details") or [] if isinstance(d, dict)]]
 
 
@@ -195,6 +196,38 @@ def _tried(g, by):
                    for c in x["cites"] if isinstance(c, str) and c in by}, key=lambda c: int(c[1:]))
 
 
+def file_housekeeping(groups, hk, top):
+    """garden#1599 (DES-1599): a DETAIL the writer marked housekeeping (``hk``: its sentence ids) that sits in a
+    business group moves, shown or withheld, to the housekeeping group of the same area, made when the area has none
+    (numbered after ``top``). Its sentence id and cites do not change. Returns the number moved."""
+    def key(a):
+        return a.strip().casefold() if isinstance(a, str) else ""
+
+    homes = {}
+    for g in groups:
+        if g["kind"] == "housekeeping":
+            homes.setdefault(key(g.get("area")), g)
+    moved = 0
+    for g in [x for x in groups if x["kind"] == "business"]:
+        out_d = [d for d in g["details"] if d["id"] in hk]
+        out_w = [w for w in g["withheld"] if w.get("layer") == "detail" and w["id"] in hk]
+        if not out_d and not out_w:
+            continue
+        k = key(g.get("area"))
+        if k not in homes:
+            top += 1
+            area = g.get("area") if isinstance(g.get("area"), str) and g["area"].strip() else None
+            homes[k] = dict(g=top, title=f"{area}: file and error handling" if area else "File and error handling",
+                            area=g.get("area"), kind="housekeeping", rule=None, details=[], withheld=[])
+            groups.append(homes[k])
+        homes[k]["details"] += out_d
+        homes[k]["withheld"] += out_w
+        g["details"] = [d for d in g["details"] if d not in out_d]
+        g["withheld"] = [w for w in g["withheld"] if w not in out_w]
+        moved += len(out_d) + len(out_w)
+    return moved
+
+
 def prose_all(statements, desc, start=0):
     """The run's rule groups: {rows, groups, uncited, counts}. Each sentence carries ``fate``: as written, repaired
     or withheld (then ``reason``) and the checker's ``verdict``; a group whose RULE is withheld has ``rule: None`` and
@@ -244,6 +277,9 @@ def prose_all(statements, desc, start=0):
             fixed[rs["id"]] = (dict(withheld=False, text=rs["text"], cites=rs["cites"]) if (v or {}).get("verdict") == "SUPPORTED"
                                else dict(withheld=True, reason=_objection(v, [])))
     out_groups, fates = [], collections.Counter()
+    # a DETAIL's own kind (garden#1599); one with none keeps its group's kind
+    hk = {d.get("id") for g in groups if g["kind"] == "business" for d in g.get("details") or []
+          if isinstance(d, dict) and d.get("kind") == "housekeeping"}
     for g in groups:
         if not isinstance(g.get("rule"), dict):
             continue
@@ -264,6 +300,7 @@ def prose_all(statements, desc, start=0):
             else:
                 og["details"].append(row)
         out_groups.append(og)
+    moved = file_housekeeping(out_groups, hk, max([start] + [g["g"] for g in written]))
     for g in malformed:
         why = shape_fail(g)
         out_groups.append(dict(g=g["g"], title=g["title"] if isinstance(g.get("title"), str) else None, area=g.get("area"),
@@ -274,4 +311,5 @@ def prose_all(statements, desc, start=0):
     out_groups.sort(key=lambda g: g["g"])
     return dict(rows=rows, groups=out_groups, uncited=uncited,
                 counts=dict(groups=len(out_groups), sentences=len(sents), m_failed=len(mfail),
-                            check_flagged=sum(1 for s in sents if (v1.get(s["id"]) or {}).get("verdict") != "SUPPORTED"), **fates))
+                            check_flagged=sum(1 for s in sents if (v1.get(s["id"]) or {}).get("verdict") != "SUPPORTED"),
+                            moved_housekeeping=moved, **fates))

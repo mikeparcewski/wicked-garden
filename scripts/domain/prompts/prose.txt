@@ -7,7 +7,9 @@ Group the statements into business rules. For each group write one plain-languag
 
 1. Groups.
    - A group is one business rule or one coherent behaviour, for example "Interest is computed per category balance", "A transaction is rejected when it fails validation" or "A run needs QE acceptance". A group may merge statements from several routines when they describe one rule.
-   - File open, read, write and close status handling, abend routines, type guards and similar technical steps go in ONE group per program or module, with kind "housekeeping". Every other group has kind "business".
+   - Housekeeping is the technical plumbing around the business behaviour: file open, read, write and close and their status checks, file-status acceptance lists (which status codes count as success), error and abend message display, abend routines, type guards, JCL dataset attributes (DISP, DCB, SPACE), and CICS/IMS mechanics (PSB scheduling, IMS status handling, map sends, PF-key returns, file dispatching). It goes in ONE group per program or module, with kind "housekeeping". Every other group has kind "business".
+   - Each DETAIL sentence has its own kind: "housekeeping" when what it says is housekeeping as listed above, else "business". A housekeeping DETAIL may sit in a business group (it is filed later with its program's housekeeping); never leave it out.
+   - A business group's RULE sentence cites only statements whose behaviour is business, not housekeeping.
    - Order: business groups first, in the order the program runs them; housekeeping last.
    - Every statement id must be cited by at least one sentence. A statement may be cited by more than one group.
 
@@ -33,7 +35,7 @@ OUTPUT
 JSON only, no prose before or after, exactly this shape:
 {"groups": [{"g": 1, "title": "<= 8 words, business language", "area": "<program, job or module the group is about>", "kind": "business|housekeeping",
              "rule": {"text": "...", "cites": ["S3", "S7"]},
-             "details": [{"text": "...", "cites": ["S3"]}]}]}
+             "details": [{"text": "...", "cites": ["S3"], "kind": "business|housekeeping"}]}]}
 
 STATEMENTS
 {{STATEMENTS}}
