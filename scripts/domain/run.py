@@ -399,11 +399,34 @@ REFRESH_CODES = ("m_fail", "noresult", "refused_not_rule", "unaccounted", "fewer
                  "call_failed", "phase_failed", "write_failed")
 
 
+SPAN_CAP = 10000  # the most lines one range counts for (a model range such as [1, 10**12] is cut, never expanded)
+
+
+def _span(sts, nrs):
+    """The (file, line) pairs an answer covers: each statement's anchor and each accepted not-rule (a refused one
+    covers nothing), the way extract.check_target counts a target's accounted lines."""
+    out = set()
+
+    def add(f, a, b):
+        out.update((f, i) for i in range(a, min(b, a + SPAN_CAP - 1) + 1))
+    for s in sts:
+        an = s.get("anchor") or {}
+        ln = an.get("lines")
+        if isinstance(ln, list) and len(ln) == 2 and all(isinstance(x, int) and not isinstance(x, bool) for x in ln):
+            add(an.get("file"), min(ln), max(ln))
+    for x in nrs:
+        p = lookup.pref(x.get("lines")) if x.get("status") == "accepted" else None
+        if p:
+            add(*p)
+    return out
+
+
 def worse(tid, old, new):
     """Why target ``tid`` as the refresh stated it (``new``, a checked result) is worse than as stored (``old``): one
-    of :data:`REFRESH_CODES`, or ``None``. DES-1601's rule: nothing left failing the M checks or unchecked, no refused
-    not-rule standing for an answer, no newly unaccounted target, no fewer answers (statements and accepted not-rules;
-    a refused not-rule is none) and no fewer Checked statements."""
+    of :data:`REFRESH_CODES`, or ``None``. DES-1601's rule, line by line: nothing left failing the M checks or
+    unchecked; no line the stored answer covered left uncovered (a refused not-rule covers none, ``refused_not_rule``
+    when one stands there); no newly unaccounted target; no fewer answers; and no line a Checked statement covered
+    left without one, nor fewer Checked statements."""
     def of(R):
         return ([s for s in R["statements"] if s.get("target") == tid and s.get("status") in ("Checked", "open")],
                 [x for x in R["not_rules"] if x.get("target") == tid], (R.get("targets") or {}).get(tid) or {})
@@ -412,16 +435,17 @@ def worse(tid, old, new):
         return "m_fail"
     if not all(_settled(s) for s in n):
         return "noresult"
-    def answers(sts, nrs):
-        return len(sts) + sum(x.get("status") == "accepted" for x in nrs)
-    fewer = answers(n, nnr) < answers(o, onr)
-    if fewer and any(x.get("status") == "refused" for x in nnr):
+    lost = bool(_span(o, onr) - _span(n, nnr))
+    fewer = len(n) + sum(x.get("status") == "accepted" for x in nnr) < len(o) + sum(
+        x.get("status") == "accepted" for x in onr)
+    if (lost or fewer) and any(x.get("status") == "refused" for x in nnr):
         return "refused_not_rule"
-    if nst.get("unaccounted") and not ost.get("unaccounted"):
+    if lost or nst.get("unaccounted") and not ost.get("unaccounted"):
         return "unaccounted"
     if fewer:
         return "fewer_answers"
-    if sum(s["status"] == "Checked" for s in n) < sum(s["status"] == "Checked" for s in o):
+    checked = lambda sts: [s for s in sts if s["status"] == "Checked"]  # noqa: E731
+    if _span(checked(o), []) - _span(checked(n), []) or len(checked(n)) < len(checked(o)):
         return "fewer_checked"
     return None
 

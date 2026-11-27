@@ -365,3 +365,38 @@ def test_a_refreshed_run_reports_prose_reused_only_from_the_store_before_it(tmp_
     con.close()
     summary, lines, calls = again(repo, scope_in, tmp_path, seats, "run2")
     assert summary["refresh"]["adopted"] > 0 and summary["prose_reused"] is False, summary
+
+
+def _st(k, a, b, status="Checked", status1=None):
+    # a statement as extract_all (extract.py:425-428) and check_all (check.py:416-420) leave it
+    return dict(target="T", id=f"T#{k}", status=status, status1=status1 or ("Checked" if status == "Checked" else
+                "flagged"), m_fail=[], anchor=dict(file=PROG, lines=[a, b]))
+
+
+def _nr(k, a, b, status):
+    return dict(target="T", id=f"T#nr{k}", lines=f"{PROG}:{a}-{b}", reason="control-only", status=status)  # extract.py:431
+
+
+def _R(sts, nrs=(), unaccounted=False):
+    return dict(statements=list(sts), not_rules=list(nrs), targets={"T": dict(unaccounted=unaccounted)})
+
+
+def test_a_refresh_that_trades_a_checked_answer_for_one_over_other_lines_is_worse():
+    # codex-check round 2 (W20): a partly accounted target swaps its Checked statement on lines 24-29 for a Checked one
+    # on 20-23; the counts and the unaccounted flag stay the same, but lines 24-29 lose their answer
+    old = _R([_st(0, 24, 29)], unaccounted=True)
+    assert run.worse("T", old, _R([_st(0, 20, 23)], [_nr(0, 24, 29, "refused")], unaccounted=True)) == "refused_not_rule"
+    assert run.worse("T", old, _R([_st(0, 20, 23)], unaccounted=True)) == "unaccounted"
+    assert run.worse("T", old, _R([_st(0, 20, 29)], unaccounted=True)) is None, "covering more is not worse"
+
+
+def test_a_refresh_that_merges_two_statements_into_one_has_fewer_answers():
+    # DES-1601(a)'s accepted cost: stating less is refused until the next version, even over the same lines
+    old = _R([_st(0, 20, 23), _st(1, 24, 29)])
+    assert run.worse("T", old, _R([_st(0, 20, 29)])) == "fewer_answers"
+
+
+def test_a_refresh_that_leaves_a_checked_line_with_only_an_open_statement_is_worse():
+    old = _R([_st(0, 20, 23, "open", "unverifiable"), _st(1, 24, 29)])
+    new = _R([_st(0, 20, 23), _st(1, 24, 29, "open", "flagged")])
+    assert run.worse("T", old, new) == "fewer_checked", "one Checked each, but lines 24-29 lost theirs"
