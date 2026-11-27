@@ -10,6 +10,8 @@ container through the gateway). What the proof set per call is carried through i
 ``model-call --max-output-tokens``. The proof's ``tools``, ``cwd`` and ``env`` arguments are not: the engine's
 tool-free posture and the seat's own home replace them. Stdlib only.
 """
+import collections
+import concurrent.futures as cf
 import json
 import os
 import re
@@ -23,6 +25,7 @@ FAMILY = {"claude": "anthropic", "codex": "openai"}
 CORE_ENV = "WICKED_CORE_BIN"
 ENGINE_CORE_ENV = "WICKED_CORE_EXE"
 _state = {"calls": None}
+RETRY_WAIT_S = 30  # garden#1617: the wait before a checker pass in which no call answered is sent once more
 
 
 class CallFailed(RuntimeError):
@@ -136,6 +139,35 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
         _write(base + ".stderr.txt", err[-5000:])
     _log(step, cid, role, family, wall, rc == 0 and bool(text), "" if rc == 0 else err[-300:])
     return text, rc
+
+
+def _last_error(step, cid):
+    """The last non-empty line the client wrote to stderr for this call, at most 200 characters, or ''."""
+    try:
+        lines = [x.strip() for x in _read(_paths(step, cid)[1] + ".stderr.txt").splitlines() if x.strip()]
+    except OSError:
+        return ""
+    return lines[-1][:200] if lines else ""
+
+
+def checker_pass(step, n, one, workers):
+    """garden#1617: one checker pass, ``one(k) -> (result, text, rc)`` for its ``n`` calls (call id ``c<k>``), run
+    ``workers`` at a time. Returns ``[(result, answered)]``. When not one call answered (a signed-out, rate-limited or
+    failing checker), the pass is sent once more after :data:`RETRY_WAIT_S`; a call that did answer is a cache hit.
+    When it still answers none, the run stops (storing an all-open model would replace a checked one) and
+    :class:`CallFailed` names the cause from the calls: their exit codes and the last error the client wrote."""
+    for attempt in (1, 2):
+        with cf.ThreadPoolExecutor(workers) as ex:
+            got = list(ex.map(one, range(n)))
+        if not got or any(answered(t, rc) for _, t, rc in got):
+            return [(r, answered(t, rc)) for r, t, rc in got]
+        if attempt == 1:
+            time.sleep(RETRY_WAIT_S)
+    codes = collections.Counter(rc for _, _, rc in got)
+    exits = ", ".join(f"{c} x exit {rc}" + (" with an empty answer" if rc == 0 else "") for rc, c in sorted(codes.items()))
+    last = next((e for e in (_last_error(step, f"c{k}") for k in reversed(range(n))) if e), "")
+    raise CallFailed(f"the checker answered none of the {n} {step} calls ({CHECKER}, tried twice: {exits}"
+                     + (f"; last error: {last!r}" if last else "; the client wrote no error") + "); nothing was stored")
 
 
 def claude(step, cid, prompt, timeout=1500, role="extractor", max_output_tokens=None):
