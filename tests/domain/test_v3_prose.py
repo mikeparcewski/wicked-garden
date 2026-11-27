@@ -38,6 +38,48 @@ def test_the_m4_token_rule_and_the_m5_rule():
     assert prose.sentence_fails(dict(text="x", cites=["S9"]), "detail", by)[0].startswith("M2")
 
 
+# garden#1631: two lines of COACTUPC 1100-RECEIVE-MAP (app/cbl/COACTUPC.cbl:1039-1425) as render.py wrote them in the
+# train-18 J6 cert's Run B (the exported statement text, cut to the names this test needs)
+RECEIVE_MAP = ("Runs: 1100-RECEIVE-MAP (app/cbl/COACTUPC.cbl:1039-1425)\n"
+               "- When for each of the five amount fields moved, `FUNCTION TEST-NUMVAL-C` of the `-X` field = 0, unless "
+               "`ACUP-DETAILS-NOT-FETCHED`: computes the matching `-N` field (`ACUP-NEW-CREDIT-LIMIT-N`, "
+               "`ACUP-NEW-CASH-CREDIT-LIMIT-N`) as `FUNCTION NUMVAL-C` of the value [1079-1080, 1093-1094]")
+
+
+def test_m4_passes_a_hyphen_marked_part_that_a_cited_name_carries_as_that_part():
+    # the B2-B4 withholds: the writer's family shorthand is a real part of cited names
+    by = {"S1": dict(text=RECEIVE_MAP)}
+    fails = lambda t: prose.sentence_fails(dict(text=t, cites=["S1"]), "detail", by)  # noqa: E731
+    assert fails("the `-N` value is computed when `FUNCTION TEST-NUMVAL-C` of the `-X` field is 0") == []
+    assert fails("the amounts come from the `ACUP-NEW-` fields") == []
+    assert fails("the `-CREDIT-LIMIT-` fields") == []
+    assert fails("`ACUP-NEW-CREDIT-LIMIT-N` and `ACUP-NEW-CASH-CREDIT-LIMIT-N`") == []
+
+
+def test_m4_still_fails_a_part_no_cited_name_carries_on_its_marked_side():
+    by = {"S1": dict(text=RECEIVE_MAP)}
+    fails = lambda t: prose.sentence_fails(dict(text=t, cites=["S1"]), "detail", by)  # noqa: E731
+    # coord (i): the marked side is a hyphen and the other side the name's end
+    assert fails("the `-LIMIT` field") == ["M4 `LIMIT` is in no cited statement"]  # only -LIMIT-N ends a name
+    assert fails("the `ACUP-NE-` fields") == ["M4 `ACUP-NE` is in no cited statement"]  # never ACUP-NEW-
+    assert fails("the `-CREDIT-LIM-` fields") == ["M4 `CREDIT-LIM` is in no cited statement"]
+    assert fails("the `NEW-CREDIT-` fields") == ["M4 `NEW-CREDIT` is in no cited statement"]  # a prefix starts a name
+    by2 = {"S1": dict(text="moves `WS-ACCT-XY` and `ACUP-NEWER-ID`")}
+    fails2 = lambda t: prose.sentence_fails(dict(text=t, cites=["S1"]), "detail", by2)  # noqa: E731
+    assert fails2("the `-X` field") == ["M4 `X` is in no cited statement"]  # a name ending in -XY is not -X
+    assert fails2("the `ACUP-NEW-` fields") == ["M4 `ACUP-NEW` is in no cited statement"]  # ACUP-NEWER is not ACUP-NEW-
+    # an unmarked part is a name, and still needs the whole name
+    assert fails("`ACUP-NEW` and `X`") == ["M4 `ACUP-NEW` is in no cited statement", "M4 `X` is in no cited statement"]
+    assert fails("the `-Z` field") == ["M4 `Z` is in no cited statement"]
+    # R-B on garden#1634: a negative number is matched whole, never as a part of a longer one
+    by3 = {"S1": dict(text="moves `-1.5` to `BALANCE`")}
+    fails3 = lambda t: prose.sentence_fails(dict(text=t, cites=["S1"]), "detail", by3)  # noqa: E731
+    assert fails3("sets `BALANCE` to `-1`") == ["M4 `1` is in no cited statement"]
+    assert fails3("sets `BALANCE` to `-1.5`") == []
+    # a quoted literal is matched as written, never as a part
+    assert fails("`'-N'`") == ["M4 `'-N'` is in no cited statement"]
+
+
 def test_the_writer_packs_whole_files_up_to_its_cap(monkeypatch):
     monkeypatch.setattr(prose, "PER_WRITE", 1)
     rows = prose.rows_of(STATEMENTS)
