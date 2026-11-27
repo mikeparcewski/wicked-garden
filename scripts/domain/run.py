@@ -169,8 +169,8 @@ def plan_reuse(repo, S, C, prior):
             if confirmed or target_confirmed:
                 ruled["held"][t["id"]] = rec.get("pipeline")  # its record keeps the old version: said every run
             else:
-                if d == "carry" and rec["target"] == t["id"] and all(_settled(s) for s in sts):
-                    ruled["fallback"][t["id"]] = rec  # kept as stored if the writer's new answer is incomplete
+                if d == "carry" and rec["target"] == t["id"]:
+                    ruled["fallback"][t["id"]] = rec  # kept as stored if the writer's new answer falls short
                 d = "extract"
                 ruled["upgraded"] += 1
         if rejected:
@@ -225,14 +225,16 @@ def plan_reuse(repo, S, C, prior):
 
 
 def keep_on_failed_refresh(A, fallback, C, carried, not_rules):
-    """A target re-extracted only because the pipeline changed (``fallback``: its prior record, on unchanged code, every
-    statement settled) whose new answer leaves lines unaccounted, where the stored one did not, keeps the stored record:
-    its statements and not-rules go back in place of the new ones (garden#1601). An upgrade never makes a target worse
-    accounted. Returns {target id: the stored record's pipeline version}."""
+    """A target re-extracted only because the pipeline changed (``fallback``: its prior record, on unchanged code) keeps
+    the stored record when the new answer leaves lines unaccounted and either the stored one did not or the new one
+    states nothing at all (no statement, no not-rule): its statements and not-rules go back in place of the new ones
+    (garden#1601). So an upgrade never makes a target worse accounted, and a writer that fails never empties one.
+    Returns {target id: the stored record's pipeline version}."""
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     kept = {}
     for tid, rec in fallback.items():
-        if not (A["targets"].get(tid) or {}).get("unaccounted") or (rec.get("state") or {}).get("unaccounted"):
+        said = any(s.get("target") == tid for s in A["statements"]) or any(x.get("target") == tid for x in A["not_rules"])
+        if not (A["targets"].get(tid) or {}).get("unaccounted") or (rec.get("state") or {}).get("unaccounted") and said:
             continue
         A["statements"] = [s for s in A["statements"] if s.get("target") != tid]
         A["not_rules"] = [x for x in A["not_rules"] if x.get("target") != tid]

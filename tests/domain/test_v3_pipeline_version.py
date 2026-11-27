@@ -1,6 +1,7 @@
 """garden#1601: a stored target or rule group made by another version of the pipeline is made again, so an upgrade that
 changes what is stated reaches a store kept across it; unchanged code under the same pipeline still makes 0 calls.
 Fixtures: the mini-cobol estate of ``test_v3_store.py``, run through the real ``run.run`` with its scripted seats."""
+import json
 import os
 
 import pytest
@@ -85,12 +86,13 @@ def test_a_refresh_the_writer_leaves_unaccounted_keeps_the_stored_record_and_is_
     after = stored(repo.db)
     n = len(S["targets"])
     ok = {r["target"] for r in before[store.TARGET].values() if not (r.get("state") or {}).get("unaccounted")}
-    assert 0 < len(ok) < n  # the scripted writer leaves one target unaccounted from the start: it is not kept
-    assert any(f"{len(ok)} targets the new pipeline left unaccounted kept as stored" in ln for ln in lines), lines
+    # the scripted writer leaves MAIN-PARA unaccounted from the start, with a refused not-rule: kept too, as it said
+    # nothing new at all
+    assert 0 < len(ok) < n
+    assert any(f"{n} targets the new pipeline left unaccounted kept as stored" in ln for ln in lines), lines
     assert {k: (v["status"], v["contract"]["claims"]) for k, v in after[store.RULE].items()} == \
         {k: (v["status"], v["contract"]["claims"]) for k, v in before[store.RULE].items()}
-    assert {r["target"]: r["pipeline"] for r in after[store.TARGET].values()} == {
-        r["target"]: "0" * 16 if r["target"] in ok else store.STATING for r in before[store.TARGET].values()}
+    assert {r["pipeline"] for r in after[store.TARGET].values()} == {"0" * 16}
     assert {r["target"] for r in after[store.TARGET].values() if not (r.get("state") or {}).get("unaccounted")} == ok
     # the next run, with a writer that answers, states them under the current version
     monkeypatch.setattr(model_calls, "claude", seats.claude)
@@ -122,6 +124,40 @@ def test_a_target_a_person_confirmed_stays_as_stored_and_says_so_every_run(tmp_p
         now = target_row(repo.db, "READ-PARA")
         assert now["pipeline"] == "0" * 16 and now["target_hash"] == read["target_hash"]
         assert by_text(repo.db, "`PAY-AMOUNT` is set to zero")[1]["status"] == "open"
+
+
+class PartSeats(FakeSeats):
+    """FakeSeats, but READ-PARA's statement is anchored on lines 24-28 only: Checked, with 20-23 and 29 unaccounted."""
+
+    def claude(self, step, cid, prompt, timeout=1500, role=None, **kw):
+        out, rc = super().claude(step, cid, prompt, timeout, role, **kw)
+        if step != "extract":
+            return out, rc
+        j = json.loads(out)
+        for t in j["targets"]:
+            for st in t["statements"]:
+                st["anchor"]["lines"] = [24, 28]
+        return json.dumps(j), 0
+
+
+def test_a_failed_refresh_never_empties_a_partly_accounted_target_of_its_checked_statement(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, "mini-cobol")
+    S = scope.build_scope(repo, "PAYCALC1")
+    seats = PartSeats(S)
+    monkeypatch.setattr(model_calls, "codex", seats.codex)
+    monkeypatch.setattr(model_calls, "claude", seats.claude)
+    scope_in = dict(intent="PAYCALC1", scope_hash=S["scope_hash"], description="payroll")
+    monkeypatch.setattr(store, "STATING", "0" * 16)
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run1"), write=fake_write)
+    read = next(r for r in stored(repo.db)[store.TARGET].values() if r["target"].endswith("#READ-PARA()."))
+    rules = stored(repo.db)[store.RULE]
+    assert read["state"]["unaccounted"] and [rules[i]["status"] for i in read["statements"]] == ["Checked"]
+    monkeypatch.setattr(store, "STATING", pipeline_now)
+    monkeypatch.setattr(model_calls, "claude", lambda step, *a, **k: ("{}", 0) if step != "prose" else seats.claude(step, *a, **k))
+    run.run(repo.root, repo.db, scope_in, str(tmp_path / "run2"), write=fake_write)
+    now = next(r for r in stored(repo.db)[store.TARGET].values() if r["target"].endswith("#READ-PARA()."))
+    assert now["pipeline"] == "0" * 16 and now["statements"] == read["statements"]
+    assert [stored(repo.db)[store.RULE][i]["status"] for i in now["statements"]] == ["Checked"]
 
 
 pipeline_now = store.STATING
