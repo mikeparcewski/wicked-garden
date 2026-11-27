@@ -234,3 +234,7 @@ def test_the_writer_is_told_the_checkers_guard_policy_and_the_conditions_it_drop
     assert ("the screen or program state in which a check runs (in a RULE, in plain words, for example \"while changes are "
             "being edited\"), a blank or not-supplied branch that is tested first, a response test such as a normal CICS "
             "response, and which of two inputs is checked first") in sent
+    # round 2: the checker's own rule that a left-out branch is not an overreach, so the writer drops branches, not guards
+    assert "Leaving out a whole effect" in check
+    assert ("So when a statement has many branches or long guards, state fewer branches, each with its full guard, never a "
+            "shorter guard.") in sent
