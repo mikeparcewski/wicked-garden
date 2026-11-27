@@ -75,3 +75,28 @@ def test_the_kept_record_carries_the_runs_statement_ids_and_counts_for_its_group
     (g,) = groups
     assert g["withheld"][0]["cites"] == ["r#0"] and uncited == []
     assert sorted(store._group_ids(g)) == ["r#0", "r#1"]
+
+
+def test_uncited_is_the_final_state_and_a_malformed_only_statement_is_written_again_next_run(monkeypatch):
+    # cross-model round 1 on garden#1619: S1 is cited only by a group whose shape cannot be checked, and the coverage
+    # retry adds nothing. S1 sits in that group's notice, so it is not uncited; stored the way store.rows_for stores
+    # it (a whole-withheld group has no inputs, store.py:426-430), the next run writes S1 again instead of leaving it out.
+    bad_shape = dict(g=2, title="T2", area="R", kind="other", rule=dict(text="x", cites=["S1"]), details=[])
+    scripted(monkeypatch, [group(1, ("Posted amounts update the cycle credit.", ["S2"])), bad_shape])
+    groups, meta, reused, counts, uncited = run.prose_for(STATEMENTS, "demo", "demo", {store.GROUP: {}})
+    assert uncited == []
+    notice = [w for g in groups for w in g["withheld"] if w["layer"] == "group"]
+    assert [w["cites"] for w in notice] == [["r#0"]]
+    text_of = meta["text_of"]
+    whole = lambda g: any(w.get("layer") == "group" for w in g["withheld"])  # noqa: E731
+    prior = {store.GROUP: {f"g{g['g']}": dict(group=g, desc="demo", pipeline=store.PROSE,
+                                              inputs={} if whole(g) else {i: text_of.get(i) for i in store._group_ids(g)},
+                                              uncited={i: text_of.get(i) for i in uncited}) for g in groups}}
+    asked = []
+    scripted(monkeypatch, [group(1, ("Posted amounts update the balance.", ["S1"]))])
+    real = model_calls.claude
+    monkeypatch.setattr(model_calls, "claude", lambda step, cid, prompt, timeout=1500, role=None: asked.append((step, prompt)) or real(step, cid, prompt, timeout, role))
+    groups2, meta2, reused2, counts2, uncited2 = run.prose_for(STATEMENTS, "demo", "demo", prior)
+    prose_prompts = [p for step, p in asked if step == "prose"]
+    assert len(prose_prompts) == 1 and "app/cbl/R.cbl:10-12" in prose_prompts[0] and "app/cbl/R.cbl:20-22" not in prose_prompts[0]
+    assert uncited2 == []

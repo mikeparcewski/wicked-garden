@@ -364,9 +364,11 @@ def prose_all(statements, desc, start=0):
                                                                      reason=f"M1 shape: {why}", cites=_tried(g, by))]))
         fates["withheld"] += 1
     out_groups.sort(key=lambda g: g["g"])
-    # the final state (garden#1618): a statement the writer cited but no shown or withheld sentence now cites
+    # the final state (garden#1618): the statements no shown or withheld sentence cites. A statement only a
+    # malformed group's notice cites is in a group; it is not uncited, so the next run (which never reuses that
+    # group, store.rows_for) writes it again instead of carrying it as left out
     held = _held(out_groups)
-    uncited = sorted(set(uncited) | {r["sid"] for r in rows if r["sid"] not in held}, key=lambda x: int(x[1:]))
+    uncited = sorted((r["sid"] for r in rows if r["sid"] not in held), key=lambda x: int(x[1:]))
     if kept:
         fates["kept_dropped"] = kept
     return dict(rows=rows, groups=out_groups, uncited=uncited,
