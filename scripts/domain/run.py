@@ -143,7 +143,7 @@ def plan_reuse(repo, S, C, prior):
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
-    ruled = dict(confirmed={}, targets={}, rejected=[], live=0)
+    ruled = dict(confirmed={}, targets={}, rejected=[], live=0, upgraded=0)
     ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
         rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
@@ -162,6 +162,11 @@ def plan_reuse(repo, S, C, prior):
             # the writer gave the target no answer at all: asked again. One it answered with a refused not-rule stands
             # on unchanged code (0 calls), with its follow-up for the user to settle; so does one a person confirmed.
             d = "extract"
+        if rec and rec.get("pipeline") != store.STATING and d != "extract":
+            # stored by another version of the stating pipeline (or before versions were kept): stated again, so an
+            # upgrade's change reaches unchanged code (garden#1601); what a person confirmed still stands as it is
+            d = "extract"
+            ruled["upgraded"] += 1
         if rejected:
             d = "extract"  # a person said a statement is wrong: the writer states the lines again, with their note
             t["rejected"] = rejected
@@ -224,16 +229,19 @@ def extract_some(repo, S, C, tids):
 
 def prose_for(statements, desc, desc_key, prior):
     """The run's rule groups (DES §5): a stored group is reused, with 0 calls, while every statement it rests on reads
-    the same and the run's description is the same (``desc_key``: the scope's own, never the checkout's folder name);
+    the same, the run's description is the same (``desc_key``: the scope's own, never the checkout's folder name) and the
+    prose pipeline is the same version (``store.PROSE``);
     the statements no reused group rests on are written again (``prose.prose_all``). Returns (groups, meta, reused
     whole, counts, uncited): ``meta`` is what the store keeps to decide the next run's reuse."""
     rows = prose.rows_of(statements)
     text_of = {r["id"]: store.sha(r["text"].encode()) for r in rows}
-    meta = dict(text_of=text_of, desc=desc_key)
+    meta = dict(text_of=text_of, desc=desc_key, pipeline=store.PROSE)
     if not rows:
         return [], meta, False, {}, []
     reused, covered, left_out = [], set(), set()
-    mine = [v for v in prior[store.GROUP].values() if isinstance(v, dict) and v.get("desc") == desc_key]
+    # a group the prose pipeline of another version wrote is written again (garden#1601)
+    mine = [v for v in prior[store.GROUP].values() if isinstance(v, dict) and v.get("desc") == desc_key
+            and v.get("pipeline") == store.PROSE]
     ok = [bool(v.get("inputs")) and all(text_of.get(i) == h for i, h in v["inputs"].items()) for v in mine]
     # a group that shares a statement with a group written again is written again too (garden#1599: a business
     # group and the housekeeping group its details moved to rest on the same statement), so the writer sees every
@@ -294,7 +302,8 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     prior = store.load_symbols(db, store.load(db))
     decision, carried, pending, nrs, states, ruled = plan_reuse(repo, S, C, prior)
     n = {d: sum(1 for v in decision.values() if v == d) for d in ("carry", "revalidate", "extract")}
-    say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract")
+    say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract" + (
+        f" ({ruled['upgraded']} stored by an earlier version of the pipeline)" if ruled["upgraded"] else ""))
     if ruled["confirmed"] or ruled["targets"] or ruled["rejected"] or ruled["stale"]:
         say(log, f"rulings · {len(ruled['confirmed'])} statements and {len(ruled['targets'])} targets confirmed · "
                  f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
