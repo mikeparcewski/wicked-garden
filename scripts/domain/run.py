@@ -12,8 +12,9 @@ and writes the same model.
 Usage: run.py --db <estate.db> --repo-root <tree> --scope <scope.json> [--out <dir>]
 ``--out`` defaults to a new ``.wicked/domain/runs/<UTC time>-<random>`` per run (a re-run in the same directory reuses its
 completed calls, so a retry of one run costs nothing; a new run never collides with an earlier run's evidence). A
-new out dir after a failed attempt of the same scope still reuses that attempt's answers, byte-identical prompt for
-byte-identical prompt, from ``<out>/../.carry/<scope hash>``; a run that stores its model deletes its carry.
+new out dir after a failed attempt of the same scope still reuses that attempt's writer answers, byte-identical prompt
+for byte-identical prompt: the failed attempt leaves them in ``<out>/../.carry/<scope hash>``, and a run that stores its
+model deletes ``<out>/../.carry``.
 ``scope.json`` is ``{"intent": "...", "phrases": [...]?, "scope_hash": "..."?, "description": "..."?}``, checked by
 ``read_scope`` (anything else is refused, exit 3); the shipped step passes the file core wrote
 (``WICKED_DOMAIN_SCOPE``). With a ``scope_hash`` (Start carries the preview's), a scope that no longer hashes the
@@ -311,10 +312,18 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     S = scope.build_scope(repo, scope_in["intent"], scope_in.get("phrases"))
     if scope_in.get("scope_hash") and scope_in["scope_hash"] != S["scope_hash"]:
         raise Refused(STALE_SCOPE)
-    # garden#1614: a retry of a failed attempt (a new out dir) reuses the answers that attempt already had
-    calls.carry_to(os.path.join(os.path.dirname(os.path.abspath(out_dir)), ".carry", S["scope_hash"]))
     if not S["targets"]:
         raise Refused(EMPTY_SCOPE + "".join(f"; {q}" for q in S.get("questions") or []))
+    # garden#1614: a retry of a failed attempt (a new out dir) reuses the writer answers that attempt already had
+    calls.carry_from(os.path.join(os.path.dirname(os.path.abspath(out_dir)), ".carry", S["scope_hash"]))
+    try:
+        return _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write)
+    except BaseException:
+        calls.publish_carry()
+        raise
+
+
+def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     say(log, f"scope · {len(S['target_files'])} files · {len(S['targets'])} targets")
     C = batches.plan_batches(repo, S, os.path.join(out_dir, "batches"))
     prior = store.load_symbols(db, store.load(db))
@@ -337,8 +346,6 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     for c in C["calls"]:
         if any(decision[t] == "extract" for t in c["targets"]):
             say(log, f"{c['id']} · read ✓")
-    if carried_calls(calls_dir):
-        say(log, f"reuse · {carried_calls(calls_dir)} model answers from the failed attempt")
     A["statements"] = carried + pending + A["statements"]
     A["not_rules"] = nrs + A["not_rules"]
     A["targets"] = dict(states, **A["targets"])
@@ -381,6 +388,9 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     groups, pmeta, prose_reused, pcounts, uncited = prose_for([extract.shown(s) for s in live], desc,
                                                               scope_in.get("description") or "", prior)
     withheld = sum(len(g.get("withheld") or []) for g in groups)
+    n_carried = carried_calls(calls_dir)
+    if n_carried:
+        say(log, f"reuse · {n_carried} writer answers from the failed attempt")
     say(log, f"prose · {len(groups)} groups · {withheld} withheld" + (f" · {len(uncited)} statements in no group" if uncited else "")
         + (" · reused" if prose_reused else ""))
     fu = followups.followups(repo, S, R)
