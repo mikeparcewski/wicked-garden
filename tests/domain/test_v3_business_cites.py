@@ -171,8 +171,29 @@ def test_the_writer_is_told_a_clock_reply_message_assembly_and_call_order_are_ho
     assert ("a reply whose only content is the system date or time (a clock service: a program that only obtains the "
             "system date or time and returns it, with no other decision, input or record, has no business group)") in sent
     assert ("how a message is assembled (STRING, trimming, the field name put in front of the text) and a flag used only "
-            "so that the first failure sets the message (a flag or condition that decides whether the input is accepted "
-            "or what happens next stays business, as does the text the user reads)") in sent
+            "so that the first failure sets the message (a flag or condition that decides whether the input is accepted, "
+            "or chooses between business paths, stays business, as does the message that tells the user an entered value "
+            "is invalid)") in sent
     assert "control flow that only performs other paragraphs, including the order in which a routine performs others" in sent
     # the user-visible validation message stays business (prose.txt:10)
+    assert "the result of validating an entered value (including the message that tells the user the value is invalid)" in sent
+
+
+def test_the_writer_is_told_key_moves_report_lines_response_messages_and_commarea_copies_are_housekeeping(monkeypatch):
+    # garden#1623, the train-18 J6 residual (DES-1623 option 1): the judge marked plumbing a lookup key moved before a
+    # read (CBTRN02C.cbl:382-394), a report line written and counted (CBTRN03C.cbl:372), a message chosen from a CICS
+    # response code (COACCT01.cbl:428-435, COTRN02C.cbl:723-748) and fields copied into the COMMAREA
+    # (COACTUPC.cbl:2625-2632, :3803-3811). The writer reads them as housekeeping examples (prompts/prose.txt, rule 1).
+    seen = []
+    scripted(monkeypatch, [group(1, "business", ("A missing group falls back to DEFAULT.", ["S1"]))], seen)
+    prose.prose_all(STATEMENTS[:1], "demo")
+    (sent,) = [p for step, p in seen if step == "prose"]
+    assert ("the key moved into a file's key field before a read or write, and writing a report or output line that "
+            "other statements built, with its line and page counters") in sent
+    assert ("including copying fetched fields into the COMMAREA to keep them as old values, and the screen-state flags "
+            "that choose which view shows next") in sent
+    assert ("the reply or message chosen from a CICS or file response code (normal, duplicate key, not found, any other) "
+            "with the colour and field clearing that follow it") in sent
+    # the old "as does the text the user reads" kept every user message business; only a validation message stays
+    assert "as does the text the user reads" not in sent
     assert "the result of validating an entered value (including the message that tells the user the value is invalid)" in sent
