@@ -11,7 +11,10 @@ and writes the same model.
 
 Usage: run.py --db <estate.db> --repo-root <tree> --scope <scope.json> [--out <dir>]
 ``--out`` defaults to a new ``.wicked/domain/runs/<UTC time>-<random>`` per run (a re-run in the same directory reuses its
-completed calls, so a retry of one run costs nothing; a new run never collides with an earlier run's evidence).
+completed calls, so a retry of one run costs nothing; a new run never collides with an earlier run's evidence). A
+new out dir after a failed attempt of the same scope still reuses that attempt's writer answers, byte-identical prompt
+for byte-identical prompt: the failed attempt leaves them in ``<out>/../.carry/<scope hash>``, and a run that stores its
+model deletes ``<out>/../.carry``.
 ``scope.json`` is ``{"intent": "...", "phrases": [...]?, "scope_hash": "..."?, "description": "..."?}``, checked by
 ``read_scope`` (anything else is refused, exit 3); the shipped step passes the file core wrote
 (``WICKED_DOMAIN_SCOPE``). With a ``scope_hash`` (Start carries the preview's), a scope that no longer hashes the
@@ -279,6 +282,15 @@ def prose_for(statements, desc, desc_key, prior):
     return sorted(reused + res["groups"], key=lambda g: g.get("g") or 0), meta, False, res.get("counts") or {}, uncited
 
 
+def carried_calls(calls_dir):
+    """The calls this attempt took from an earlier, failed attempt of the same scope (garden#1614)."""
+    p = os.path.join(calls_dir, "ledger.jsonl")
+    if not os.path.exists(p):
+        return 0
+    with open(p) as fh:
+        return sum(1 for ln in fh if ln.strip() and json.loads(ln).get("note") == CARRIED)
+
+
 def made_calls(calls_dir):
     """The calls this run sent to a seat (answered or not); a reused completed call is not one."""
     p = os.path.join(calls_dir, "ledger.jsonl")
@@ -286,6 +298,9 @@ def made_calls(calls_dir):
         return 0
     with open(p) as fh:
         return sum(1 for ln in fh if ln.strip() and not str(json.loads(ln).get("note") or "").startswith("cache hit"))
+
+
+CARRIED = calls.CARRIED
 
 
 def run(root, db, scope_in, out_dir, log=print, write=store.write):
@@ -299,6 +314,16 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         raise Refused(STALE_SCOPE)
     if not S["targets"]:
         raise Refused(EMPTY_SCOPE + "".join(f"; {q}" for q in S.get("questions") or []))
+    # garden#1614: a retry of a failed attempt (a new out dir) reuses the writer answers that attempt already had
+    calls.carry_from(os.path.join(os.path.dirname(os.path.abspath(out_dir)), ".carry", S["scope_hash"]))
+    try:
+        return _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write)
+    except BaseException:
+        calls.publish_carry()
+        raise
+
+
+def _run(repo, S, scope_in, root, db, out_dir, calls_dir, t0, log, write):
     say(log, f"scope · {len(S['target_files'])} files · {len(S['targets'])} targets")
     C = batches.plan_batches(repo, S, os.path.join(out_dir, "batches"))
     prior = store.load_symbols(db, store.load(db))
@@ -313,6 +338,7 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
                  f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
                  f"(the code or the statement changed)")
     A = extract_some(repo, S, C, {t for t, d in decision.items() if d == "extract"})
+    calls.accept_answers()  # garden#1614: a stage's writer answers are carried only once the stage finished
     # a rejected statement the writer stated again, word for word: said, so a re-run is not paid for blind
     again = [r for r in ruled["rejected"] if any(s.get("target") == r["target"] and store.statement_key(s) == r["key"]
                                                   for s in A["statements"])]
@@ -326,6 +352,7 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     A["targets"] = dict(states, **A["targets"])
     if any(s["status"] == "pending" for s in A["statements"]):
         R = check.check_all(repo, S, C, A, os.path.join(out_dir, "check"))
+        calls.accept_answers()
     else:
         R = dict(statements=A["statements"], not_rules=A["not_rules"], targets=A["targets"])
     live = [s for s in R["statements"] if s.get("status") in ("Checked", "open")]
@@ -362,7 +389,11 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     lookup.use_repo(repo)
     groups, pmeta, prose_reused, pcounts, uncited = prose_for([extract.shown(s) for s in live], desc,
                                                               scope_in.get("description") or "", prior)
+    calls.accept_answers()
     withheld = sum(len(g.get("withheld") or []) for g in groups)
+    n_carried = carried_calls(calls_dir)
+    if n_carried:
+        say(log, f"reuse · {n_carried} writer answers from the failed attempt")
     say(log, f"prose · {len(groups)} groups · {withheld} withheld" + (f" · {len(uncited)} statements in no group" if uncited else "")
         + (" · reused" if prose_reused else ""))
     fu = followups.followups(repo, S, R)
@@ -373,6 +404,7 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     if own is None:
         say(log, "the run's own record was not stored: no target of the scope has an estate node")
     report = write(db, rows + ([own] if own else []))
+    calls.drop_carry()
     # a person's confirm settles what it names: the counts say so
     accounted = sum(1 for t in S["targets"] if is_accounted(t["id"]))
     summary = dict(targets=len(S["targets"]), accounted=accounted, checked=sum(s["status"] == "Checked" for s in live),
