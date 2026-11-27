@@ -394,6 +394,7 @@ def test_a_checker_that_answers_no_call_stops_the_run_before_anything_is_stored(
     model = stored(repo.db)
     edit(repo, PROG, lambda L: L[:24] + [L[24].replace(b"PAY-RATE * 40", b"PAY-RATE * 41")] + L[25:])
     monkeypatch.setattr(model_calls, "codex", lambda *a, **k: ("", 4))
+    monkeypatch.setattr(model_calls, "RETRY_WAIT_S", 0)
     with pytest.raises(model_calls.CallFailed, match="checker answered none"):
         run.run(repo.root, repo.db, dict(intent="PAYCALC1"), str(tmp_path / "r2"), write=fake_write)
     assert stored(repo.db) == model

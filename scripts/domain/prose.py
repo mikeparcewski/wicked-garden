@@ -144,14 +144,11 @@ def check(sents, by, step):
         p = CHECK.replace("{{SENTENCES}}", "\n".join(f"[{s['id']}] (cites {', '.join(s['cites'])}) {s['text']}" for s in ch))
         p = p.replace("{{STATEMENTS}}", "\n\n".join(f"[{c}]\n{by[c]['text']}" for c in need))
         out, rc = calls.codex(step, f"c{k}", p)
-        return (calls.parse_json(out) or {}).get("verdicts") or [], calls.answered(out, rc)
+        return (calls.parse_json(out) or {}).get("verdicts") or [], out, rc
 
-    with cf.ThreadPoolExecutor(4) as ex:
-        got = list(ex.map(one, range(len(chunks))))
-    if got and not any(ok for _, ok in got):
-        # not one prose check answered (a signed-out or failing checker): withholding every sentence would replace
-        # the stored prose with nothing, so the run stops instead
-        raise calls.CallFailed(f"the checker answered none of the {step} calls; nothing was stored")
+    # not one prose check answered, twice (calls.checker_pass): withholding every sentence would replace the stored
+    # prose with nothing, so the run stops instead
+    got = calls.checker_pass(step, len(chunks), one, 4)
     return {x["id"]: x for vs, _ in got for x in vs if isinstance(x, dict) and x.get("id")}
 
 

@@ -136,21 +136,16 @@ def check_round(repo, step, sts, extra_of=None, chunk=10, shown=None):
         out, rc = calls.codex(step, f"c{k}", T6.replace("{{ITEMS}}", items).replace("{{CODE}}", code))
         j = calls.parse_json(out) or {}
         byn = {r.get("n"): r for r in j.get("results", []) if isinstance(r, dict)}
-        return {s["id"]: byn.get(n) for n, s in enumerate(ss, 1)}, set(w), calls.answered(out, rc)
+        return ({s["id"]: byn.get(n) for n, s in enumerate(ss, 1)}, set(w)), out, rc
 
-    res, oks = {}, []
-    with cf.ThreadPoolExecutor(W) as ex:
-        for r, files, ok in ex.map(run, range(len(chunks))):
-            oks.append(ok)
-            res.update(r)
-            if shown is not None:
-                for sid in r:
-                    shown.setdefault(sid, set()).update(files)
-    if oks and not any(oks):
-        # not one check call answered (a signed-out or failing checker): every statement would be stored open,
-        # replacing a checked model, so the run stops instead; a call that fails among answered ones leaves its
-        # statements open (a follow-up each), checked again on the next run
-        raise calls.CallFailed(f"the checker answered none of the {step} calls; nothing was stored")
+    # a pass in which not one call answered is sent once more, then stops the run (calls.checker_pass); a call that
+    # fails among answered ones leaves its statements open (a follow-up each), checked again on the next run
+    res = {}
+    for (r, files), _ in calls.checker_pass(step, len(chunks), run, W):
+        res.update(r)
+        if shown is not None:
+            for sid in r:
+                shown.setdefault(sid, set()).update(files)
     return res
 
 

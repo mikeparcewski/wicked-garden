@@ -10,6 +10,8 @@ container through the gateway). What the proof set per call is carried through i
 ``model-call --max-output-tokens``. The proof's ``tools``, ``cwd`` and ``env`` arguments are not: the engine's
 tool-free posture and the seat's own home replace them. Stdlib only.
 """
+import collections
+import concurrent.futures as cf
 import hashlib
 import json
 import os
@@ -26,6 +28,7 @@ CORE_ENV = "WICKED_CORE_BIN"
 ENGINE_CORE_ENV = "WICKED_CORE_EXE"
 _state = {"calls": None, "carry": None, "answers": [], "accepted": 0}
 CARRIED = "cache hit: carried from an earlier attempt"
+RETRY_WAIT_S = 30  # garden#1617: the wait before a checker pass in which no call answered is sent once more
 
 
 class CallFailed(RuntimeError):
@@ -163,7 +166,8 @@ def _cached(base, prompt):
     """Same call id + byte-identical prompt + a completed output -> reuse it (a re-run, not a new call)."""
     try:
         if _read(base + ".prompt.txt") == prompt and os.path.getsize(base + ".out.txt") > 0:
-            return _read(base + ".out.txt")
+            text = _read(base + ".out.txt")
+            return text if text.strip() else None  # a blank answer is no answer (garden#1617): asked again
     except OSError:
         return None
     return None
@@ -205,13 +209,51 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
     wall = time.time() - t0
     text = _read(out) if rc == 0 and os.path.exists(out) else ""
     if os.path.exists(out):
-        os.replace(out, base + ".out.txt") if text else os.remove(out)
+        os.replace(out, base + ".out.txt") if text.strip() else os.remove(out)
     if key and answered(text, rc):
         _state["answers"].append((key, text))
     if err:
         _write(base + ".stderr.txt", err[-5000:])
-    _log(step, cid, role, family, wall, rc == 0 and bool(text), "" if rc == 0 else err[-300:])
+    _log(step, cid, role, family, wall, answered(text, rc), "" if rc == 0 else err[-300:])
     return text, rc
+
+
+def _last_error(step, n):
+    """The last error the calls ledger holds for calls ``c0..c<n-1>`` of ``step``: the last non-empty line of the
+    latest such row's note, its last 200 characters, or ''. Only what the ledger already holds (a failed call's last
+    300 characters of stderr) is said, and only the latest attempt's row is read, never an earlier attempt's."""
+    ids = {f"c{k}" for k in range(n)}
+    try:
+        with open(os.path.join(_calls(), "ledger.jsonl")) as fh:
+            rows = [json.loads(ln) for ln in fh if ln.strip()]
+    except (OSError, ValueError):
+        return ""
+    latest = [r for r in rows if r.get("step") == step and r.get("id") in ids][-n:]  # the last send of each call
+    for r in reversed(latest):
+        lines = [x.strip() for x in str(r.get("note") or "").splitlines() if x.strip()] if not r.get("ok") else []
+        if lines:
+            return lines[-1][-200:]
+    return ""
+
+
+def checker_pass(step, n, one, workers):
+    """garden#1617: one checker pass, ``one(k) -> (result, text, rc)`` for its ``n`` calls (call id ``c<k>``), run
+    ``workers`` at a time. Returns ``[(result, answered)]``. When not one call answered (a signed-out, rate-limited or
+    failing checker), the pass is sent once more after :data:`RETRY_WAIT_S`; a call that did answer is a cache hit.
+    When it still answers none, the run stops (storing an all-open model would replace a checked one) and
+    :class:`CallFailed` names the cause from the calls: their exit codes and the last error the client wrote."""
+    for attempt in (1, 2):
+        with cf.ThreadPoolExecutor(workers) as ex:
+            got = list(ex.map(one, range(n)))
+        if not got or any(answered(t, rc) for _, t, rc in got):
+            return [(r, answered(t, rc)) for r, t, rc in got]
+        if attempt == 1:
+            time.sleep(RETRY_WAIT_S)
+    codes = collections.Counter(rc for _, _, rc in got)
+    exits = ", ".join(f"{c} x exit {rc}" + (" with an empty answer" if rc == 0 else "") for rc, c in sorted(codes.items()))
+    last = _last_error(step, n)
+    raise CallFailed(f"the checker answered none of the {n} {step} calls ({CHECKER}, tried twice: {exits}"
+                     + (f"; last error: {last!r}" if last else "; the client wrote no error") + "); nothing was stored")
 
 
 def claude(step, cid, prompt, timeout=1500, role="extractor", max_output_tokens=None):
