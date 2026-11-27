@@ -220,10 +220,17 @@ def is_rule(st, repo=None):
 
 def cite_copybooks(st):
     """garden#1548: every field a claim names in backticks (outside a quoted literal) that exactly one of its program's
-    copybooks defines goes in the statement's ``context`` with the copybook line (``app/cpy/CVACT01Y.cpy:7``), so the
-    statement says which copybook it reads. A name the program defines itself, or its copybooks define twice, is left out
-    (the claim's qualification is not resolved here). 0 model calls; a field the model already placed keeps its entry;
-    a statement the M checks refused keeps whatever shape it has. Not COBOL: unchanged."""
+    copybooks defines goes in the statement's ``context`` with the line that declares it (``app/cpy/CVACT01Y.cpy:7``; an
+    88's own line, not its parent's) and ``by: "host"``, so the statement says which copybook it reads. A name the
+    program defines itself, or its copybooks define twice, is left out (the claim's qualification is not resolved here).
+    The host's line replaces one the model gave for such a field (garden#1604: the rendered text shows only entries the
+    host resolved); a model entry for any other name stays as it is, unmarked. 0 model calls; a statement the M checks
+    refused keeps whatever shape it has. Not COBOL: unchanged."""
+    # the host mark is the host's alone: whatever came in (a repair hands the model's context back, a model can write
+    # one) is cleared, and only a field resolved from the claims as they are now gets it back
+    for x in st.get("context") if isinstance(st.get("context"), list) else []:
+        if isinstance(x, dict):
+            x.pop("by", None)
     f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
     if not isinstance(f, str) or not is_cobol(f) or not isinstance(st.get("claims"), list):
         return st
@@ -232,29 +239,57 @@ def cite_copybooks(st):
         ctx = []
     if not isinstance(ctx, list):
         return st
-    # a field the model placed with a reference keeps it; one it named with no reference gets the copybook line
-    have = {x.get("symbol") for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and isinstance(x.get("at"), str) and x["at"]}
-    bare = {x["symbol"]: x for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and x["symbol"] not in have}
-    in_program = lambda n: (defs.define(n, [f]) or ("",))[0] == f  # noqa: E731
-    books = defs.copybooks(f)
+    placed = {}
+    for x in ctx:
+        if isinstance(x, dict) and isinstance(x.get("symbol"), str):
+            placed.setdefault(x["symbol"].strip().upper(), []).append(x)
+    done = set()
     for c in st["claims"]:
         if not isinstance(c, dict) or not isinstance(c.get("text"), str):
             continue
         for span in re.findall(r"`([^`]+)`", c["text"]):
             for name in defs.COBID.findall(re.sub(r"'[^']*'|\"[^\"]*\"", " ", span).upper()):
-                if name in have or name in COBKW or in_program(name):
+                if name in done or name in COBKW:
                     continue
-                hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
-                many = sum(1 for cp in books for s in defs.flines(cp) if len(s) > 7 and s[6] not in "*/"
-                           and (defs.level(s) or (0, ""))[1] == name)
-                if len(hits) == 1 and many == 1:  # one definition in all its copybooks
-                    if name in bare:
-                        bare[name]["at"] = f"{hits[0][0]}:{hits[0][1]}"
-                    else:
-                        ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
-                    have.add(name)
+                done.add(name)
+                at = declaring_line(f, name)
+                if at:
+                    for x in placed.get(name) or []:
+                        x.update(symbol=name, at=at, by="host")
+                    if name not in placed:
+                        ctx.append(dict(symbol=name, at=at, by="host"))
     st["context"] = ctx
     return st
+
+
+def declaring_line(f, name):
+    """``copybook:line`` of the one line that declares COBOL field ``name`` among program ``f``'s copybooks as they
+    resolve now (an 88's own line), or ``None``: the program defines it itself, or its copybooks define it twice."""
+    if name in COBKW or (defs.define(name, [f]) or ("",))[0] == f:
+        return None
+    books = defs.copybooks(f)
+    hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
+    decl = [(cp, k) for cp in books for k, s in enumerate(defs.flines(cp), 1) if len(s) > 7 and s[6] not in "*/"
+            and (defs.level(s) or (0, ""))[1] == name]
+    return f"{decl[0][0]}:{decl[0][1]}" if len(hits) == 1 and len(decl) == 1 else None
+
+
+def shown(st):
+    """``st`` as its text shows it (garden#1604): a copy whose host-marked context entries are kept only while the
+    program's copybooks, as they resolve now, still declare that field on that line. A carried statement's stored
+    context can predate a copybook the code now resolves to elsewhere; its contract is not changed, only what is shown."""
+    f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
+    ctx = st.get("context")
+    if not isinstance(ctx, list) or not any(isinstance(x, dict) and x.get("by") == "host" for x in ctx):
+        return st
+    ok = isinstance(f, str) and is_cobol(f)
+    out = []
+    for x in ctx:
+        if isinstance(x, dict) and x.get("by") == "host" and not (
+                ok and isinstance(x.get("symbol"), str) and declaring_line(f, x["symbol"].strip().upper()) == x.get("at")):
+            x = {k: v for k, v in x.items() if k != "by"}
+        out.append(x)
+    return dict(st, context=out)
 
 
 def check_target(repo, tout, t, call):

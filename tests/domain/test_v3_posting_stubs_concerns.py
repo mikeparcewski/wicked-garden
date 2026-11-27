@@ -460,7 +460,7 @@ def test_a_field_the_model_named_with_no_reference_gets_its_copybook_line(tmp_pa
     lookup.use_repo(graph.Repo(repo.root, repo.db))
     st = dict(anchor=dict(file=PROG, lines=[20, 29]), context=[dict(symbol="PAY-AMOUNT")],
               claims=[dict(i=0, type="effect", text="adds `PAY-AMOUNT`", lines=[f"{PROG}:25"])])
-    assert extract.cite_copybooks(st)["context"] == [dict(symbol="PAY-AMOUNT", at="app/cpy/PAYREC.cpy:5")]
+    assert extract.cite_copybooks(st)["context"] == [dict(symbol="PAY-AMOUNT", at="app/cpy/PAYREC.cpy:5", by="host")]
 
 
 SPLIT = "app/cbl/QUAL2.cbl"
