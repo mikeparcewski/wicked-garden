@@ -41,8 +41,71 @@ def is_cobol_program(f):
     return f.lower().endswith((".cbl", ".cob"))
 
 
+# garden#1548: concern k of a statement goes to the checker as claim ``concern_ids(st)[k]``, one question each, numbered
+# above every claim id the statement has (so no claim shares one), and its verdicts are taken out of the claims' before
+# the union (:func:`split_concerns`): a concern never changes a statement's status.
+CONCERN_I = 1000
+
+
+def concerns_of(st):
+    cs = st.get("concerns")
+    return [c for c in cs if isinstance(c, dict)] if isinstance(cs, list) else []
+
+
+def concern_ids(st):
+    ids = [c.get("i") for c in st.get("claims") or [] if isinstance(c, dict) and isinstance(c.get("i"), int)]
+    base = max([CONCERN_I] + [i + 1 for i in ids])
+    return [base + k for k in range(len(concerns_of(st)))]
+
+
 def table(st):
-    return [{k: c.get(k) for k in ("i", "type", "text", "when", "unless", "lines") if k in c} for c in st["claims"]]
+    return ([{k: c.get(k) for k in ("i", "type", "text", "when", "unless", "lines") if k in c} for c in st["claims"]]
+            + [{"i": i, "type": "concern", "text": c.get("text"), "lines": c.get("lines") or []}
+               for i, c in zip(concern_ids(st), concerns_of(st))])
+
+
+def split_concerns(res, sts):
+    """Take each statement's concern verdicts out of one pass's result ``res`` ({id: result}, changed in place):
+    returns {id: {concern index: verdict row}}. Only the ids :func:`concern_ids` gave the concerns are taken."""
+    out = {}
+    for s in sts:
+        r = res.get(s["id"])
+        cs = (r or {}).get("claims")
+        if not isinstance(cs, list):
+            continue
+        ids = {i: k for k, i in enumerate(concern_ids(s))}
+        out[s["id"]] = {ids[c["i"]]: c for c in cs if isinstance(c, dict) and c.get("i") in ids}
+        r["claims"] = [c for c in cs if not (isinstance(c, dict) and c.get("i") in ids)]
+    return out
+
+
+def inherited_concerns(x, s):
+    """A repaired statement's concerns: the flagged statement's, then any new one the repair gave (same text: once),
+    unjudged and one copy per child, so judging one child never changes another's and a repair never drops one."""
+    new = x.get("concerns") if isinstance(x.get("concerns"), list) else []
+    out, seen = [], set()
+    for c in json.loads(json.dumps(concerns_of(s) + [c for c in new if isinstance(c, dict)])):
+        key = c.get("text") if isinstance(c.get("text"), str) else json.dumps(c, sort_keys=True)
+        if key not in seen:
+            seen.add(key)
+            out.append({k: v for k, v in c.items() if k not in ("checked", "reason")})
+    return out
+
+
+def judge_concerns(s, ca, cb):
+    """Each concern of ``s`` gets its two passes' verdict: WRONG when both flag it (it is dropped from the follow-ups),
+    SUPPORTED when one supports it and neither flags it, else UNVERIFIABLE (shown, said as not confirmed). Its reason
+    is the one a pass that gave that verdict wrote."""
+    for k, c in enumerate(concerns_of(s)):
+        vs = [x for x in ((ca or {}).get(k), (cb or {}).get(k)) if x]
+        up = [(x.get("verdict") or "").upper() for x in vs]
+        if len(up) == 2 and all(v in FLAG for v in up):
+            c["checked"], why = "WRONG", vs
+        elif "SUPPORTED" in up and not any(v in FLAG for v in up):
+            c["checked"], why = "SUPPORTED", [x for x, v in zip(vs, up) if v == "SUPPORTED"]
+        else:
+            c["checked"], why = "UNVERIFIABLE", vs
+        c["reason"] = next(((x.get("reason") or "").strip() for x in why if (x.get("reason") or "").strip()), "")
 
 
 def item(n, st):
@@ -247,6 +310,9 @@ def check3(repo, out_dir, tag, sts, extra_of=None, fetch=True, shown=None):
         fa = ex.submit(one_pass, repo, f"{tag}-a", sts, extra_of, fetch, sa)
         fb = ex.submit(one_pass, repo, f"{tag}-b", sts, extra_of, fetch, sb)
         (ra, ea, la), (rb, eb, lb) = fa.result(), fb.result()
+    ca, cb = split_concerns(ra, sts), split_concerns(rb, sts)
+    for s in sts:
+        judge_concerns(s, ca.get(s["id"]), cb.get(s["id"]))
     ext = {s["id"]: (extra_of or {}).get(s["id"], []) + ea.get(s["id"], []) + eb.get(s["id"], []) for s in sts}
     if shown is not None:
         for s in sts:
@@ -320,8 +386,8 @@ def check_all(repo, S, C, A, out_dir):
                     x["anchor"] = {}
                 x["anchor"]["symbol_id"] = x["anchor"].get("symbol_id") or t["anchor_symbol"]
                 errs += X.check_statement(repo, x, t, call)
-                if not X.is_rule(x):
-                    errs.append("kind: the repaired statement has no condition, else or value claim")
+                if not X.is_rule(x, repo):
+                    errs.append("kind: the repaired statement has no condition, else or value claim, and no record update")
                 ln = x["anchor"].get("lines")
                 if isinstance(ln, list) and len(ln) == 2 and all(isinstance(v, int) for v in ln):
                     cov.update(range(max(ln[0], t["lines"][0]), min(ln[1], t["lines"][1]) + 1))  # bounded: model-made
@@ -336,9 +402,10 @@ def check_all(repo, S, C, A, out_dir):
                 continue
             s["status"] = "replaced"
             for k, x in enumerate(reps):
-                new_sts.append(dict(anchor=x["anchor"], claims=x["claims"], context=x.get("context") or [], id=f"{s['id']}~r{k}", target=s["target"],
+                new_sts.append(X.cite_copybooks(dict(anchor=x["anchor"], claims=x["claims"], context=x.get("context") or [],
+                                    concerns=inherited_concerns(x, s), id=f"{s['id']}~r{k}", target=s["target"],
                                     call=cid, kind="rule", name=s.get("name"), m_fail=[], status="pending", repaired_from=s["id"],
-                                    fetched=s.get("fetched"), fetched_files=s.get("fetched_files")))
+                                    fetched=s.get("fetched"), fetched_files=s.get("fetched_files"))))
     timing["repair_s"] = round(time.time() - t2, 1)
     t3 = time.time()
     if new_sts:

@@ -1,7 +1,7 @@
 """J6 v3 follow-up list (DES-j6-build §7): what the run could not settle, as actions for the user. 0 model calls.
 
 Sources, all from the run record: a statement still flagged after its repair (or whose repair failed the M checks),
-an open statement (UNVERIFIABLE after the fetch round), an M7 refusal (a ``not_rule`` over a decision) or an
+an open statement (UNVERIFIABLE after the fetch round), a statement's concern the checker did not refute (garden#1548), an M7 refusal (a ``not_rule`` over a decision) or an
 unaccounted target, and the scope's unmatched phrases. Each row says where (file and lines), what is unknown, and
 what to check, made concrete for COBOL with the PERFORM / GO TO sites of the paragraph (``cobol_flow.callers``).
 Rows sort by kind: flagged, open, refused, scope. The user's actions on a row (Confirm, Reject with a note) are
@@ -104,6 +104,34 @@ def statement_rows(statements):
     return rows
 
 
+def concern_rows(statements):
+    """garden#1548: one ``flagged`` row per concern of a live statement (a branch that cannot run, an amount counted
+    twice, a stub), unless both checker passes refuted it. The row names no statement: the statement states the code
+    literally and may be Checked, and only an open statement takes a ruling, so the row is for reading, not ruling."""
+    rows = []
+    for st in statements:
+        if st.get("status") not in ("Checked", "open"):
+            continue
+        f, lo, hi = _anchor(st)
+        name = st.get("name") or (st.get("anchor") or {}).get("symbol_id") or "this routine"
+        cs = st.get("concerns") if isinstance(st.get("concerns"), list) else []
+        for k, c in enumerate(cs):
+            # only a concern the checker judged: one on a statement the M checks refused was never asked
+            if not isinstance(c, dict) or c.get("checked") not in ("SUPPORTED", "UNVERIFIABLE") \
+                    or not isinstance(c.get("text"), str) or not c["text"].strip():
+                continue
+            p = next((q for q in (lookup.pref(r) for r in (c.get("lines") if isinstance(c.get("lines"), list) else [])) if q), None)
+            cf, ca, cb = p if p else (f, lo, hi)
+            unknown = f"In {name}: {_sentence(c['text'])}"
+            if c.get("checked") != "SUPPORTED":
+                unknown += " The checker could not confirm this from the code it was shown."
+            rows.append(dict(kind="flagged", where=_where(cf, ca, cb) if cf else None, statement=None, target=st.get("target"),
+                             concern_of=st.get("id"), concern=k, unknown=unknown,
+                             check=_check_with_sites("Read the cited lines and confirm this; the rule states the code as written.", cf, ca)
+                             if cf else "Read the statement's code and confirm this.", sites=sites(cf, ca) if cf else []))
+    return rows
+
+
 def refusal_rows(after_m_targets, not_rules, S):
     """An unaccounted target: its M7 refusals and unaccounted lines, once per target."""
     tby = {t["id"]: t for t in S.get("targets") or []}
@@ -129,7 +157,7 @@ def scope_rows(S):
 def followups(repo, S, result):
     """The run's follow-up rows from the checker's result (``check.check_all``) and the scope."""
     lookup.use_repo(repo)
-    rows = statement_rows(result["statements"]) + refusal_rows(result["targets"], result["not_rules"], S) + scope_rows(S)
+    rows = statement_rows(result["statements"]) + concern_rows(result["statements"]) + refusal_rows(result["targets"], result["not_rules"], S) + scope_rows(S)
     rows.sort(key=lambda r: (ORDER[r["kind"]], (r["where"] or {}).get("file") or "", ((r["where"] or {}).get("lines") or [0])[0]))
     for n, r in enumerate(rows, 1):
         r["n"] = n

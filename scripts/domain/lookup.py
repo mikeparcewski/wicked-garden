@@ -282,7 +282,8 @@ def want(repo, st, extra=None):
     f, (a, b) = st["anchor"]["file"], st["anchor"]["lines"]
     _AT.line = a if lang_of(f) == "ts" else None
     w[f].update(range(a, b + 1))
-    for c in st.get("claims") or []:
+    # a concern (garden#1548) is checked like a claim, so the lines it cites are shown like a claim's
+    for c in (st.get("claims") or []) + [x for x in st.get("concerns") or [] if isinstance(x, dict)]:
         for r in c.get("lines") or []:
             p = pref(r)
             if p:

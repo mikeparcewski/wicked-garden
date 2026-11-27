@@ -32,6 +32,7 @@ Applies to extensions: .cbl .CBL .cob .cpy .CPY .jcl .JCL .prc .PRC .proc .bms .
 `IF`, `ELSE`, `EVALUATE`, `WHEN`, `PERFORM ... UNTIL`, `PERFORM ... VARYING`, `AT END`, `NOT AT END`, `INVALID KEY`,
 `NOT INVALID KEY`, `ON SIZE ERROR`, `ON OVERFLOW`, `GO TO ... DEPENDING`, `NEXT SENTENCE`, `SEARCH`, `SET <88-name> TO TRUE`,
 `CALL 'CEE3ABD'`, `ABEND`, a file-status comparison (`'00'`, `'10'`, `'23'` ...), JCL `COND=`, `IF ... THEN`, SORT `INCLUDE COND`/`OMIT COND`.
+Record updates are refused in a not_rule too: `WRITE`, `REWRITE` or `DELETE` of a record, or a `PERFORM` of a paragraph that does one. State them (rule 11).
 
 ## call-site greps (trigger fetch)
 `PERFORM X`, `PERFORM X THRU Y`, `GO TO X`, `CALL 'X'`, `CALL X`, `EXEC CICS LINK PROGRAM('X')`, `EXEC CICS XCTL PROGRAM('X')`, JCL `EXEC PGM=X`.
@@ -53,7 +54,7 @@ Applies to extensions: .cbl .CBL .cob .cpy .CPY .jcl .JCL .prc .PRC .proc .bms .
 5. 88-level condition names: `IF FLAG-NAME` tests the parent field against the 88's VALUE list; `SET FLAG-NAME TO TRUE` moves that value.
 6. `INVALID KEY` / `AT END` / `NOT INVALID KEY` branches run only on that I/O outcome. File status `'00'` success, `'10'` end of file, `'23'` record not found, `'02'` duplicate alternate key.
 7. An `IF` without a period inside an outer `IF` nests; a period ends ALL open IFs.
-8. A branch that cannot run is not a rule (for example an EOF update placed after the loop's exit test sets the EOF flag). Read the loop condition before stating what happens at end of file.
+8. A branch can be unable to run (for example an EOF update placed after the loop's exit test sets the EOF flag). Read the loop condition before stating what happens at end of file. State such a branch as the code writes it, and say in a concern that it cannot run, citing the test that prevents it.
 9. `PERFORM UNTIL c` tests c before each iteration (TEST BEFORE is the default).
 10. `AND`/`OR` precedence: `AND` binds tighter; `NOT` applies to the next condition only.
 11. Comparisons are exact: `> 500` is not `>= 500`.

@@ -312,6 +312,165 @@ def has_decision(repo, f, lines):
     return any(rx.search(L[i - 1]) for i in lines if 1 <= i <= len(L) and i not in cm)
 
 
+# garden#1548: a record update is a business outcome even with no test (a posting paragraph's writes, their order).
+# The verb as a token: `WRITE` / `REWRITE` / `DELETE` with or without its record on the same line (a CICS command
+# often puts FILE(...) on the next), never inside a data name (`WS-WRITE-FLAG`), never a queue (`WRITEQ`, `DELETEQ`)
+# and never a CICS command that touches no file record (`WRITE OPERATOR`, `DELETE CONTAINER`, `WRITE JOURNALNAME`).
+_NOT_A_RECORD = r"(?:OPERATOR|CONTAINER|CHANNEL|JOURNALNAME|COUNTER|DCOUNTER)\b"
+RECORD_UPDATE_COBOL = re.compile(r"(?<![A-Z0-9-])(WRITE|REWRITE|DELETE)(?![A-Z0-9-])(?!\s+" + _NOT_A_RECORD + ")", re.I)
+_NOT_A_RECORD_NEXT = re.compile(r"^\s*" + _NOT_A_RECORD, re.I)
+# DES-1603: a PERFORM is read as one statement, from its line to the next verb or period (5 lines at most). The
+# words that may follow its procedure names; anything else and the call is not read (main's behaviour).
+_COBOL_VERBS = frozenset("""ACCEPT ADD CALL CANCEL CLOSE COMPUTE CONTINUE DELETE DISPLAY DIVIDE ELSE END-EVALUATE END-IF
+    END-PERFORM END-READ END-SEARCH EVALUATE EXEC EXIT GO GOBACK IF INITIALIZE INSPECT MERGE MOVE MULTIPLY NEXT OPEN
+    PERFORM READ RELEASE RETURN REWRITE SEARCH SET SORT START STOP STRING SUBTRACT UNSTRING WHEN WRITE""".split())
+_PERFORM_TAIL = frozenset(("UNTIL", "VARYING", "WITH", "TEST")) | _COBOL_VERBS
+_PERFORM_COBOL = re.compile(r"\bPERFORM\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:OF|IN)\s+([A-Z0-9][A-Z0-9-]*))?"
+                            r"(?:\s+(?:THRU|THROUGH)\s+([A-Z0-9][A-Z0-9-]*)(?:\s+(?:OF|IN)\s+([A-Z0-9][A-Z0-9-]*))?)?", re.I)
+_PARA_COBOL = re.compile(r"^([A-Z0-9][A-Z0-9-]*)(\s+SECTION)?\s*\.?\s*$", re.I)
+_LITERAL = re.compile(r"'[^']*'|\"[^\"]*\"")
+
+
+def _cobol_code(L, i, cm):
+    """Line ``i``'s code area (columns 8-72) with its literals blanked and an inline `*>` comment cut; empty on a
+    comment or a short line. A literal continued onto the next line is blanked to the line's end, and a continuation
+    line (`-` in column 7) is blanked up to the quote that closes it."""
+    s = L[i - 1]
+    if i in cm or len(s) <= 7:
+        return ""
+    c = s[7:72]
+    if s[6] == "-":
+        b = c.lstrip()
+        q = b[:1]
+        k = b.find(q, 1) if q in ("'", '"') else -1
+        c = " " * (len(c) - len(b) + k + 1) + b[k + 1:] if k >= 0 else ""
+    c = _LITERAL.sub(" ", c)
+    c = re.split(r"['\"]", c, 1)[0]  # an unclosed quote opens a continued literal
+    return c.split("*>", 1)[0]
+
+
+def _next_code(L, i, cm):
+    """The code of the first line after ``i`` that has any, '' at the end of the file."""
+    for j in range(i + 1, min(len(L), i + 5) + 1):
+        c = _cobol_code(L, j, cm)
+        if c.strip():
+            return c
+    return ""
+
+
+def _perform_statement(L, i, cm):
+    """Line ``i``'s code, and when it holds a PERFORM, the lines after it up to the next verb or period (5 lines at
+    most), so a name, qualifier or THRU on a continuation line is read with its call."""
+    c = _cobol_code(L, i, cm)
+    if not re.search(r"\bPERFORM\b", c, re.I) or c.rstrip().endswith("."):
+        return c
+    for j in range(i + 1, min(len(L), i + 4) + 1):
+        n = _cobol_code(L, j, cm)
+        if not n.strip():
+            continue
+        if len(n) - len(n.lstrip()) <= 3 or n.split()[0].rstrip(".").upper() in _COBOL_VERBS:
+            break  # a header in area A, or the next statement
+        c = c.rstrip() + " " + n.strip()
+        if n.rstrip().endswith("."):
+            break
+    return c
+
+
+def _perform_tail_ok(rest):
+    """What follows a PERFORM's procedure names is nothing, a period, a TIMES / UNTIL / VARYING / WITH TEST clause,
+    or the next verb on the line."""
+    w = [x.rstrip(".").upper() for x in rest.split()]
+    return not w or rest.lstrip().startswith(".") or w[0] in _PERFORM_TAIL or (len(w) > 1 and w[1] == "TIMES")
+
+
+def _is_update(L, i, cm):
+    """Line ``i`` holds a record update: the verb, not followed (on this line or, when the verb ends it, the next) by a
+    command that touches no file record."""
+    c = _cobol_code(L, i, cm)
+    for m in RECORD_UPDATE_COBOL.finditer(c):
+        if c[m.end():].strip() or not _NOT_A_RECORD_NEXT.match(_next_code(L, i, cm)):
+            return True
+    return False
+
+
+def _cobol_paragraphs(repo, f, L, cm):
+    """The PROCEDURE DIVISION's paragraphs and sections of ``f`` as (NAME, first line, last line, is a section), in
+    source order. A
+    section runs to the next section (its paragraphs included); a paragraph to the next header. A header is a name in
+    area A (columns 8-11) alone on its line, its period on that line or the next."""
+    ps = procedure_start(repo, f)
+    if not ps:
+        return []
+    heads = []
+    for i in range(ps + 1, len(L) + 1):
+        s = L[i - 1]
+        body = s[7:72].split("*>", 1)[0]
+        if i in cm or not body.strip() or len(body) - len(body.lstrip()) > 3:  # area A: columns 8-11
+            continue
+        m = _PARA_COBOL.match(body.strip())
+        nxt = L[i][7:72].split("*>", 1)[0].strip() if i < len(L) and len(L[i]) > 7 else ""
+        if m and (body.rstrip().endswith(".") or nxt == "."):
+            heads.append((m.group(1).upper(), i, bool(m.group(2))))
+    out = []
+    for k, (nm, a, sec) in enumerate(heads):
+        later = [h for h in heads[k + 1:] if h[2]] if sec else heads[k + 1:k + 2]
+        out.append((nm, a, later[0][1] - 1 if later else len(L), sec))
+    return out
+
+
+def updates_records(repo, f, lines):
+    """garden#1548: the lines of COBOL file ``f`` that update a record: a WRITE / REWRITE / DELETE on the line, or a
+    PERFORM (a THRU range included) of paragraphs of the same file that hold one. One PERFORM level, so a posting
+    paragraph that performs its updates is itself an update. Not COBOL: none."""
+    if ext(f) not in COBOL_EXT:
+        return []
+    L = flines(repo, f) or []
+    cm = comment_lines(repo, f)
+    paras = _cobol_paragraphs(repo, f, L, cm)
+    seen = {}
+    secs = [p for p in paras if p[3]]
+
+    def section_of(line):
+        return next((s[0] for s in secs if s[1] <= line <= s[2]), None)
+
+    def resolve(name, sec, line):
+        """The one procedure ``name`` (qualified by section ``sec``) names from ``line``: unqualified, a name two
+        sections share means the one in the caller's section. None when it is not one procedure."""
+        ks = [k for k, p in enumerate(paras) if p[0] == name]
+        if sec:
+            ks = [k for k in ks if section_of(paras[k][1]) == sec and not paras[k][3]]
+        elif len(ks) > 1:
+            ks = [k for k in ks if section_of(paras[k][1]) == section_of(line)]
+        return ks[0] if len(ks) == 1 else None
+
+    def direct(a, b):
+        if (a, b) not in seen:
+            seen[(a, b)] = any(_is_update(L, j, cm) for j in range(max(a, 1), min(b, len(L)) + 1))
+        return seen[(a, b)]
+
+    if isinstance(lines, range):  # a model's range is cut to the file before it is walked
+        lines = range(max(lines.start, 1), min(lines.stop, len(L) + 1))
+    out = []
+    for i in lines:
+        if not 1 <= i <= len(L):
+            continue
+        if _is_update(L, i, cm):
+            out.append(i)
+            continue
+        c = _perform_statement(L, i, cm)
+        for m in _PERFORM_COBOL.finditer(c):
+            if not _perform_tail_ok(c[m.end():]):
+                continue  # not a PERFORM this reads: no update, as main
+            up = [(g or "").upper() or None for g in m.groups()]
+            ka = resolve(up[0], up[1], i)
+            kb = resolve(up[2], up[3], i) if up[2] else ka
+            if ka is not None and kb is not None and ka <= kb \
+                    and direct(paras[ka][1], paras[kb][2]):  # the range's one source interval
+                out.append(i)
+                break
+    return out
+
+
 # ---------------- hubs (#1366 generalised, DES §3.1 E) ----------------
 def build_edges(g):
     N = g.nodes

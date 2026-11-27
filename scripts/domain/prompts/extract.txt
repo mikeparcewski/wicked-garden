@@ -27,13 +27,16 @@ INSTRUCTIONS
    - INVENTED: a step, outcome, reason or detail the code does not contain.
    - WRONG: the code contradicts the claim.
 7. Every claim cites lines as `path:N` or `path:N-M` using the batch's real line numbers. Cite the narrowest lines that show the claim.
-8. Claim text is a short clause, not a sentence. Say only what the cited lines do: no commentary, interpretation or consequence. Put every identifier, literal and message text exactly as written in the code inside backticks. A fact that lives in code outside the batch goes in `context` as a named symbol with its `at` lines when shown; never guess it.
+8. Claim text is a short clause, not a sentence. Say only what the cited lines do: no commentary, interpretation or consequence. Put every identifier, literal and message text exactly as written in the code inside backticks. A fact that lives in code outside the batch goes in `context` as a named symbol with its `at` lines when shown; never guess it. A field defined in a copybook goes in `context` with the copybook's path and its line (`app/cpy/CVACT01Y.cpy:7`). A consequence the code has that its claims do not say (a branch that cannot run, an amount counted twice, a routine that does nothing though its name or comment says it does something) goes in the statement's `concerns`, with the lines that show it, never in a claim.
 9. The host renders each statement for the user from the table, in execution order, each effect under its own `when` / `unless`. Never write a prose sentence. Do not output a kind, confidence, author or hashes: the host derives them.
 10. Code that only exits, wraps I/O with no test, moves control, or formats a display, with no business decision, goes in `not_rules` with a reason from exactly: exit, io-wrapper, control-only, display-format. A not_rules entry must not hold a decision (a test, a branch, a status check, an abend, a loop test): lines with one belong to a statement with that test as a condition claim.
+11. Code that updates business records (a WRITE, REWRITE or DELETE of a record, a PERFORM of a paragraph that does one, or a record built field by field from another) is a business outcome even without a test. State it as a statement: one `effect` per update in execution order, and each field mapping a `value` claim `of` its effect. Never put it in `not_rules`.
+12. A paragraph with no executable statement whose name or comment says it does something (`COMPUTE`, `CALC`, "To be implemented") is a stub, not an exit. State it as a statement: an `effect` that it does nothing, a `value` quoting the name or comment, and a concern naming the stub.
 
 OUTPUT: one JSON object and nothing else (no prose, no code fence):
 {"targets": [{"target": "<target id>",
   "statements": [{"anchor": {"symbol_id": "<anchor_symbol>", "file": "<path>", "lines": [<start>, <end>]},
                   "claims": [{"i": 0, "type": "condition|effect|else|value|trigger", "text": "<clause>", "lines": ["path:N-M"], "when": [], "unless": [], "of": null}],
-                  "context": [{"symbol": "<name>", "at": "path:N-M"}]}],
+                  "context": [{"symbol": "<name>", "at": "path:N-M"}],
+                  "concerns": [{"text": "<clause>", "lines": ["path:N-M"]}]}],
   "not_rules": [{"lines": "path:N-M", "reason": "exit|io-wrapper|control-only|display-format", "note": "<short>"}]}]}

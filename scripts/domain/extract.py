@@ -18,6 +18,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # scripts/ on path
+from domain import defs  # noqa: E402
 from domain import graph as lib  # noqa: E402
 from domain import lookup as v2lib  # noqa: E402
 from domain import model_calls as calls  # noqa: E402
@@ -133,6 +134,21 @@ def check_statement(repo, st, t, call):
     if ctx is not None and not (isinstance(ctx, list) and all(isinstance(x, dict) and isinstance(x.get("at", ""), str)
                                                               for x in ctx)):
         errs.append("M1 context is not a list of {symbol, at}")
+    # garden#1548: a concern is what the code means that its literal claims do not say; it cites batch lines like a claim
+    cn = st.get("concerns")
+    if cn is not None and not isinstance(cn, list):
+        errs.append("M1 concerns is not a list of {text, lines}")
+    for k, x in enumerate(cn if isinstance(cn, list) else []):
+        refs = x.get("lines") if isinstance(x, dict) else None
+        if not isinstance(x, dict) or not isinstance(x.get("text"), str) or not x["text"].strip() or not isinstance(refs, list) or not refs:
+            errs.append(f"M1 concern {k} is not {{text, lines}} with a text and at least one line")
+            continue
+        for r in refs:
+            p = pref(r) if isinstance(r, str) else None
+            if not p:
+                errs.append(f"M2 concern {k} line ref {r!r} is not path:N[-M]")
+            elif not in_batch(repo, call, p):
+                errs.append(f"M2 concern {k} line ref {r} is not inside the batch")
     cl = st.get("claims")
     if not isinstance(cl, list) or not cl:
         return ["M1 claims missing or empty"]
@@ -189,8 +205,56 @@ def check_statement(repo, st, t, call):
     return errs
 
 
-def is_rule(st):
-    return bool({c.get("type") for c in st.get("claims") or [] if isinstance(c, dict)} & {"condition", "else", "value"})
+def is_rule(st, repo=None):
+    """A rule has a condition, else or value claim. With ``repo`` (garden#1548), an effect that cites a record update
+    (``graph.updates_records``) also makes one: a bare WRITE has no value to state, and without this its statement
+    would be derived into a not-rule that the M7 record-update check then refuses, leaving the target unaccounted."""
+    claims = [c for c in st.get("claims") or [] if isinstance(c, dict)]
+    if {c.get("type") for c in claims} & {"condition", "else", "value"}:
+        return True
+    return repo is not None and any(
+        p and lib.updates_records(repo, p[0], range(p[1], p[2] + 1))
+        for c in claims if c.get("type") == "effect"
+        for p in (pref(r) if isinstance(r, str) else None for r in c.get("lines") or []))
+
+
+def cite_copybooks(st):
+    """garden#1548: every field a claim names in backticks (outside a quoted literal) that exactly one of its program's
+    copybooks defines goes in the statement's ``context`` with the copybook line (``app/cpy/CVACT01Y.cpy:7``), so the
+    statement says which copybook it reads. A name the program defines itself, or its copybooks define twice, is left out
+    (the claim's qualification is not resolved here). 0 model calls; a field the model already placed keeps its entry;
+    a statement the M checks refused keeps whatever shape it has. Not COBOL: unchanged."""
+    f = (st.get("anchor") or {}).get("file") if isinstance(st.get("anchor"), dict) else None
+    if not isinstance(f, str) or not is_cobol(f) or not isinstance(st.get("claims"), list):
+        return st
+    ctx = st.get("context")
+    if ctx is None:
+        ctx = []
+    if not isinstance(ctx, list):
+        return st
+    # a field the model placed with a reference keeps it; one it named with no reference gets the copybook line
+    have = {x.get("symbol") for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and isinstance(x.get("at"), str) and x["at"]}
+    bare = {x["symbol"]: x for x in ctx if isinstance(x, dict) and isinstance(x.get("symbol"), str) and x["symbol"] not in have}
+    in_program = lambda n: (defs.define(n, [f]) or ("",))[0] == f  # noqa: E731
+    books = defs.copybooks(f)
+    for c in st["claims"]:
+        if not isinstance(c, dict) or not isinstance(c.get("text"), str):
+            continue
+        for span in re.findall(r"`([^`]+)`", c["text"]):
+            for name in defs.COBID.findall(re.sub(r"'[^']*'|\"[^\"]*\"", " ", span).upper()):
+                if name in have or name in COBKW or in_program(name):
+                    continue
+                hits = [d for d in (defs.define(name, [cp]) for cp in books) if d]
+                many = sum(1 for cp in books for s in defs.flines(cp) if len(s) > 7 and s[6] not in "*/"
+                           and (defs.level(s) or (0, ""))[1] == name)
+                if len(hits) == 1 and many == 1:  # one definition in all its copybooks
+                    if name in bare:
+                        bare[name]["at"] = f"{hits[0][0]}:{hits[0][1]}"
+                    else:
+                        ctx.append(dict(symbol=name, at=f"{hits[0][0]}:{hits[0][1]}"))
+                    have.add(name)
+    st["context"] = ctx
+    return st
 
 
 def check_target(repo, tout, t, call):
@@ -203,9 +267,9 @@ def check_target(repo, tout, t, call):
         an = st["anchor"]
         an["symbol_id"] = an.get("symbol_id") or t["anchor_symbol"]
         e = check_statement(repo, st, t, call)
-        if not e and not is_rule(st):
+        if not e and not is_rule(st, repo):
             ln = an["lines"]
-            nrs.append(dict(lines=f"{t['file']}:{ln[0]}-{ln[1]}", reason="control-only", note="derived: no condition, else or value claim", derived=True))
+            nrs.append(dict(lines=f"{t['file']}:{ln[0]}-{ln[1]}", reason="control-only", note="derived: no condition, else or value claim, and no record update", derived=True))
             continue
         keep.append(st)
         if e:
@@ -234,6 +298,13 @@ def check_target(repo, tout, t, call):
         if dl:
             n["refused"] = True
             tf.append(f"M7 not_rule {n.get('lines')} holds a decision on line(s) {dl[:6]}: state it as a statement with that test as a condition claim")
+            continue
+        ul = lib.updates_records(repo, t["file"], [i for i in range(max(p[1], 1), min(p[2], nlines) + 1)
+                                                   if i in code and i not in rule_lines])
+        if ul:
+            n["refused"] = True
+            tf.append(f"M7 not_rule {n.get('lines')} updates a record on line(s) {ul[:6]}: state it as a statement, one effect "
+                      "claim per update in execution order")
     need = {i for i in range(t["lines"][0], t["lines"][1] + 1) if i in code}
     cov = set(rule_lines)
     for n in nrs:
@@ -318,6 +389,7 @@ def extract_all(repo, S, C, workers=6):
             free = (f"{tid}#{k}" for k in itertools.count() if f"{tid}#{k}" not in taken)
             for k, st in enumerate(r["statements"]):
                 st.update(id=next(free), target=tid, call=call["id"], m_fail=r["fails"].get(k) or [], kind="rule", name=t.get("anchor_name"))
+                cite_copybooks(st)
                 st["status"] = "open" if st["m_fail"] else "pending"
                 statements.append(st)
             for k, n in enumerate(r["not_rules"]):

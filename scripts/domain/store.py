@@ -95,12 +95,14 @@ def oversized(st):
 
 
 def cited(st):
-    """The (file, line) pairs a statement cites: its claims' lines and guards, and its context references."""
+    """The (file, line) pairs a statement cites: its claims' lines and guards, its concerns' lines (garden#1548: a
+    concern can cite a test outside its paragraph), and its context references."""
     out = set()
-    for c in st.get("claims") or []:
+    cs = st.get("concerns") if isinstance(st.get("concerns"), list) else []
+    for c in list(st.get("claims") or []) + cs:
         if not isinstance(c, dict):
             continue
-        refs = [r for key in ("lines", "guards") if isinstance(c.get(key), list) for r in c[key]]
+        refs = [r for key in ("lines", "guards") if isinstance(c.get(key), list) for r in c[key] if isinstance(r, str)]
         for r in refs:
             p = lookup.pref(r)
             if p:
@@ -203,9 +205,9 @@ def relocate(st, moves):
     """``st`` with every cited line moved by the piece holding it; ``None`` when a citation is in no piece."""
     st = json.loads(json.dumps(st))
     ok = True
-    for c in st.get("claims") or []:
+    for c in list(st.get("claims") or []) + [x for x in (st.get("concerns") if isinstance(st.get("concerns"), list) else []) if isinstance(x, dict)]:
         for key in ("lines", "guards"):
-            if c.get(key):
+            if isinstance(c.get(key), list) and c[key]:
                 moved = [_move_ref(r, moves) for r in c[key]]
                 c[key] = [r for r, _ in moved]
                 ok &= all(m for _, m in moved)
@@ -411,8 +413,10 @@ def rows_for(repo, result, records, groups, prose_meta, followup_rows, prior, re
             written[GROUP].add(name)
     written[FOLLOWUP] = set()
     for r in followup_rows:
-        name = sha(json.dumps({k: r.get(k) for k in ("kind", "where", "statement", "target", "claim", "unknown")},
-                              sort_keys=True).encode())[:16]
+        # a concern row (garden#1548) names no statement: its statement and concern index keep two rows apart; the
+        # other rows hash as before, so their keys do not move
+        keys = ("kind", "where", "statement", "target", "claim", "unknown") + (("concern_of", "concern") if "concern_of" in r else ())
+        name = sha(json.dumps({k: r.get(k) for k in keys}, sort_keys=True).encode())[:16]
         f = (r.get("where") or {}).get("file")
         sym = symbol_for(repo, f) if f else None
         if sym is None and records:
