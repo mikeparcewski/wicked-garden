@@ -10,10 +10,10 @@ Group the statements into business rules. For each group write one plain-languag
    - Business is what decides or computes something about the business data: accounts, cards, customers, transactions, authorizations, interest, fees, posting, the result of validating an entered value (including the message that tells the user the value is invalid), report content, and the job's business inputs and outputs.
    - Housekeeping is everything else around it, for example:
      - files and databases: open, read, write and close and their status checks, file-status acceptance lists (which status codes count as success), a keyed read and the found / not-found / end-of-data flags it sets, the error value set when a read or rewrite fails;
-     - errors and diagnostics: error and abend message display (including the message text), abend routines, debug DISPLAYs of records, record counters;
+     - errors and diagnostics: error and abend message display (including the message text), abend routines, debug DISPLAYs of records, record counters, how a message is assembled (STRING, trimming, the field name put in front of the text) and a flag used only so that the first failure sets the message (a flag or condition that decides whether the input is accepted or what happens next stays business, as does the text the user reads);
      - screens: map sends and receives, paging and browse positioning, saved browse keys and page counters, cursor placement, field protection and colours, function-key mapping and the message for an unsupported key, clearing or resetting screen fields, session or COMMAREA setup and resets, which screen or program runs next;
-     - messaging: queue open, get and put, message and correlation ids, reply formats and buffer sizes;
-     - control flow that only performs other paragraphs, and a routine that does nothing (a stub);
+     - messaging: queue open, get and put, message and correlation ids, reply formats and buffer sizes, and a reply whose only content is the system date or time (a clock service: a program that only obtains the system date or time and returns it, with no other decision, input or record, has no business group);
+     - control flow that only performs other paragraphs, including the order in which a routine performs others, and a routine that does nothing (a stub);
      - jobs: which program a step runs, step and procedure names, library bindings (CNTLLIB, STEPLIB), and dataset attributes (DISP, DCB, SPACE);
      - CICS and IMS mechanics: PSB scheduling, IMS status handling, SYNCPOINT, file dispatching.
    - Housekeeping goes in ONE group per program or module, with kind "housekeeping". Every other group has kind "business". A group whose RULE would be housekeeping is a housekeeping group.

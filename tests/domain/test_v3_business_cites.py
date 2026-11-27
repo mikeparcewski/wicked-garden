@@ -158,3 +158,21 @@ def test_a_detail_the_writer_marked_housekeeping_may_be_repaired_with_any_statem
     hk = [g for g in res["groups"] if g["kind"] == "housekeeping"]
     assert [(d["id"], d["cites"], d["fate"]) for d in hk[0]["details"]] == [("g1.d1", ["S2"], "repaired")]
     assert business_cites(res) == {"S1"}
+
+
+def test_the_writer_is_told_a_clock_reply_message_assembly_and_call_order_are_housekeeping(monkeypatch):
+    # garden#1616 and the Run B residual (coord option 1, 2026-11-27): the CODATE01 date reply (CODATE01.cbl:339-364),
+    # COACTUPC's message assembly and first-message flag (COACTUPC.cbl:1838-1844), and COPAUS0C's call order
+    # (COPAUS0C.cbl:785) were judged plumbing; the writer reads them as housekeeping examples (prompts/prose.txt, rule 1).
+    seen = []
+    scripted(monkeypatch, [group(1, "business", ("A missing group falls back to DEFAULT.", ["S1"]))], seen)
+    prose.prose_all(STATEMENTS[:1], "demo")
+    (sent,) = [p for step, p in seen if step == "prose"]
+    assert ("a reply whose only content is the system date or time (a clock service: a program that only obtains the "
+            "system date or time and returns it, with no other decision, input or record, has no business group)") in sent
+    assert ("how a message is assembled (STRING, trimming, the field name put in front of the text) and a flag used only "
+            "so that the first failure sets the message (a flag or condition that decides whether the input is accepted "
+            "or what happens next stays business, as does the text the user reads)") in sent
+    assert "control flow that only performs other paragraphs, including the order in which a routine performs others" in sent
+    # the user-visible validation message stays business (prose.txt:10)
+    assert "the result of validating an entered value (including the message that tells the user the value is invalid)" in sent
