@@ -27,11 +27,12 @@ Group the statements into business rules. For each group write one plain-languag
 2. The RULE sentence (what the reader sees first; at most 35 words).
    - Plain business language. No code identifiers, no backticks, no paragraph, function or variable names. Use a plain-words reading of a name instead ("the transaction category balance", "the launch posture").
    - Keep the values that ARE the rule (a reason code, a limit, a rate formula, a status, a short message), written exactly as the statements give them.
-   - State the conditions that decide the outcome ("only when", "unless", "otherwise"). Leave out conditions that only keep a loop going or check a file status, but never state an outcome as unconditional when the statements make it conditional on a business test.
+   - State the conditions that decide the outcome ("only when", "unless", "otherwise"). The checker's guard policy lets you leave out only these: a condition that only keeps a read loop going (the end-of-file flag not yet set, which a sentence covers by saying "for each record read" or "records are read one by one"); a file-status success test (status '00') in a sentence about normal processing; and a condition in a caller that only decides whether the routine runs at all, unless the sentence states when or by what the routine is triggered. Never state an outcome as unconditional when the statements make it conditional on a business test.
 
 3. DETAIL sentences (0 to 4, precise).
    - These may use code names, in backticks, exactly as the statements write them.
    - Keep every condition that decides whether the effect happens or which effect happens. When a statement says "When X: A" and "Unless X: B", keep both the condition and the otherwise-branch, or state only what holds in every case. Never drop a guard to make a sentence simpler; write two sentences instead.
+   - Every condition the guard policy (rule 2) does not exempt stays, in a DETAIL and in a RULE, even when rule 1 files its mechanics as housekeeping: the screen or program state in which a check runs (in a RULE, in plain words, for example "while changes are being edited"), a blank or not-supplied branch that is tested first, a response test such as a normal CICS response, and which of two inputs is checked first.
    - You may say less than a statement (for example "displays an error message" instead of quoting it), never more.
 
 4. For every sentence (rule and detail):

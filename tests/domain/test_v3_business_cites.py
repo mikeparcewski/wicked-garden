@@ -212,3 +212,25 @@ def test_the_writer_is_told_a_lookup_with_a_business_fallback_is_business(monkey
     assert "a lookup whose not-found branch chooses a business fallback (for example a default group)" in sent
     # the plain keyed read and its found / not-found flags stay housekeeping
     assert "a keyed read and the found / not-found / end-of-data flags it sets" in sent
+
+
+def test_the_writer_is_told_the_checkers_guard_policy_and_the_conditions_it_drops(monkeypatch):
+    # garden#1632 (DES-1632 option 1): 23 of 34 business sentences withheld in the Run B calibration draws since
+    # garden#1630 dropped a guard the checker counts (a screen state, a blank branch tested first, a normal CICS
+    # response, which input is checked first). The checker's guard policy says "the writer follows the same one", and
+    # now the writer reads it (prompts/prose.txt, rules 2 and 3)
+    import os
+    seen = []
+    scripted(monkeypatch, [group(1, "business", ("A missing group falls back to DEFAULT.", ["S1"]))], seen)
+    prose.prose_all(STATEMENTS[:1], "demo")
+    (sent,) = [p for step, p in seen if step == "prose"]
+    check = open(os.path.join(os.path.dirname(prose.__file__), "prompts", "prose_check.txt")).read()
+    exempt = ("a condition that only keeps a read loop going (the end-of-file flag not yet set, which a sentence covers by "
+              "saying \"for each record read\" or \"records are read one by one\"); a file-status success test (status '00') "
+              "in a sentence about normal processing; and a condition in a caller that only decides whether the routine runs "
+              "at all, unless the sentence states when or by what the routine is triggered")
+    assert exempt in check and exempt in sent  # the writer reads the checker's own words
+    assert "Leave out conditions that only keep a loop going or check a file status" not in sent
+    assert ("the screen or program state in which a check runs (in a RULE, in plain words, for example \"while changes are "
+            "being edited\"), a blank or not-supplied branch that is tested first, a response test such as a normal CICS "
+            "response, and which of two inputs is checked first") in sent
