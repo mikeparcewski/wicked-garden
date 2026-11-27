@@ -199,3 +199,16 @@ def test_the_writer_is_told_key_moves_report_lines_response_messages_and_commare
     # round 1 dropped COACTUPC 1100-RECEIVE-MAP (:1039-1425), whose NUMVAL-C conversion of entered amounts is business
     assert "converting an entered value to a number (receiving the screen itself is housekeeping)" in sent
     assert "the result of validating an entered value (including the message that tells the user the value is invalid)" in sent
+
+
+def test_the_writer_is_told_a_lookup_with_a_business_fallback_is_business(monkeypatch):
+    # garden#1633: on garden#1630's prompt one Run A draw filed CBACT04C 1200-GET-INTEREST-RATE (CBACT04C.cbl:415-439:
+    # a disclosure-group read that falls back to group 'DEFAULT' when not found) as housekeeping only, which dropped its
+    # Requirement; the writer reads the fallback as a business example (prompts/prose.txt, rule 1)
+    seen = []
+    scripted(monkeypatch, [group(1, "business", ("A missing group falls back to DEFAULT.", ["S1"]))], seen)
+    prose.prose_all(STATEMENTS[:1], "demo")
+    (sent,) = [p for step, p in seen if step == "prose"]
+    assert "a lookup whose not-found branch chooses a business fallback (for example a default group)" in sent
+    # the plain keyed read and its found / not-found flags stay housekeeping
+    assert "a keyed read and the found / not-found / end-of-data flags it sets" in sent
