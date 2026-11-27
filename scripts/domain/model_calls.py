@@ -12,11 +12,13 @@ tool-free posture and the seat's own home replace them. Stdlib only.
 """
 import collections
 import concurrent.futures as cf
+import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 
 WRITER, CHECKER = "claude", "codex"
@@ -24,7 +26,8 @@ WRITER_MAX_OUTPUT = 64000  # the proof's CLAUDE_CODE_MAX_OUTPUT_TOKENS on extrac
 FAMILY = {"claude": "anthropic", "codex": "openai"}
 CORE_ENV = "WICKED_CORE_BIN"
 ENGINE_CORE_ENV = "WICKED_CORE_EXE"
-_state = {"calls": None}
+_state = {"calls": None, "carry": None, "answers": [], "accepted": 0}
+CARRIED = "cache hit: carried from an earlier attempt"
 RETRY_WAIT_S = 30  # garden#1617: the wait before a checker pass in which no call answered is sent once more
 
 
@@ -41,7 +44,67 @@ def answered(text, rc):
 def configure(calls_dir):
     """Where this run keeps its calls (``<run out>/calls``)."""
     os.makedirs(calls_dir, exist_ok=True)
-    _state["calls"] = calls_dir
+    _state.update(calls=calls_dir, carry=None, answers=[], accepted=0)
+
+
+def carry_from(carry_dir):
+    """garden#1614: the carry of this run's scope (``<runs>/.carry/<scope hash>``). Each attempt has its own calls
+    directory, so without it a retry after a failed check paid for every writer call again. A run only reads the carry
+    while it runs; :func:`publish_carry` writes it when the attempt fails, :func:`drop_carry` deletes it once stored."""
+    _state["carry"] = carry_dir
+
+
+def _carry_key(family, step, prompt, max_output_tokens):
+    return hashlib.sha256(f"{family}\0{step}\0{max_output_tokens or ''}\0{prompt}".encode()).hexdigest() + ".out.txt"
+
+
+def accept_answers():
+    """The run finished a stage (extract, check, prose) with every writer answer it got so far: those may be carried.
+    An answer of a stage the attempt failed in is not (it may be the reason it failed: a writer answer the stage could
+    not use would fail every retry the same way)."""
+    _state["accepted"] = len(_state["answers"])
+
+
+def publish_carry():
+    """A failed attempt leaves the writer answers of the stages it finished for the next attempt of the same scope;
+    returns how many. The checker's are never carried: the retry asks the checker again (the issue's case is a checker
+    that went silent). Best effort: a carry is a saving, never a reason to fail."""
+    d, kept = _state["carry"], 0
+    if not d:
+        return 0
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        return 0
+    for key, text in _state["answers"][:_state["accepted"]]:
+        fd, tmp = None, None
+        try:
+            fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+            with os.fdopen(fd, "w") as fh:
+                fd = None
+                fh.write(text)
+            os.replace(tmp, os.path.join(d, key))
+            tmp, kept = None, kept + 1
+        except OSError:
+            pass
+        finally:
+            if fd is not None:
+                os.close(fd)
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+    return kept
+
+
+def drop_carry():
+    """A run that stored its model keeps no carry: the whole ``<runs>/.carry`` goes (an earlier scope's too, since a
+    session's runs share the parent and a stored run supersedes them)."""
+    d, _state["carry"] = _state["carry"], None
+    root = os.path.dirname(d) if d else None
+    if root and os.path.basename(root) == ".carry" and os.path.isdir(root):
+        shutil.rmtree(root, ignore_errors=True)
 
 
 def core_bin():
@@ -121,6 +184,17 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
         _log(step, cid, role, family, 0, True, "cache hit: reused the completed call")
         return c, 0
     _write(base + ".prompt.txt", prompt)
+    key = _carry_key(family, step, prompt, max_output_tokens) if family == WRITER else None
+    try:
+        c = _read(os.path.join(_state["carry"], key)) if key and _state["carry"] else None
+    except (OSError, ValueError):
+        c = None  # missing or unreadable: asked again
+    if c and c.strip():
+        # the writer answered the same step and byte-identical prompt in an earlier, failed attempt of this scope
+        _write(base + ".out.txt", c)
+        _log(step, cid, role, family, 0, True, CARRIED)
+        _state["answers"].append((key, c))
+        return c, 0
     out = base + ".out.tmp"
     t0 = time.time()
     try:
@@ -136,6 +210,8 @@ def call(family, step, cid, prompt, timeout=1500, role=None, max_output_tokens=N
     text = _read(out) if rc == 0 and os.path.exists(out) else ""
     if os.path.exists(out):
         os.replace(out, base + ".out.txt") if text.strip() else os.remove(out)
+    if key and answered(text, rc):
+        _state["answers"].append((key, text))
     if err:
         _write(base + ".stderr.txt", err[-5000:])
     _log(step, cid, role, family, wall, answered(text, rc), "" if rc == 0 else err[-300:])
