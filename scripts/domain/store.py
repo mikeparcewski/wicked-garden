@@ -47,12 +47,15 @@ AUTHOR = "wicked-garden/domain-run"
 ESTATE_ENV = "WICKED_ESTATE_BIN"
 UNIT_KINDS = ("function", "method", "step", "module", "class", "constant", "variable", "interface", "type_alias")
 PROSE_FILES = ("prompts/prose.txt", "prompts/prose_check.txt", "prompts/prose_repair.txt")
-# garden#1610: the host's own stating checks (the M checks, graph.updates_records, extract.cite_copybooks, the batches,
-# the R context, the renderer) are no frozen file. A change to one that alters what is stated bumps HOST, which moves
-# the stating version as a changed prompt would; tests/domain/test_v3_frozen.py pins those files and names this rule.
+# garden#1610: the host code that decides what is stated (the M checks, graph.updates_records, extract.cite_copybooks,
+# the scope and its config, the batches, the R context, the renderer, the answer parsing, the reuse and the stored rows)
+# is no frozen file. A change to it that alters what is stated bumps HOST, which moves the stating version as a changed
+# prompt would; tests/domain/test_v3_frozen.py pins these files, and every other file of the package is named there
+# as not stating, so a new module is judged too.
 HOST = 0
 HOST_FILES = ("batches.py", "check.py", "cobol_ctx.py", "cobol_flow.py", "defs.py", "extract.py", "graph.py", "lookup.py",
-              "r_stage.py", "reach.py", "render.py", "union.py")
+              "model_calls.py", "r_stage.py", "reach.py", "render.py", "run.py", "scope.py", "scope_config.json",
+              "store.py", "union.py")
 
 
 def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__)), "SHA256SUMS"), host=None):
@@ -62,12 +65,14 @@ def pipeline_versions(sums=os.path.join(os.path.dirname(os.path.abspath(__file__
     (garden#1601); a fresh store makes them again. :data:`HOST` above 0 moves the stating version too (garden#1610); at
     0 the version is the frozen files' alone, so the stores made before HOST existed keep theirs."""
     host = HOST if host is None else host
+    if not isinstance(host, int) or isinstance(host, bool) or host < 0:
+        raise ValueError(f"store.HOST must be an integer 0 or above, not {host!r}")
     with open(sums) as fh:
         lines = sorted(" ".join(ln.split()) for ln in fh if ln.strip())
     def v(sel):
         return sha("\n".join(ln for ln in lines if sel(ln.split()[1])).encode())[:16]
     stating = v(lambda f: f not in PROSE_FILES)
-    if host:
+    if host > 0:
         stating = sha(f"{stating}\0host {host}".encode())[:16]
     return stating, v(lambda f: f in PROSE_FILES)
 

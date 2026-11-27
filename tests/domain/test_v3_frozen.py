@@ -52,10 +52,12 @@ def test_every_prompt_the_pipeline_reads_is_listed():
     assert on_disk | {"contract.json"} == listed
 
 
-# garden#1610: the host's own stating checks, pinned with the store.HOST they were last judged under. A change to one of
-# these files fails below until it is re-pinned. The rule: if the change alters what a run states (an M check, what a
-# prompt shows, what counts as accounted, the rendered text), bump store.HOST in the same change, so a store the old
-# checks stated says it was made by an earlier pipeline version (garden#1601); if it does not, re-pin and leave HOST.
+
+# garden#1610: the host code that decides what is stated, pinned with the store.HOST it was last judged under. A change
+# to one of these files fails below until it is re-pinned. The rule: if the change alters what a run states (an M
+# check, what a prompt shows, what counts as accounted, the answer parsing, the reuse, the rendered or stored text),
+# bump store.HOST in the same change, so a store the old code stated says it was made by an earlier pipeline version
+# (garden#1601); if it does not, re-pin and leave HOST. Hashes are over LF line endings, whatever the checkout does.
 HOST_AT = 0
 HOST_PIN = {
     "batches.py": "ef00e51c60fc7d2fbebcfba8795a936417b8ed028e2b83a60b73ef74073e3671",
@@ -66,21 +68,47 @@ HOST_PIN = {
     "extract.py": "279a4fd54fc2f41d0f3510297f785c9fbf16b8dc3c858b669ecb599c31a2c673",
     "graph.py": "160cea90d5b5a9ab12b2c45e9a855b930a1245b4447d5a2275bdee3324b17383",
     "lookup.py": "5e74882951afc4ccdb33a67b91d49231ead539a6f9758efaf159bad2c09742bf",
+    "model_calls.py": "7f8faf74fe287d2e0c027eadc995f43d867a11fb7411ed766cc533a5e050b7a4",
     "r_stage.py": "f3ab2028650c236e99002fa5a5547eb40cac8105fdae5336c867c2ba8879689b",
     "reach.py": "52861ef241e965193704c9bf9f39674e3c362df937b6a1deb46df7223e8d7ab8",
     "render.py": "17335e132b454b675b55f2ba0630a4da50d1e4f19443cf2d4a02ed924cf7b310",
+    "run.py": "5d275efe7293018d01c8bafcf2a9109a5c0a75ce96ac69621ec42fb0bbacd58c",
+    "scope.py": "95c476e1c154fad7f7bd03b7cc4f1f81c60772ab44930d60a1fd1b86f282bc42",
+    "scope_config.json": "6dfd5940bb3750adf4a3f1742b57571bb66b52a809ce2fbc7031e95a198f8c49",
+    "store.py": "c08fbff42059b5044c710b4e7793767a1b29e5d8d0b3115d51674d051f8971f5",
     "union.py": "c1a4e4efb3d7492868cb55321b0c9d901f7cb3e1fcffc02e8fdb57bbc2a60230",
 }
+# every other file of the package, and why it does not state: a new module must be put in one list or the other
+NOT_STATING = {
+    "__init__.py": "the package marker",
+    "followups.py": "the follow-up list, made again from the stored model on every run",
+    "prose.py": "the prose, a model of its own (store.PROSE; DES-j6-build section 6)",
+    "validate_domain_model.py": "the schema check of the exported model",
+}
+
+
+def _lf_sha(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read().replace(b"\r\n", b"\n")).hexdigest()
 
 
 def test_a_changed_host_stating_check_is_judged_for_a_host_bump():
     from domain import store
     assert set(HOST_PIN) == set(store.HOST_FILES)
-    assert store.HOST == HOST_AT, "store.HOST moved: set HOST_AT to it and re-pin HOST_PIN in the same change"
-    changed = []
-    for rel, digest in HOST_PIN.items():
-        with open(os.path.join(HERE, rel), "rb") as fh:
-            if hashlib.sha256(fh.read()).hexdigest() != digest:
-                changed.append(rel)
-    assert not changed, (f"host stating checks changed: {changed}. If the change alters what a run states, bump "
-                         "store.HOST (garden#1610); either way, re-pin HOST_PIN (and HOST_AT) here")
+    on_disk = {f for f in os.listdir(HERE) if f.endswith(".py") or f == "scope_config.json"}
+    assert on_disk == set(HOST_PIN) | set(NOT_STATING), (
+        f"not judged: {sorted(on_disk - set(HOST_PIN) - set(NOT_STATING))}; put each in store.HOST_FILES (and HOST_PIN) "
+        "or in NOT_STATING with its reason")
+    changed = {rel: _lf_sha(os.path.join(HERE, rel)) for rel, digest in HOST_PIN.items()
+               if _lf_sha(os.path.join(HERE, rel)) != digest}
+    assert not changed and store.HOST == HOST_AT, (
+        f"host stating code changed: {changed}; store.HOST is {store.HOST}, HOST_AT {HOST_AT}. If the change alters what "
+        "a run states, bump store.HOST (garden#1610); either way, set HOST_AT to it and re-pin HOST_PIN here")
+
+
+def test_a_crlf_checkout_of_an_unchanged_host_file_matches_its_pin(tmp_path):
+    # round 1 on garden#1624: a Windows checkout (core.autocrlf) must not read as a changed host check
+    with open(os.path.join(HERE, "check.py"), "rb") as fh:
+        crlf = fh.read().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    (tmp_path / "check.py").write_bytes(crlf)
+    assert _lf_sha(str(tmp_path / "check.py")) == HOST_PIN["check.py"]
