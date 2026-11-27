@@ -68,15 +68,16 @@ def test_the_writer_is_told_business_sentences_cite_only_business_statements(mon
     assert len(sent) == 1
     # The rules, as the writer reads them (prompts/prose.txt, rule 1).
     assert 'Every business sentence (a business group\'s RULE, and each DETAIL of kind "business") cites only business statements.' in sent[0]
-    assert ("Any other statement whose claims only read a record (a lookup or a re-read) and then handle its status (accept it, "
-            "set a found, not-found or end-of-file flag, display an error or abend) is housekeeping") in sent[0]
+    assert ("Any other statement whose claims only read a record (a lookup or a re-read), or only write or rewrite a record "
+            "whose values other statements set, and then handle its status (accept it, set a found, not-found or end-of-file "
+            "flag, display an error or abend) is housekeeping") in sent[0]
     assert ("The business sentence then cites the statement that performs that routine, and says only what that statement "
             "states (for example that it performs the routine).") in sent[0]
     assert 'is two DETAILs: a "business" one with the business step, and a "housekeeping" one with the mechanics.' in sent[0]
-    # The precedence: the job's business input and a business record write stay business, read status and all
-    # (prose.txt:10; coord ruling c1 on the CBTRN03C date-range read).
-    assert ("write or rewrite a business record, or read the job's business input (for example its date range parameters, "
-            "together with that read's status handling)") in sent[0]
+    # The precedence: the job's business input and a statement that sets a business record's values stay business,
+    # status handling and all (prose.txt:10; coord ruling c1 on the CBTRN03C date-range read).
+    assert ("set the values of a business record it writes or rewrites, or read the job's business input (for example its "
+            "date range parameters, together with that read's status handling)") in sent[0]
 
 
 def test_a_split_mixed_detail_leaves_only_the_business_statement_cited_by_business(monkeypatch):
