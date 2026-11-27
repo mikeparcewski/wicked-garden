@@ -201,8 +201,8 @@ def file_housekeeping(groups, hk, top):
     business group moves, shown or withheld, to the housekeeping group of the same area (as written, case kept), made
     when the area has none (numbered after ``top``). A business group with no area keeps its details. Its sentence id
     and cites do not change. Returns the number moved."""
-    def key(a):  # the area exactly as the writer named it; a group with none keeps its details
-        return a.strip() if isinstance(a, str) and a.strip() else None
+    def key(a):  # the area exactly as the writer named it; a group with none (or only blanks) keeps its details
+        return a if isinstance(a, str) and a.strip() else None
 
     homes = {}
     for g in groups:

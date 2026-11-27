@@ -143,3 +143,27 @@ def test_a_made_housekeeping_group_is_numbered_after_a_malformed_one_too(monkeyp
     nums = [x["g"] for x in res["groups"]]
     assert sorted(nums) == [1, 2, 3] and by_g(res)[3]["title"] == "B: file and error handling"
     assert by_g(res)[2]["withheld"][0]["layer"] == "group"
+
+
+def test_a_new_group_after_a_partial_reuse_never_reuses_a_moved_sentences_id(monkeypatch):
+    # g2's housekeeping DETAIL (cites a#2) moves to g1 and keeps its id g2.d1; g2 itself then rests on a#0 alone
+    scripted(monkeypatch, [g(1, "A", "housekeeping", ("Its files are checked.", ["S2"]), []),
+                           g(2, "A", "business", ("Hours over 40 are overtime.", ["S1"]),
+                             [("Status `'23'` is accepted", ["S3"], "housekeeping")])])
+    groups, *_ = run.prose_for(STATEMENTS[:3], "demo", "demo", {store.GROUP: {}})
+    assert [d["id"] for d in by_g(dict(groups=groups))[1]["details"]] == ["g2.d1"]
+    prior = stored(groups, STATEMENTS[:3], "demo")
+    # a#0 changes: g1 shares no statement with g2, so it is reused and g2 is written again
+    scripted(monkeypatch, [g(1, "A", "business", ("Hours over 40 are overtime.", ["S1"]), [("`WS-DONE` is set", ["S1"], "business")])])
+    groups2, meta, reused, counts, uncited = run.prose_for([st("a#0", "app/cbl/A.cbl", [10, 12], "`PAY-HOURS > 41`")] + STATEMENTS[1:3],
+                                                           "demo", "demo", prior)
+    ids = [x["id"] for x in groups2 for x in ([x["rule"]] if x.get("rule") else []) + x["details"] + x["withheld"]]
+    assert [x["g"] for x in groups2] == [1, 3] and len(ids) == len(set(ids)) and "g2.d1" in ids and "g3.d1" in ids
+
+
+def test_an_area_name_is_matched_with_its_spaces(monkeypatch):
+    scripted(monkeypatch, [g(1, "A ", "business", ("Hours over 40 are overtime.", ["S1"]),
+                             [("Status `'00'` is accepted", ["S2"], "housekeeping")]),
+                           g(2, "A", "housekeeping", ("Its files are checked.", ["S3"]), [])])
+    gs = by_g(prose.prose_all(STATEMENTS[:3], "demo"))
+    assert gs[2]["details"] == [] and (gs[3]["area"], [d["id"] for d in gs[3]["details"]]) == ("A ", ["g1.d1"])

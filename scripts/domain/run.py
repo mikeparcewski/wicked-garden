@@ -22,6 +22,7 @@ Exit: 0 done, 2 the store write failed, 3 refused before any call, 4 a writer ca
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -254,8 +255,12 @@ def prose_for(statements, desc, desc_key, prior):
     reused.sort(key=lambda g: g.get("g") or 0)
     if not todo:
         return reused, meta, True, {}, sorted(left_out)
-    res = prose.prose_all([s for s in statements if s.get("id") in todo], desc,
-                          start=max([0] + [g.get("g") or 0 for g in reused]))
+    # new groups are numbered after every reused group and after every group number a reused sentence id still
+    # carries: a detail moved to a housekeeping group keeps its business group's id (garden#1599)
+    nums = [g.get("g") or 0 for g in reused] + [
+        int(m.group(1)) for g in reused for x in [g.get("rule")] + (g.get("details") or []) + (g.get("withheld") or [])
+        if isinstance(x, dict) for m in [re.match(r"g(\d+)\.", str(x.get("id") or ""))] if m]
+    res = prose.prose_all([s for s in statements if s.get("id") in todo], desc, start=max([0] + nums))
     sid = {r["sid"]: r["id"] for r in res["rows"]}
     for g in res["groups"]:
         for x in ([g["rule"]] if g.get("rule") else []) + g.get("details", []) + g.get("withheld", []):
