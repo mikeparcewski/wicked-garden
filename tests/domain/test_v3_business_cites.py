@@ -196,4 +196,6 @@ def test_the_writer_is_told_key_moves_report_lines_response_messages_and_commare
             "with the colour and field clearing that follow it") in sent
     # the old "as does the text the user reads" kept every user message business; only a validation message stays
     assert "as does the text the user reads" not in sent
+    # round 1 dropped COACTUPC 1100-RECEIVE-MAP (:1039-1425), whose NUMVAL-C conversion of entered amounts is business
+    assert "converting an entered value to a number (receiving the screen itself is housekeeping)" in sent
     assert "the result of validating an entered value (including the message that tells the user the value is invalid)" in sent
