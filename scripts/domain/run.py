@@ -232,13 +232,22 @@ def prose_for(statements, desc, desc_key, prior):
     if not rows:
         return [], meta, False, {}, []
     reused, covered, left_out = [], set(), set()
-    for v in prior[store.GROUP].values():
-        if not isinstance(v, dict) or v.get("desc") != desc_key:
-            continue
-        inp = v.get("inputs") or {}
-        if inp and all(text_of.get(i) == h for i, h in inp.items()):
+    mine = [v for v in prior[store.GROUP].values() if isinstance(v, dict) and v.get("desc") == desc_key]
+    ok = [bool(v.get("inputs")) and all(text_of.get(i) == h for i, h in v["inputs"].items()) for v in mine]
+    # a group that shares a statement with a group written again is written again too (garden#1599: a business
+    # group and the housekeeping group its details moved to rest on the same statement), so the writer sees every
+    # statement of the rule it rewrites
+    again = True
+    while again:
+        dirty = {i for v, k in zip(mine, ok) if not k for i in (v.get("inputs") or {}) if i in text_of}
+        again = False
+        for n, v in enumerate(mine):
+            if ok[n] and dirty & set(v["inputs"]):
+                ok[n], again = False, True
+    for v, k in zip(mine, ok):
+        if k:
             reused.append(v["group"])
-            covered |= set(inp)
+            covered |= set(v["inputs"])
         unc = v.get("uncited")
         left_out |= {i for i, h in (unc if isinstance(unc, dict) else {}).items() if text_of.get(i) == h}
     todo = {i for i in text_of if i not in covered and i not in left_out}

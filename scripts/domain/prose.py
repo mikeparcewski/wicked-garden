@@ -198,27 +198,27 @@ def _tried(g, by):
 
 def file_housekeeping(groups, hk, top):
     """garden#1599 (DES-1599): a DETAIL the writer marked housekeeping (``hk``: its sentence ids) that sits in a
-    business group moves, shown or withheld, to the housekeeping group of the same area, made when the area has none
-    (numbered after ``top``). Its sentence id and cites do not change. Returns the number moved."""
-    def key(a):
-        return a.strip().casefold() if isinstance(a, str) else ""
+    business group moves, shown or withheld, to the housekeeping group of the same area (as written, case kept), made
+    when the area has none (numbered after ``top``). A business group with no area keeps its details. Its sentence id
+    and cites do not change. Returns the number moved."""
+    def key(a):  # the area exactly as the writer named it; a group with none keeps its details
+        return a.strip() if isinstance(a, str) and a.strip() else None
 
     homes = {}
     for g in groups:
-        if g["kind"] == "housekeeping":
+        if g["kind"] == "housekeeping" and key(g.get("area")):
             homes.setdefault(key(g.get("area")), g)
     moved = 0
     for g in [x for x in groups if x["kind"] == "business"]:
-        out_d = [d for d in g["details"] if d["id"] in hk]
-        out_w = [w for w in g["withheld"] if w.get("layer") == "detail" and w["id"] in hk]
+        k = key(g.get("area"))
+        out_d = [d for d in g["details"] if d["id"] in hk] if k else []
+        out_w = [w for w in g["withheld"] if w.get("layer") == "detail" and w["id"] in hk] if k else []
         if not out_d and not out_w:
             continue
-        k = key(g.get("area"))
         if k not in homes:
             top += 1
-            area = g.get("area") if isinstance(g.get("area"), str) and g["area"].strip() else None
-            homes[k] = dict(g=top, title=f"{area}: file and error handling" if area else "File and error handling",
-                            area=g.get("area"), kind="housekeeping", rule=None, details=[], withheld=[])
+            homes[k] = dict(g=top, title=f"{k}: file and error handling", area=g.get("area"), kind="housekeeping",
+                            rule=None, details=[], withheld=[])
             groups.append(homes[k])
         homes[k]["details"] += out_d
         homes[k]["withheld"] += out_w

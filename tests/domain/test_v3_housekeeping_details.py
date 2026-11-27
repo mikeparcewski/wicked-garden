@@ -93,3 +93,42 @@ def test_the_run_stores_every_statement_cited_and_the_moved_one_counts_for_its_n
     (b, h) = groups
     assert b["rule"]["cites"] == ["b#0"] and h["details"][0]["cites"] == ["b#1"]  # the run's ids, not the prompt's
     assert store._group_ids(b) == ["b#0"] and store._group_ids(h) == ["b#1"]
+
+
+def stored(groups, statements, desc):
+    """The prior a run would read back: each group as store.rows_for writes it (store.py:410-412, ``dict(group=g,
+    desc=..., inputs={i: text_of.get(i) for i in _group_ids(g)}, uncited=...)``), keyed as store.load returns them."""
+    text_of = {r["id"]: store.sha(r["text"].encode()) for r in prose.rows_of(statements)}
+    return {store.GROUP: {f"g{g['g']}": dict(group=g, desc=desc, inputs={i: text_of.get(i) for i in store._group_ids(g)}, uncited={})
+                          for g in groups}}
+
+
+def test_when_a_business_group_is_written_again_the_housekeeping_group_sharing_its_statement_is_too(monkeypatch):
+    # g1's RULE cites b#0 and a business DETAIL cites b#1; its housekeeping DETAIL (also b#1) moves to a new group
+    one = [g(1, "B", "business", ("Positive amounts post.", ["S1"]),
+             [("`WS-DONE` is set", ["S2"], "business"), ("`OPEN-STATUS` `'00'` opens the file", ["S2"], "housekeeping")])]
+    scripted(monkeypatch, one)
+    groups, *_ = run.prose_for(STATEMENTS[3:], "demo", "demo", {store.GROUP: {}})
+    assert [x["kind"] for x in groups] == ["business", "housekeeping"]
+    prior = stored(groups, STATEMENTS[3:], "demo")
+    # b#0 changes; b#1 does not. Both groups are written again, so b#1's business DETAIL is not lost to the reused
+    # housekeeping group
+    changed = [st("b#0", "app/cbl/B.cbl", [5, 6], "`AMT > 1`"), STATEMENTS[4]]
+    asked = []
+    scripted(monkeypatch, one)
+    real = model_calls.claude
+    monkeypatch.setattr(model_calls, "claude", lambda step, cid, prompt, timeout=1500, role=None: asked.append(prompt) or real(step, cid, prompt, timeout, role))
+    groups2, meta, reused, counts, uncited = run.prose_for(changed, "demo", "demo", prior)
+    assert not reused and "app/cbl/B.cbl:5-6" in asked[0] and "app/cbl/B.cbl:8-9" in asked[0]
+    assert groups2[0]["details"][0]["cites"] == ["b#1"] and groups2[1]["details"][0]["cites"] == ["b#1"]
+
+
+def test_areas_match_exactly_and_a_group_with_no_area_keeps_its_details(monkeypatch):
+    scripted(monkeypatch, [g(1, "src/Parser.ts", "business", ("Hours over 40 are overtime.", ["S1"]),
+                             [("Status `'00'` is accepted", ["S2"], "housekeeping")]),
+                           g(2, "src/parser.ts", "housekeeping", ("Its files are checked.", ["S3"]), []),
+                           dict(g(3, None, "business", ("Hours over 40 are overtime.", ["S1"]),
+                                  [("Status `'23'` is accepted", ["S3"], "housekeeping")]), area=None)])
+    gs = by_g(prose.prose_all(STATEMENTS[:3], "demo"))
+    assert gs[2]["details"] == [] and [d["id"] for d in gs[3]["details"]] == ["g3.d1"]  # no area: not moved
+    assert (gs[4]["area"], gs[4]["title"], [d["id"] for d in gs[4]["details"]]) == ("src/Parser.ts", "src/Parser.ts: file and error handling", ["g1.d1"])
