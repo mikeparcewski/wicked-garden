@@ -143,7 +143,7 @@ def plan_reuse(repo, S, C, prior):
     by_prior = store.prior_targets(prior)
     call_of = {tid: c for c in C["calls"] for tid in c["targets"]}
     carried, pending, not_rules, states, decision, used = [], [], [], {}, {}, set()
-    ruled = dict(confirmed={}, targets={}, rejected=[], live=0)
+    ruled = dict(confirmed={}, targets={}, rejected=[], live=0, earlier={})
     ids = {t["id"] for t in S["targets"]}
     for t in S["targets"]:
         rec = store.match_prior(by_prior, t, store.window_sha(repo, t["file"], *t["lines"]), used, ids)
@@ -182,6 +182,10 @@ def plan_reuse(repo, S, C, prior):
                     s.update(status="pending", m_fail=[], revalidated=True)
                 sts, nrs = moved, nmoved
         decision[t["id"]] = d
+        if d != "extract" and rec.get("pipeline") != store.STATING:
+            # stated by an earlier version of the stating pipeline (or before versions were kept): carried as it is,
+            # its record keeps that version, and the run says so (garden#1601: a fresh store states it again)
+            ruled["earlier"][t["id"]] = rec.get("pipeline")
         if d == "extract":
             # what a person confirmed stands, as it is and under its id, beside what the writer states again; the
             # writer is told so (extract.person_section), and those lines count as stated (extract.check_target)
@@ -229,7 +233,8 @@ def prose_for(statements, desc, desc_key, prior):
     whole, counts, uncited): ``meta`` is what the store keeps to decide the next run's reuse."""
     rows = prose.rows_of(statements)
     text_of = {r["id"]: store.sha(r["text"].encode()) for r in rows}
-    meta = dict(text_of=text_of, desc=desc_key)
+    # the prose pipeline's version: a group written now carries it, a reused group keeps its own (garden#1601)
+    meta = dict(text_of=text_of, desc=desc_key, pipeline=store.PROSE, pipeline_of={})
     if not rows:
         return [], meta, False, {}, []
     reused, covered, left_out = [], set(), set()
@@ -249,6 +254,7 @@ def prose_for(statements, desc, desc_key, prior):
         if k:
             reused.append(v["group"])
             covered |= set(v["inputs"])
+            meta["pipeline_of"][v["group"].get("g")] = v.get("pipeline")
         unc = v.get("uncited")
         left_out |= {i for i, h in (unc if isinstance(unc, dict) else {}).items() if text_of.get(i) == h}
     todo = {i for i in text_of if i not in covered and i not in left_out}
@@ -295,6 +301,9 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
     decision, carried, pending, nrs, states, ruled = plan_reuse(repo, S, C, prior)
     n = {d: sum(1 for v in decision.values() if v == d) for d in ("carry", "revalidate", "extract")}
     say(log, f"reuse · {n['carry']} carried · {n['revalidate']} re-validated · {n['extract']} to extract")
+    if ruled["earlier"]:
+        say(log, f"reuse · {len(ruled['earlier'])} targets were stated by an earlier pipeline version; a fresh store "
+                 f"states them with this one")
     if ruled["confirmed"] or ruled["targets"] or ruled["rejected"] or ruled["stale"]:
         say(log, f"rulings · {len(ruled['confirmed'])} statements and {len(ruled['targets'])} targets confirmed · "
                  f"{len(ruled['rejected'])} rejected, sent back to the writer · {ruled['stale']} no longer apply "
@@ -324,6 +333,8 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
         tn = [x for x in R["not_rules"] if x.get("target") == t["id"]]
         rec = store.target_record(repo, t, call_of[t["id"]], sts, tn, R["targets"].get(t["id"]) or {}, spans, S["targets"])
         rec["anchor_symbol"] = t.get("anchor_symbol")
+        if t["id"] in ruled["earlier"]:
+            rec["pipeline"] = ruled["earlier"][t["id"]]
         records.append(rec)
     # a confirm applies (in core) while its target's hash is the one it was made on; a target that went back to the
     # writer for a sibling can come back with other pieces, and then the confirm it kept no longer applies: said
@@ -361,6 +372,8 @@ def run(root, db, scope_in, out_dir, log=print, write=store.write):
                    open=sum(is_open(s) for s in live), confirmed=len(confirmed), rulings_stale=ruled["stale"],
                    rejected_again=[r["target"] for r in again], groups=len(groups), withheld=withheld,
                    followups=len(fu), reuse=n, prose_reused=prose_reused, prose_counts=pcounts, uncited=uncited,
+                   earlier_pipeline=dict(targets=len(ruled["earlier"]), groups=sum(
+                       1 for p in pmeta.get("pipeline_of", {}).values() if p != store.PROSE)),
                    model_calls=made_calls(calls_dir), unplaced=unplaced, store=report, scope_hash=S["scope_hash"],
                    wall_s=round(time.time() - t0, 1))
     lib.jdump(summary, os.path.join(out_dir, "summary.json"))

@@ -236,10 +236,10 @@ def test_a_group_whose_every_sentence_was_withheld_is_still_stored(tmp_path):
     rec = dict(target=t["id"], file=PROG, anchor_symbol=t["anchor_symbol"], statements=[])
     g = dict(g=1, title="Overtime", area="A", kind="business", rule=None, details=[],
              withheld=[dict(id="g1.r", layer="rule", text="x", reason="OVERREACH SCOPE: y")])
-    meta = dict(text_of={"a#0": "h0"}, desc="")
+    meta = dict(text_of={"a#0": "h0"}, desc="", pipeline=store.PROSE)
     rows, _ = store.rows_for(repo, dict(statements=[]), [rec], [g], meta, [], store.load(repo.db), str, uncited=["a#0"])
     (row,) = [r for r in rows if r["type"] == store.GROUP]
-    assert json.loads(row["value"]) == dict(group=g, desc="", inputs={}, uncited={"a#0": "h0"})
+    assert json.loads(row["value"]) == dict(group=g, desc="", pipeline=store.PROSE, inputs={}, uncited={"a#0": "h0"})
 
 
 def test_an_empty_scope_is_refused_and_retires_nothing(tmp_path, monkeypatch):
@@ -444,7 +444,7 @@ def test_the_prose_is_written_again_when_the_scope_description_changes_never_the
     seen = []
     monkeypatch.setattr(prose, "prose_all", lambda sts, desc, start=0: seen.append(desc) or dict(rows=[], groups=[], uncited=[], counts={}))
     g = dict(g=1, rule=dict(id="g1.r", cites=sorted(text_of)), details=[], withheld=[])
-    prior = {store.GROUP: {"x": dict(group=g, desc="", inputs=dict(text_of), uncited={})}}
+    prior = {store.GROUP: {"x": dict(group=g, desc="", pipeline=store.PROSE, inputs=dict(text_of), uncited={})}}
     # no description: the writer is told the folder's name, which is not part of the reuse key
     assert run.prose_for(STATEMENTS, "checkout-a", "", prior)[2] is True
     assert run.prose_for(STATEMENTS, "checkout-b", "", prior)[2] is True and seen == []
@@ -596,8 +596,8 @@ def test_only_the_groups_whose_statements_changed_are_written_again(monkeypatch)
     text_of = {r["id"]: store.sha(r["text"].encode()) for r in prose.rows_of(STATEMENTS)}
     g1 = dict(g=1, title="A", kind="business", rule=dict(id="g1.r", text="a", cites=["a#0"]), details=[], withheld=[])
     g2 = dict(g=2, title="B", kind="business", rule=dict(id="g2.r", text="b", cites=["b#0"]), details=[], withheld=[])
-    prior = {store.GROUP: {"x": dict(group=g1, desc="", inputs={"a#0": text_of["a#0"]}, uncited={}),
-                           "y": dict(group=g2, desc="", inputs={"b#0": "stale"}, uncited={})}}
+    prior = {store.GROUP: {"x": dict(group=g1, desc="", pipeline=store.PROSE, inputs={"a#0": text_of["a#0"]}, uncited={}),
+                           "y": dict(group=g2, desc="", pipeline=store.PROSE, inputs={"b#0": "stale"}, uncited={})}}
     asked = []
 
     def prose_all(sts, desc, start=0):
@@ -609,7 +609,7 @@ def test_only_the_groups_whose_statements_changed_are_written_again(monkeypatch)
     groups, meta, whole, _, uncited = run.prose_for(STATEMENTS, "repo", "", prior)
     assert asked == [(["b#0"], 1)] and whole is False and uncited == []
     assert [g["g"] for g in groups] == [1, 2] and groups[0] is g1 and groups[1]["rule"]["cites"] == ["b#0"]
-    assert meta == dict(text_of=text_of, desc="")
+    assert meta == dict(text_of=text_of, desc="", pipeline=store.PROSE, pipeline_of={1: store.PROSE})
 
 
 def _prose_seats(monkeypatch, answers):
