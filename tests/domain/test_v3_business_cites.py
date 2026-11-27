@@ -168,10 +168,11 @@ def test_the_writer_is_told_a_clock_reply_message_assembly_and_call_order_are_ho
     scripted(monkeypatch, [group(1, "business", ("A missing group falls back to DEFAULT.", ["S1"]))], seen)
     prose.prose_all(STATEMENTS[:1], "demo")
     (sent,) = [p for step, p in seen if step == "prose"]
-    assert ("a reply whose only content is the system date or time (a clock service: a program whose only output is such "
-            "a reply has no business group)") in sent
-    assert ("how a message is assembled (STRING, trimming, the field name put in front of the text) and a flag that lets "
-            "only the first failure set the message (the text the user reads stays business)") in sent
+    assert ("a reply whose only content is the system date or time (a clock service: a program that only obtains the "
+            "system date or time and returns it, with no other decision, input or record, has no business group)") in sent
+    assert ("how a message is assembled (STRING, trimming, the field name put in front of the text) and a flag used only "
+            "so that the first failure sets the message (a flag or condition that decides whether the input is accepted "
+            "or what happens next stays business, as does the text the user reads)") in sent
     assert "control flow that only performs other paragraphs, including the order in which a routine performs others" in sent
     # the user-visible validation message stays business (prose.txt:10)
     assert "the result of validating an entered value (including the message that tells the user the value is invalid)" in sent
