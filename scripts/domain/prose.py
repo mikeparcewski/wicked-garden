@@ -286,8 +286,11 @@ def prose_all(statements, desc, start=0):
             if added:
                 # the repair cannot see the writer's kinds, so it may cite a routine the writer filed as housekeeping;
                 # in a business sentence that would make the routine a requirement (garden#1545)
+                # the withheld record keeps the repair's cites too, so a statement it named stays in a group even if
+                # the housekeeping sentence that cited it was repaired away (garden#1549); a withheld sentence makes no
+                # requirement
                 fixed[s["id"]] = dict(withheld=True, reason=f"the repair cited {', '.join(added)}, which only housekeeping "
-                                                            "sentences cite")
+                                                            "sentences cite", cites=list(dict.fromkeys(s["cites"] + rs["cites"])))
                 continue
             mf = sentence_fails(rs, rs["layer"], by)
             if mf:
@@ -311,7 +314,7 @@ def prose_all(statements, desc, start=0):
             f = fixed.get(s["id"])
             if f and f["withheld"]:
                 og["withheld"].append(dict(id=s["id"], layer=s["layer"], text=s["text"], reason=f["reason"],
-                                           cites=[c for c in s.get("cites") or [] if c in by]))
+                                           cites=[c for c in f.get("cites") or s.get("cites") or [] if c in by]))
                 fates["withheld"] += 1
                 continue
             v = (v2.get(s["id"]) if f else v1.get(s["id"])) or {}

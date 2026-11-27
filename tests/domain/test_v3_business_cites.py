@@ -107,9 +107,31 @@ def test_a_repair_that_adds_a_housekeeping_only_statement_to_a_business_sentence
     res = prose.prose_all(STATEMENTS[:2], "demo")
     by = {g["g"]: g for g in res["groups"]}
     assert by[1]["details"] == []
-    assert [(w["id"], w["reason"]) for w in by[1]["withheld"]] == [("g1.d1", "the repair cited S2, which only housekeeping sentences cite")]
+    assert [(w["id"], w["reason"], w["cites"]) for w in by[1]["withheld"]] == [
+        ("g1.d1", "the repair cited S2, which only housekeeping sentences cite", ["S1", "S2"])]
     assert business_cites(res) == {"S1"}
     assert res["uncited"] == []
+
+
+def every_cite(res):
+    return {c for g in res["groups"] for s in ([g["rule"]] if g.get("rule") else []) + g["details"] + g["withheld"]
+            for c in s["cites"]}
+
+
+def test_a_guard_withheld_sentence_keeps_a_statement_whose_housekeeping_sentence_was_repaired_away(monkeypatch):
+    # codex-check on cc2f9bb (W20): the business repair adds S2 while the only housekeeping sentence citing S2 is
+    # repaired to cite S1. The withheld business sentence keeps the repair's cites, so S2 is still in a group
+    # (garden#1549) and still no business sentence cites it (no requirement).
+    seen = []
+    scripted(monkeypatch, [group(1, "business", ("A missing group falls back to DEFAULT.", ["S1"]), [(FALLBACK, ["S1"], "business")]),
+                           group(2, "housekeeping", ("The rate file is read and checked.", ["S2"]))],
+             seen, flag=("g1.d1", "g2.r"), repairs=[{"id": "g1.d1", "text": FALLBACK, "cites": ["S1", "S2"]},
+                                                     {"id": "g2.r", "text": "A missing group falls back to DEFAULT.", "cites": ["S1"]}])
+    res = prose.prose_all(STATEMENTS[:2], "demo")
+    by = {g["g"]: g for g in res["groups"]}
+    assert by[2]["rule"]["cites"] == ["S1"]
+    assert "S2" in every_cite(res)
+    assert business_cites(res) == {"S1"}
 
 
 def test_a_repair_may_add_a_statement_a_business_sentence_already_cites(monkeypatch):
