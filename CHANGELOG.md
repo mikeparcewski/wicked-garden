@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [12.69.1] - 2026-11-27
+
+Release on the train-17 cut 177d1fa5, carrying 3 PRs since 12.69.0: #1596, #1598, #1603. The entries were written from each PR's changelog entry (the PR title where it had none).
+
+### Changed
+
+- **domain extraction**: record updates and stubs are stated as rules, including a posting paragraph that only performs its writes. A statement can carry concerns (a branch that cannot run, an amount counted twice, a stub), which the checker checks and the Follow-ups list raises. A statement records the copybook line of the fields it uses, and is revalidated when that copybook changes (wicked-garden#1548, #1603).
+- **The self-test pins wicked-ci 3ca93005** (wicked-ci#91, #1598): the advisory S04 no longer fails a valid stand-in choice whose only unfillable rows are conditional.
+
+### Fixed
+
+- G-HYG: self_check never passes an unread file, install names the one-file gap, and conformance presses Enter (garden#1588, #1581, #1591; #1596).
+
 ## [12.69.0] - 2026-11-26
 
 Release on the train-16 cut 35db0314, carrying 5 PRs since 12.68.8: #1578, #1579, #1592, #1594, #1593. The entries were written from each PR's changelog entry (the PR title and body where it had none).
