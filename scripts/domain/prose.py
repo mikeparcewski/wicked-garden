@@ -119,6 +119,21 @@ def sentences(groups):
             for s in [g["rule"]] + [d for d in g.get("details") or [] if isinstance(d, dict)]]
 
 
+def housekeeping_only(groups):
+    """garden#1545 (DES-1545-t18): (the ids of the writer's business sentences, the statements only its housekeeping
+    sentences cite). A business sentence is a business group's RULE or a DETAIL of it not marked housekeeping; core
+    makes a requirement of every statement one cites (wicked-core domain_extract.rs:824-849)."""
+    biz, biz_cites, hk_cites = set(), set(), set()
+    for g in groups:
+        for s in [g["rule"]] + [d for d in g.get("details") or [] if isinstance(d, dict)]:
+            if g["kind"] == "business" and not (s is not g["rule"] and s.get("kind") == "housekeeping"):
+                biz.add(s["id"])
+                biz_cites.update(s.get("cites") or [])
+            else:
+                hk_cites.update(s.get("cites") or [])
+    return biz, hk_cites - biz_cites
+
+
 def check(sents, by, step):
     """The prose check: at most :data:`PER_CHECK` sentences per Codex call. Returns {sentence id: verdict row}."""
     chunks = [sents[i:i + PER_CHECK] for i in range(0, len(sents), PER_CHECK)]
@@ -251,6 +266,7 @@ def prose_all(statements, desc, start=0):
     v1 = check(sents, by, "prose-check")
     bad = [s for s in sents if (v1.get(s["id"]) or {}).get("verdict") != "SUPPORTED" or s["id"] in mfail]
     fixed, v2 = {}, {}
+    biz, hk_only = housekeeping_only(groups)
     if bad:
         need = sorted({c for s in bad for c in s["cites"] if c in by}, key=lambda x: int(x[1:]))
         body = "\n\n".join(f"[{s['id']}] layer={s['layer'].upper()} cites={','.join(s['cites'])}\nTEXT: {s['text']}\n"
@@ -266,6 +282,13 @@ def prose_all(statements, desc, start=0):
                 fixed[s["id"]] = dict(withheld=True, reason=_objection(v1.get(s["id"]), mfail.get(s["id"]) or []))
                 continue
             rs = dict(id=s["id"], layer=s["layer"], text=t, cites=[c for c in (r.get("cites") or s["cites"]) if c in by])
+            added = sorted((set(rs["cites"]) - set(s["cites"])) & hk_only, key=lambda x: int(x[1:])) if s["id"] in biz else []
+            if added:
+                # the repair cannot see the writer's kinds, so it may cite a routine the writer filed as housekeeping;
+                # in a business sentence that would make the routine a requirement (garden#1545)
+                fixed[s["id"]] = dict(withheld=True, reason=f"the repair cited {', '.join(added)}, which only housekeeping "
+                                                            "sentences cite")
+                continue
             mf = sentence_fails(rs, rs["layer"], by)
             if mf:
                 fixed[s["id"]] = dict(withheld=True, reason="; ".join(mf))
