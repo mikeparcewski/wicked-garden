@@ -13,7 +13,7 @@ Release on the train-19 cut fce411a3, carrying 6 PRs since 12.69.2: #1627, #1628
 - Domain prose: the writer files key moves before a read or write, report lines with their counters, the message chosen from a CICS or file response code, and COMMAREA copies as housekeeping; only the message telling the user an entered value is invalid stays business (garden#1623, #1630).
 - Domain prose: the M4 check passes a hyphen-marked part of a cited name ("the `-N` value"), so a sentence citing a family of fields is no longer withheld (garden#1631, #1634).
 - Domain prose: a lookup whose not-found branch chooses a business fallback (for example a default group) is business; a plain keyed read and its found/not-found flags stay housekeeping (garden#1633, #1636).
-- Domain prose: the writer reads the checker's guard policy and keeps the guards a business sentence would otherwise drop, so it no longer claims an effect in more cases than the code does (garden#1632, #1637).
+- Domain prose: the writer prompt now carries the checker's guard policy and asks the writer to keep the guards a business sentence needs, so fewer sentences are withheld for stating an effect under fewer conditions than the code; some are still withheld (garden#1632, #1637).
 
 ## [12.69.2] — 2026-11-27
 
