@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [12.69.3] — 2026-11-28
+
+Release on the train-19 cut fce411a3, carrying 6 PRs since 12.69.2: #1627, #1628, #1630, #1634, #1636, #1637. The entries were written from each PR's changelog entry (from the PR description where it had none).
+
+### Fixed
+
+- Domain extraction: a store an earlier pipeline version stated is stated again after the store, and the store takes all of it or none of it. A refused set is not tried again until the version moves; rulings and Checked statements are never lost (garden#1613, #1627).
+- Domain extraction: a change to the host prose code that alters what the prose says moves the prose version, so a group the old code wrote is reported as made by an earlier version (garden#1625, #1628).
+- Domain prose: the writer files key moves before a read or write, report lines with their counters, the message chosen from a CICS or file response code, and COMMAREA copies as housekeeping; only the message telling the user an entered value is invalid stays business (garden#1623, #1630).
+- Domain prose: the M4 check passes a hyphen-marked part of a cited name ("the `-N` value"), so a sentence citing a family of fields is no longer withheld (garden#1631, #1634).
+- Domain prose: a lookup whose not-found branch chooses a business fallback (for example a default group) is business; a plain keyed read and its found/not-found flags stay housekeeping (garden#1633, #1636).
+- Domain prose: the writer reads the checker's guard policy and keeps the guards a business sentence would otherwise drop, so it no longer claims an effect in more cases than the code does (garden#1632, #1637).
+
 ## [12.69.2] — 2026-11-27
 
 Release on the train-18 cut 3a7d52ef, carrying 10 PRs since 12.69.1: #1605, #1608, #1611, #1612, #1615, #1619, #1620, #1622, #1621, #1624. The entries were written from each PR's changelog entry.
